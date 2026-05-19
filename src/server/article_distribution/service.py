@@ -26,6 +26,8 @@ from .schemas import (
     AccountUpdate,
     AccountDirectoryOut,
     ArticleBatchCreate,
+    ArticleDistributionPendingArticleOut,
+    ArticleDistributionPendingUserOut,
     ArticleOut,
     ArticleUploadItem,
     PublicationType,
@@ -163,6 +165,49 @@ def list_articles(
         publication_type=publication_type,
     )
     return _articles_to_out(db, articles)
+
+
+def list_unpublished_report(
+    db: Session,
+    *,
+    scheduled_from: date | None = None,
+    scheduled_to: date | None = None,
+    platform: str | None = None,
+    publication_type: str | None = None,
+) -> list[ArticleDistributionPendingUserOut]:
+    grouped: dict[int, ArticleDistributionPendingUserOut] = {}
+    rows = ArticleDistributionDAO(db).list_unpublished_article_owner_rows(
+        scheduled_from=scheduled_from,
+        scheduled_to=scheduled_to,
+        platform=_normalize_optional(platform),
+        publication_type=publication_type,
+    )
+    for article, account, owner in rows:
+        if owner.id not in grouped:
+            grouped[owner.id] = ArticleDistributionPendingUserOut(
+                user_id=owner.id,
+                username=owner.username,
+                name=owner.name,
+                email=owner.email,
+                remaining_count=0,
+                articles=[],
+            )
+        user_report = grouped[owner.id]
+        user_report.articles.append(
+            ArticleDistributionPendingArticleOut(
+                id=article.id,
+                title=article.title,
+                markdown_content=article.markdown_content,
+                scheduled_date=article.scheduled_date,
+                account_id=account.id,
+                account_name=account.account_name,
+                platform=account.platform,
+                publication_type=_normalize_publication_type(account.publication_type),
+                created_at=article.created_at,
+            )
+        )
+        user_report.remaining_count += 1
+    return list(grouped.values())
 
 
 def get_article(db: Session, *, article_id: int, current_user: User) -> ArticleOut:

@@ -83,6 +83,27 @@ class ArticleOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class ArticleDistributionPendingArticleOut(BaseModel):
+    id: int
+    title: str
+    markdown_content: str
+    scheduled_date: date
+    account_id: int
+    account_name: str
+    platform: str
+    publication_type: PublicationType
+    created_at: datetime
+
+
+class ArticleDistributionPendingUserOut(BaseModel):
+    user_id: int
+    username: str
+    name: str | None
+    email: str
+    remaining_count: int
+    articles: list[ArticleDistributionPendingArticleOut]
+
+
 class APIKeyCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=120)
 

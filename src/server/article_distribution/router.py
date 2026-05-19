@@ -19,6 +19,7 @@ from src.server.auth.models import User
 from src.server.auth.schemas import UserRole
 from src.server.auth.service.scopes import (
     SCOPE_ADMIN_ARTICLE_DISTRIBUTION_WRITE,
+    SCOPE_ARTICLE_DISTRIBUTION_REPORT_READ,
     SCOPE_ARTICLE_DISTRIBUTION_READ,
     SCOPE_ARTICLE_DISTRIBUTION_WRITE,
 )
@@ -31,10 +32,10 @@ from .schemas import (
     APIKeyCreateOut,
     APIKeyOut,
     AccountCreate,
-    AccountDirectoryOut,
     AccountOut,
     AccountUpdate,
     ArticleBatchCreate,
+    ArticleDistributionPendingUserOut,
     ArticleOut,
     ArticleStatusUpdate,
     PublishStatus,
@@ -151,6 +152,33 @@ async def list_articles(
             scheduled_from=scheduled_from,
             scheduled_to=scheduled_to,
             publish_status=publish_status,
+            platform=platform,
+            publication_type=publication_type,
+        )
+
+    return await run_in_thread(_list)
+
+
+@router.get(
+    "/reports/unpublished",
+    response_model=list[ArticleDistributionPendingUserOut],
+    summary="查看全量未发布文章进度",
+)
+async def list_unpublished_report(
+    scheduled_from: date | None = Query(default=None),
+    scheduled_to: date | None = Query(default=None),
+    platform: str | None = Query(default=None),
+    publication_type: PublicationType | None = Query(default=None),
+    db: Session = Depends(get_db),
+    _: User = Security(
+        get_current_user, scopes=[SCOPE_ARTICLE_DISTRIBUTION_REPORT_READ]
+    ),
+):
+    def _list():
+        return service.list_unpublished_report(
+            db,
+            scheduled_from=scheduled_from,
+            scheduled_to=scheduled_to,
             platform=platform,
             publication_type=publication_type,
         )

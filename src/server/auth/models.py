@@ -93,9 +93,9 @@ class User(Base):
 
     @property
     def available_scopes(self) -> tuple[str, ...]:
-        from .service.scopes import get_role_scopes
+        from .service.scopes import get_role_assignable_scopes
 
-        return get_role_scopes(self.role)
+        return get_role_assignable_scopes(self.role)
 
 
 class RefreshToken(Base):

@@ -23,6 +23,7 @@ import {
   SafetyOutlined,
   TabletOutlined,
   FileTextOutlined,
+  BarChartOutlined,
 } from '@ant-design/icons'
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth'
@@ -89,6 +90,9 @@ export default function MainLayout() {
     if (location.pathname.startsWith('/admin')) {
       return ['admin']
     }
+    if (location.pathname === '/article-distribution/report') {
+      return ['article-distribution-report']
+    }
     if (location.pathname === '/article-distribution') {
       return ['article-distribution']
     }
@@ -97,6 +101,10 @@ export default function MainLayout() {
     }
     return []
   }, [location.pathname])
+
+  const canViewDistributionReport = Boolean(
+    user?.effective_scopes.includes('article_distribution:report:read'),
+  )
 
   const menuItems = useMemo<MenuProps['items']>(() => {
     const items: MenuProps['items'] = [
@@ -114,6 +122,15 @@ export default function MainLayout() {
             icon: <FileTextOutlined />,
             label: <Link to="/article-distribution">文章分发</Link>,
           },
+          ...(canViewDistributionReport
+            ? [
+                {
+                  key: 'article-distribution-report',
+                  icon: <BarChartOutlined />,
+                  label: <Link to="/article-distribution/report">分发后台</Link>,
+                },
+              ]
+            : []),
         ],
       },
     ]
@@ -133,7 +150,7 @@ export default function MainLayout() {
     }
 
     return items
-  }, [user?.role])
+  }, [canViewDistributionReport, user?.role])
 
   const handleLogout = async () => {
     await logout()
@@ -460,6 +477,8 @@ export default function MainLayout() {
                 ? '内容概览'
                 : selectedKeys[0] === 'article-distribution'
                   ? '文章分发'
+                  : selectedKeys[0] === 'article-distribution-report'
+                    ? '分发后台'
                   : ''}
           </Typography.Title>
         </Header>

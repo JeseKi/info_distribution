@@ -153,6 +153,54 @@ class ArticleDistributionDAO(BaseDAO):
             .all()
         )
 
+    def list_unpublished_article_owner_rows(
+        self,
+        *,
+        scheduled_from: date | None = None,
+        scheduled_to: date | None = None,
+        platform: str | None = None,
+        publication_type: str | None = None,
+    ) -> list[
+        tuple[ArticleDistributionArticle, ArticleDistributionAccount, User]
+    ]:
+        query = (
+            self.db_session.query(
+                ArticleDistributionArticle,
+                ArticleDistributionAccount,
+                User,
+            )
+            .join(
+                ArticleDistributionAccount,
+                ArticleDistributionArticle.account_id
+                == ArticleDistributionAccount.id,
+            )
+            .join(User, ArticleDistributionArticle.user_id == User.id)
+            .filter(ArticleDistributionArticle.publish_status == "unpublished")
+        )
+        if scheduled_from is not None:
+            query = query.filter(
+                ArticleDistributionArticle.scheduled_date >= scheduled_from
+            )
+        if scheduled_to is not None:
+            query = query.filter(
+                ArticleDistributionArticle.scheduled_date <= scheduled_to
+            )
+        if platform:
+            query = query.filter(ArticleDistributionAccount.platform == platform)
+        if publication_type:
+            query = query.filter(
+                ArticleDistributionAccount.publication_type == publication_type
+            )
+        rows = (
+            query.order_by(
+                User.id.asc(),
+                ArticleDistributionArticle.scheduled_date.asc(),
+                ArticleDistributionArticle.id.asc(),
+            )
+            .all()
+        )
+        return [(article, account, owner) for article, account, owner in rows]
+
     def update_article(
         self, article: ArticleDistributionArticle, **fields: object
     ) -> ArticleDistributionArticle:

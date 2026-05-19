@@ -361,3 +361,102 @@ def test_publish_status_and_filters(test_client, test_db_session: Session):
     )
     assert filtered_resp.status_code == 200
     assert [item["id"] for item in filtered_resp.json()] == [article_id]
+
+
+def test_unpublished_report_scope_can_be_assigned_to_regular_user(
+    test_client, test_db_session: Session
+):
+    owner_a = _create_user(test_db_session, username="pending_owner_a", name="Owner A")
+    owner_b = _create_user(test_db_session, username="pending_owner_b", name="Owner B")
+    viewer = _create_user(test_db_session, username="pending_viewer")
+    admin = _create_user(test_db_session, username="pending_admin", role=UserRole.ADMIN)
+
+    account_ids: list[int] = []
+    for owner, account_name in [(owner_a, "公众号"), (owner_b, "知乎号")]:
+        account_resp = test_client.post(
+            "/api/article-distribution/accounts",
+            headers=_headers(admin),
+            json={
+                "user_id": owner.id,
+                "account_name": account_name,
+                "platform": "wechat" if owner.id == owner_a.id else "zhihu",
+                "publication_type": "article",
+            },
+        )
+        assert account_resp.status_code == 201
+        account_ids.append(account_resp.json()["id"])
+
+    upload_a = test_client.post(
+        "/api/admin/article-distribution/articles",
+        headers=_headers(admin),
+        json={
+            "account_id": account_ids[0],
+            "articles": [
+                {
+                    "title": "A unpublished",
+                    "markdown_content": "body",
+                    "scheduled_date": "2026-05-20",
+                },
+                {
+                    "title": "A published",
+                    "markdown_content": "body",
+                    "scheduled_date": "2026-05-21",
+                },
+            ],
+        },
+    )
+    assert upload_a.status_code == 201
+    published_article_id = upload_a.json()[1]["id"]
+    mark_published = test_client.patch(
+        f"/api/article-distribution/articles/{published_article_id}/status",
+        headers=_headers(owner_a),
+        json={"publish_status": "published"},
+    )
+    assert mark_published.status_code == 200
+
+    upload_b = test_client.post(
+        "/api/admin/article-distribution/articles",
+        headers=_headers(admin),
+        json={
+            "account_id": account_ids[1],
+            "articles": [
+                {
+                    "title": "B unpublished",
+                    "markdown_content": "body",
+                    "scheduled_date": "2026-05-22",
+                }
+            ],
+        },
+    )
+    assert upload_b.status_code == 201
+
+    denied_resp = test_client.get(
+        "/api/article-distribution/reports/unpublished",
+        headers=_headers(viewer),
+    )
+    assert denied_resp.status_code == 403
+
+    viewer.scope_overrides = auth_service.serialize_scopes(
+        [
+            *auth_service.get_role_scopes(UserRole.USER),
+            auth_service.SCOPE_ARTICLE_DISTRIBUTION_REPORT_READ,
+        ]
+    )
+    test_db_session.commit()
+    test_db_session.refresh(viewer)
+
+    report_resp = test_client.get(
+        "/api/article-distribution/reports/unpublished",
+        headers=_headers(viewer),
+    )
+
+    assert report_resp.status_code == 200, report_resp.text
+    data = report_resp.json()
+    assert [item["user_id"] for item in data] == [owner_a.id, owner_b.id]
+    assert [item["remaining_count"] for item in data] == [1, 1]
+    assert data[0]["articles"][0]["title"] == "A unpublished"
+    assert data[0]["articles"][0]["markdown_content"] == "body"
+    assert data[0]["articles"][0]["account_name"] == "公众号"
+    assert data[0]["articles"][0]["platform"] == "wechat"
+    assert "source" not in data[0]["articles"][0]
+    assert data[1]["articles"][0]["title"] == "B unpublished"

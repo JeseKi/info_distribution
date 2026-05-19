@@ -8,6 +8,8 @@ import type {
   ArticleDistributionArticle,
   ArticleDistributionArticleBatchPayload,
   ArticleDistributionArticleFilters,
+  ArticleDistributionPendingReportFilters,
+  ArticleDistributionPendingUser,
   ArticlePublishStatus,
 } from './types'
 
@@ -58,6 +60,16 @@ export async function updateArticleStatus(
   const { data } = await api.patch<ArticleDistributionArticle>(
     `/article-distribution/articles/${articleId}/status`,
     { publish_status: publishStatus },
+  )
+  return data
+}
+
+export async function listUnpublishedArticleReport(
+  params?: ArticleDistributionPendingReportFilters,
+): Promise<ArticleDistributionPendingUser[]> {
+  const { data } = await api.get<ArticleDistributionPendingUser[]>(
+    '/article-distribution/reports/unpublished',
+    { params },
   )
   return data
 }

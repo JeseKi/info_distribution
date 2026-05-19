@@ -42,6 +42,7 @@ class UserProfile(BaseModel):
     name: Optional[str] = Field(default=None)
     role: UserRole
     status: UserStatus
+    effective_scopes: list[str]
     two_factor_enabled: bool = False
     two_factor_confirmed_at: Optional[datetime] = None
 

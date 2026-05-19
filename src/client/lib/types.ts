@@ -124,6 +124,7 @@ export interface UserProfile {
   name: string | null
   role: UserRole
   status: UserStatus
+  effective_scopes: string[]
   two_factor_enabled: boolean
   two_factor_confirmed_at: string | null
 }
@@ -368,6 +369,34 @@ export interface ArticleDistributionArticleFilters {
   scheduled_from?: string
   scheduled_to?: string
   publish_status?: ArticlePublishStatus
+  platform?: string
+  publication_type?: ArticlePublicationType
+}
+
+export interface ArticleDistributionPendingArticle {
+  id: number
+  title: string
+  markdown_content: string
+  scheduled_date: string
+  account_id: number
+  account_name: string
+  platform: string
+  publication_type: ArticlePublicationType
+  created_at: string
+}
+
+export interface ArticleDistributionPendingUser {
+  user_id: number
+  username: string
+  name: string | null
+  email: string
+  remaining_count: number
+  articles: ArticleDistributionPendingArticle[]
+}
+
+export interface ArticleDistributionPendingReportFilters {
+  scheduled_from?: string
+  scheduled_to?: string
   platform?: string
   publication_type?: ArticlePublicationType
 }
