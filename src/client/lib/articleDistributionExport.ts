@@ -75,9 +75,6 @@ const inlineStyleProperties = [
   'display',
   'box-sizing',
   'max-width',
-  'min-width',
-  'height',
-  'max-height',
   'margin-top',
   'margin-right',
   'margin-bottom',
@@ -183,7 +180,8 @@ export function buildStyledArticleHtml(
     if (!root) return html
     normalizeArticleCopyTree(root, Boolean(options.wechatCompat))
     inlineComputedStyles(root)
-    return root.outerHTML
+    const copyRoot = options.wechatCompat ? normalizeWechatCopyTree(root) : root
+    return copyRoot.outerHTML
   } finally {
     document.body.removeChild(host)
   }
@@ -274,6 +272,195 @@ function inlineComputedStyles(root: HTMLElement): void {
       element.setAttribute('style', style)
     }
   })
+}
+
+function isZeroSpacing(value: string): boolean {
+  const normalized = value.trim().toLowerCase()
+  if (!normalized) return true
+  if (normalized === '0' || normalized === '0px' || normalized === '0%') return true
+  return normalized.split(/\s+/).every((token) => token === '0' || token === '0px' || token === '0%')
+}
+
+function parseAlpha(token: string): number | null {
+  const trimmed = token.trim()
+  if (!trimmed) return null
+  if (trimmed.endsWith('%')) {
+    const percent = Number.parseFloat(trimmed.slice(0, -1))
+    return Number.isFinite(percent) ? percent / 100 : null
+  }
+  const value = Number.parseFloat(trimmed)
+  return Number.isFinite(value) ? value : null
+}
+
+function getFunctionalColorAlpha(normalized: string): number | null {
+  const match = normalized.match(/^(rgba?|hsla?)\((.*)\)$/)
+  if (!match) return null
+  const fnName = match[1]
+  const body = match[2].trim()
+  if (body.includes('/')) {
+    return parseAlpha(body.slice(body.lastIndexOf('/') + 1))
+  }
+  if (fnName === 'rgba' || fnName === 'hsla') {
+    const commaParts = body.split(',')
+    if (commaParts.length === 4) return parseAlpha(commaParts[3])
+  }
+  return null
+}
+
+function isTransparentBackground(value: string): boolean {
+  const normalized = value.replace(/\s+/g, '').toLowerCase()
+  if (normalized === 'transparent' || normalized.startsWith('transparent')) return true
+  if (/^#[0-9a-f]{4}$/.test(normalized)) return normalized[4] === '0'
+  if (/^#[0-9a-f]{8}$/.test(normalized)) return normalized.slice(6, 8) === '00'
+  const alpha = getFunctionalColorAlpha(normalized)
+  return alpha !== null && alpha <= 0
+}
+
+function hasExplicitBackgroundImage(value: string): boolean {
+  const normalized = value.trim().toLowerCase()
+  if (!normalized || /^none(\s*,\s*none)*$/.test(normalized)) return false
+  return !['initial', 'inherit', 'unset', 'revert', 'revert-layer'].includes(normalized)
+}
+
+function mergeHorizontalOffset(existingValue: string, rootPadding: string): string {
+  const normalized = existingValue.trim().toLowerCase()
+  if (['auto', 'inherit', 'initial', 'unset', 'revert', 'revert-layer'].includes(normalized)) {
+    return rootPadding
+  }
+  if (isZeroSpacing(existingValue)) return rootPadding
+  return `calc(${existingValue} + ${rootPadding})`
+}
+
+function shouldUseMarginForHorizontalOffset(node: HTMLElement): boolean {
+  const tagName = node.tagName
+  return (
+    tagName === 'H1' ||
+    tagName === 'H2' ||
+    tagName === 'H3' ||
+    tagName === 'H4' ||
+    tagName === 'H5' ||
+    tagName === 'H6' ||
+    tagName === 'BLOCKQUOTE' ||
+    tagName === 'PRE' ||
+    node.classList.contains('callout')
+  )
+}
+
+function relocateRootPadding(root: HTMLElement): void {
+  const paddingLeft = root.style.getPropertyValue('padding-left').trim()
+  const paddingRight = root.style.getPropertyValue('padding-right').trim()
+  const paddingTop = root.style.getPropertyValue('padding-top').trim()
+  const paddingBottom = root.style.getPropertyValue('padding-bottom').trim()
+  const hasHorizontalPadding = !isZeroSpacing(paddingLeft) || !isZeroSpacing(paddingRight)
+  const hasVerticalPadding = !isZeroSpacing(paddingTop) || !isZeroSpacing(paddingBottom)
+
+  if (hasHorizontalPadding) {
+    Array.from(root.children).forEach((child) => {
+      if (!(child instanceof HTMLElement)) return
+      const useMargin = shouldUseMarginForHorizontalOffset(child)
+      if (!isZeroSpacing(paddingLeft)) {
+        const property = useMargin ? 'margin-left' : 'padding-left'
+        child.style.setProperty(property, mergeHorizontalOffset(child.style.getPropertyValue(property), paddingLeft))
+      }
+      if (!isZeroSpacing(paddingRight)) {
+        const property = useMargin ? 'margin-right' : 'padding-right'
+        child.style.setProperty(property, mergeHorizontalOffset(child.style.getPropertyValue(property), paddingRight))
+      }
+    })
+  }
+
+  if (hasVerticalPadding) {
+    const innerWrapper = document.createElement('div')
+    innerWrapper.style.display = 'block'
+    innerWrapper.style.width = '100%'
+    innerWrapper.style.boxSizing = 'border-box'
+    if (!isZeroSpacing(paddingTop)) innerWrapper.style.setProperty('padding-top', paddingTop)
+    if (!isZeroSpacing(paddingBottom)) innerWrapper.style.setProperty('padding-bottom', paddingBottom)
+    while (root.firstChild) innerWrapper.appendChild(root.firstChild)
+    root.appendChild(innerWrapper)
+  }
+
+  root.style.removeProperty('padding')
+  root.style.removeProperty('padding-left')
+  root.style.removeProperty('padding-right')
+  root.style.removeProperty('padding-top')
+  root.style.removeProperty('padding-bottom')
+}
+
+function extractRootBackgroundColor(root: HTMLElement): string | null {
+  const background = root.style.getPropertyValue('background')
+  const backgroundColor = root.style.getPropertyValue('background-color')
+  let effectiveBackground: string | null = null
+  if (backgroundColor && !isTransparentBackground(backgroundColor)) {
+    effectiveBackground = backgroundColor
+  } else if (background && !isTransparentBackground(background)) {
+    effectiveBackground = background
+  }
+  if (background) root.style.removeProperty('background')
+  if (backgroundColor) root.style.removeProperty('background-color')
+  return effectiveBackground
+}
+
+function hasAncestorWithExplicitBackground(node: HTMLElement, root: HTMLElement): boolean {
+  let current = node.parentElement
+  while (current && current !== root) {
+    const background = current.style.getPropertyValue('background')
+    const backgroundColor = current.style.getPropertyValue('background-color')
+    const backgroundImage = current.style.getPropertyValue('background-image')
+    if (
+      (background && !isTransparentBackground(background)) ||
+      (backgroundColor && !isTransparentBackground(backgroundColor)) ||
+      hasExplicitBackgroundImage(backgroundImage)
+    ) {
+      return true
+    }
+    current = current.parentElement
+  }
+  return false
+}
+
+function normalizeBlockBackgrounds(root: HTMLElement, rootBackgroundColor: string | null): void {
+  root.querySelectorAll<HTMLElement>('p,h1,h2,h3,h4,h5,h6,ul,ol,li,section,figure,figcaption').forEach((node) => {
+    const background = node.style.getPropertyValue('background')
+    const backgroundColor = node.style.getPropertyValue('background-color')
+    const backgroundImage = node.style.getPropertyValue('background-image')
+    const hasExplicitBackground =
+      (background && !isTransparentBackground(background)) ||
+      (backgroundColor && !isTransparentBackground(backgroundColor)) ||
+      hasExplicitBackgroundImage(backgroundImage)
+    if (hasExplicitBackground || hasAncestorWithExplicitBackground(node, root)) return
+
+    if (rootBackgroundColor) {
+      node.style.setProperty('background-color', rootBackgroundColor, 'important')
+    } else {
+      node.style.setProperty('background', 'transparent', 'important')
+      node.style.setProperty('background-color', 'transparent', 'important')
+    }
+    node.style.setProperty('background-image', 'none', 'important')
+  })
+}
+
+function transformWechatRootToDiv(root: HTMLElement): HTMLElement {
+  if (root.tagName !== 'SECTION') return root
+  const wrapper = document.createElement('div')
+  Array.from(root.attributes).forEach((attr) => {
+    wrapper.setAttribute(attr.name, attr.value)
+  })
+  while (root.firstChild) wrapper.appendChild(root.firstChild)
+  root.replaceWith(wrapper)
+  return wrapper
+}
+
+function normalizeWechatCopyTree(sourceRoot: HTMLElement): HTMLElement {
+  const root = transformWechatRootToDiv(sourceRoot)
+  root.removeAttribute('id')
+  root.querySelectorAll<HTMLElement>('[data-tool]').forEach((node) => {
+    node.removeAttribute('data-tool')
+  })
+  const rootBackgroundColor = extractRootBackgroundColor(root)
+  relocateRootPadding(root)
+  normalizeBlockBackgrounds(root, rootBackgroundColor)
+  return root
 }
 
 function copyRenderedHtml(html: string): boolean {
