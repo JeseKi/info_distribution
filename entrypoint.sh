@@ -36,14 +36,9 @@ backup_database
 
 # 运行数据库迁移
 
-if [ ! -f "$DB_PATH" ]; then
-    echo "未找到现有数据库，跳过迁移"
-
-else
-    echo "正在运行数据库迁移..."
-    alembic upgrade head
-    echo "数据库迁移完成"
-fi
+echo "正在运行数据库迁移..."
+alembic upgrade head
+echo "数据库迁移完成"
 
 # 启动应用
 exec python run.py
