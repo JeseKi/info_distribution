@@ -16,7 +16,7 @@ import {
   Tag,
   Typography,
 } from 'antd'
-import type { TableColumnsType } from 'antd'
+import type { TableColumnsType, TablePaginationConfig } from 'antd'
 import { ReloadOutlined, SearchOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import * as articleApi from '../../lib/articleDistribution'
@@ -132,6 +132,16 @@ export default function ArticleDistributionReportPage() {
       invalid_articles: filteredRows.reduce((total, row) => total + row.invalid_count, 0),
     }
   }, [filteredRows, rows.length, summary])
+
+  const userPagination = useMemo<TablePaginationConfig>(() => ({
+    pageSize: 10,
+    pageSizeOptions: [10, 20, 50, 100],
+    showSizeChanger: true,
+    hideOnSinglePage: false,
+    responsive: true,
+    showTotal: (total, range) => `第 ${range[0]}-${range[1]} 位，共 ${total} 人`,
+    total: filteredRows.length,
+  }), [filteredRows.length])
 
   const userColumns: TableColumnsType<ArticleDistributionPendingUser> = [
     {
@@ -412,7 +422,7 @@ export default function ArticleDistributionReportPage() {
           defaultExpandAllRows: true,
         }}
         locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无文章" /> }}
-        pagination={{ pageSize: 10 }}
+        pagination={userPagination}
         tableLayout="fixed"
         scroll={{ x: 840 }}
       />
