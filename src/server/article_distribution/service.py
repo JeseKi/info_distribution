@@ -66,6 +66,7 @@ def list_account_directory(db: Session) -> list[UserAccountDirectoryOut]:
             )
         grouped[owner.id].accounts.append(
             AccountDirectoryOut(
+                id=account.id,
                 platform=account.platform,
                 account_name=account.account_name,
                 publication_type=publication_type,

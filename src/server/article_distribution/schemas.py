@@ -39,6 +39,7 @@ class AccountOut(BaseModel):
 
 
 class AccountDirectoryOut(BaseModel):
+    id: int
     platform: str
     account_name: str
     publication_type: PublicationType

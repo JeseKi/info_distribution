@@ -106,6 +106,7 @@ def test_v1_account_directory_groups_accounts_by_user_with_api_key(
     )
     admin = _create_user(test_db_session, username="directory_admin", role=UserRole.ADMIN)
 
+    created_accounts = []
     for user_id, publication_type in [
         (owner_a.id, "image_text"),
         (owner_a.id, "article"),
@@ -123,6 +124,7 @@ def test_v1_account_directory_groups_accounts_by_user_with_api_key(
             },
         )
         assert create_resp.status_code == 201
+        created_accounts.append(create_resp.json())
 
     key_resp = test_client.post(
         "/api/admin/article-distribution/api-keys",
@@ -143,11 +145,13 @@ def test_v1_account_directory_groups_accounts_by_user_with_api_key(
             "name": "Owner A",
             "accounts": [
                 {
+                    "id": created_accounts[1]["id"],
                     "platform": "wechat",
                     "account_name": "主号",
                     "publication_type": "article",
                 },
                 {
+                    "id": created_accounts[0]["id"],
                     "platform": "wechat",
                     "account_name": "主号",
                     "publication_type": "image_text",
@@ -159,6 +163,7 @@ def test_v1_account_directory_groups_accounts_by_user_with_api_key(
             "name": "Owner B",
             "accounts": [
                 {
+                    "id": created_accounts[2]["id"],
                     "platform": "wechat",
                     "account_name": "主号",
                     "publication_type": "image_text",
@@ -170,6 +175,7 @@ def test_v1_account_directory_groups_accounts_by_user_with_api_key(
             "name": "owner_no_name",
             "accounts": [
                 {
+                    "id": created_accounts[3]["id"],
                     "platform": "wechat",
                     "account_name": "主号",
                     "publication_type": "video",
