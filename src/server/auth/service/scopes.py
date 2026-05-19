@@ -36,6 +36,9 @@ SCOPE_PROFILE_EMAIL_WRITE = "profile:email:write"
 SCOPE_PROFILE_PASSWORD_WRITE = "profile:password:write"
 SCOPE_ADMIN_USERS_READ = "admin:users:read"
 SCOPE_ADMIN_USERS_WRITE = "admin:users:write"
+SCOPE_ARTICLE_DISTRIBUTION_READ = "article_distribution:read"
+SCOPE_ARTICLE_DISTRIBUTION_WRITE = "article_distribution:write"
+SCOPE_ADMIN_ARTICLE_DISTRIBUTION_WRITE = "admin:article_distribution:write"
 
 SCOPE_DEFINITIONS: tuple[ScopeDefinition, ...] = (
     ScopeDefinition(
@@ -68,6 +71,21 @@ SCOPE_DEFINITIONS: tuple[ScopeDefinition, ...] = (
         title="管理用户",
         description="创建、更新或删除用户，并管理用户角色、状态和权限范围。",
     ),
+    ScopeDefinition(
+        scope=SCOPE_ARTICLE_DISTRIBUTION_READ,
+        title="查看文章分发",
+        description="查看自己的分发账号、文章列表和文章内容。",
+    ),
+    ScopeDefinition(
+        scope=SCOPE_ARTICLE_DISTRIBUTION_WRITE,
+        title="管理文章分发",
+        description="创建和维护自己的分发账号，并更新文章发布状态。",
+    ),
+    ScopeDefinition(
+        scope=SCOPE_ADMIN_ARTICLE_DISTRIBUTION_WRITE,
+        title="管理全量文章分发",
+        description="为任意账号上传文章，并管理文章分发 API Key。",
+    ),
 )
 
 SCOPE_DEFINITION_MAP: dict[str, ScopeDefinition] = {
@@ -88,6 +106,8 @@ ROLE_SCOPES: dict[UserRole, tuple[str, ...]] = {
         SCOPE_PROFILE_WRITE,
         SCOPE_PROFILE_EMAIL_WRITE,
         SCOPE_PROFILE_PASSWORD_WRITE,
+        SCOPE_ARTICLE_DISTRIBUTION_READ,
+        SCOPE_ARTICLE_DISTRIBUTION_WRITE,
     ),
     UserRole.ADMIN: (
         SCOPE_PROFILE_READ,
@@ -96,6 +116,9 @@ ROLE_SCOPES: dict[UserRole, tuple[str, ...]] = {
         SCOPE_PROFILE_PASSWORD_WRITE,
         SCOPE_ADMIN_USERS_READ,
         SCOPE_ADMIN_USERS_WRITE,
+        SCOPE_ARTICLE_DISTRIBUTION_READ,
+        SCOPE_ARTICLE_DISTRIBUTION_WRITE,
+        SCOPE_ADMIN_ARTICLE_DISTRIBUTION_WRITE,
     ),
 }
 

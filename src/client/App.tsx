@@ -1,7 +1,7 @@
 import { BrowserRouter as Router, Navigate, Route, Routes } from 'react-router-dom'
 import MainLayout from './components/layout/MainLayout'
 import DashboardPage from './pages/dashboard/DashboardPage'
-import ExamplePage from './pages/dashboard/ExamplePage'
+import ArticleDistributionPage from './pages/dashboard/ArticleDistributionPage'
 import ProfilePage from './pages/profile/ProfilePage'
 import SecurityPage from './pages/profile/SecurityPage'
 import DevicesPage from './pages/profile/DevicesPage'
@@ -12,7 +12,6 @@ import RegisterPage from './pages/auth/RegisterPage'
 import ResetPasswordPage from './pages/auth/ResetPasswordPage'
 import OAuthAuthorizePage from './pages/auth/OAuthAuthorizePage'
 import OAuthDeviceAuthorizePage from './pages/auth/OAuthDeviceAuthorizePage'
-import LandingPage from './pages/landing/LandingPage'
 import { AuthProvider, RequireAdmin, RequireAuth } from './providers/AuthProvider'
 import { RuntimeConfigProvider } from './providers/RuntimeConfigProvider'
 import ThemeToggle from './components/theme/ThemeToggle'
@@ -24,7 +23,7 @@ export default function App() {
         <AuthProvider>
           <>
             <Routes>
-            <Route path="/" element={<LandingPage />} />
+            <Route path="/" element={<HomeRedirect />} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
             <Route path="/reset-password/:token" element={<ResetPasswordPage />} />
@@ -53,7 +52,7 @@ export default function App() {
               }
             >
               <Route path="/dashboard" element={<DashboardPage />} />
-              <Route path="/example" element={<ExamplePage />} />
+              <Route path="/article-distribution" element={<ArticleDistributionPage />} />
               <Route path="/profile" element={<ProfilePage />} />
               <Route path="/profile/security" element={<SecurityPage />} />
               <Route path="/profile/devices" element={<DevicesPage />} />
@@ -74,4 +73,8 @@ export default function App() {
       </RuntimeConfigProvider>
     </Router>
   )
+}
+
+function HomeRedirect() {
+  return <Navigate to="/article-distribution" replace />
 }

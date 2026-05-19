@@ -313,3 +313,80 @@ export interface AsyncTask {
 export interface AsyncTaskDetail extends AsyncTask {
   logs: AsyncTaskLog[]
 }
+
+export type ArticlePublicationType = 'video' | 'article' | 'image_text'
+
+export type ArticlePublishStatus = 'unpublished' | 'published'
+
+export interface ArticleDistributionAccount {
+  id: number
+  user_id: number
+  account_name: string
+  platform: string
+  publication_type: ArticlePublicationType
+  created_at: string
+  updated_at: string
+}
+
+export interface ArticleDistributionAccountPayload {
+  account_name: string
+  platform: string
+  publication_type: ArticlePublicationType
+  user_id?: number | null
+}
+
+export interface ArticleDistributionArticle {
+  id: number
+  user_id: number
+  account_id: number
+  title: string
+  markdown_content: string
+  scheduled_date: string
+  publish_status: ArticlePublishStatus
+  source: string
+  created_by_user_id: number | null
+  api_key_id: number | null
+  created_at: string
+  updated_at: string
+  account: ArticleDistributionAccount | null
+}
+
+export interface ArticleDistributionArticleUploadItem {
+  title: string
+  markdown_content: string
+  scheduled_date: string
+}
+
+export interface ArticleDistributionArticleBatchPayload {
+  account_id: number
+  articles: ArticleDistributionArticleUploadItem[]
+}
+
+export interface ArticleDistributionArticleFilters {
+  user_id?: number
+  account_id?: number
+  scheduled_from?: string
+  scheduled_to?: string
+  publish_status?: ArticlePublishStatus
+  platform?: string
+  publication_type?: ArticlePublicationType
+}
+
+export interface ArticleDistributionApiKey {
+  id: number
+  name: string
+  key_prefix: string
+  created_by_user_id: number
+  is_active: boolean
+  created_at: string
+  last_used_at: string | null
+  revoked_at: string | null
+}
+
+export interface ArticleDistributionApiKeyCreatePayload {
+  name: string
+}
+
+export interface ArticleDistributionApiKeyCreated extends ArticleDistributionApiKey {
+  api_key: string
+}

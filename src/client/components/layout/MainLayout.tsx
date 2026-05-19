@@ -22,6 +22,7 @@ import {
   SettingOutlined,
   SafetyOutlined,
   TabletOutlined,
+  FileTextOutlined,
 } from '@ant-design/icons'
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth'
@@ -88,8 +89,8 @@ export default function MainLayout() {
     if (location.pathname.startsWith('/admin')) {
       return ['admin']
     }
-    if (location.pathname === '/example') {
-      return ['example']
+    if (location.pathname === '/article-distribution') {
+      return ['article-distribution']
     }
     if (location.pathname.startsWith('/')) {
       return ['dashboard']
@@ -102,15 +103,16 @@ export default function MainLayout() {
       {
         key: 'dashboard-group',
         icon: <DashboardOutlined />,
-        label: '工作台',
+        label: '内容工作台',
         children: [
           {
             key: 'dashboard',
-            label: <Link to="/dashboard">首页</Link>,
+            label: <Link to="/dashboard">概览</Link>,
           },
           {
-            key: 'example',
-            label: <Link to="/example">示例模块</Link>,
+            key: 'article-distribution',
+            icon: <FileTextOutlined />,
+            label: <Link to="/article-distribution">文章分发</Link>,
           },
         ],
       },
@@ -263,7 +265,7 @@ export default function MainLayout() {
                   className="text-base font-semibold"
                   style={{ color: token.colorTextHeading, whiteSpace: 'nowrap' }}
                 >
-                  Fullstack Template
+                  文章分发
                 </Link>
               )}
               <Button
@@ -455,9 +457,9 @@ export default function MainLayout() {
             {selectedKeys[0] === 'admin'
               ? '管理员面板'
               : selectedKeys[0] === 'dashboard'
-                ? '工作台'
-                : selectedKeys[0] === 'example'
-                  ? '示例模块'
+                ? '内容概览'
+                : selectedKeys[0] === 'article-distribution'
+                  ? '文章分发'
                   : ''}
           </Typography.Title>
         </Header>

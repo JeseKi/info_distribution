@@ -31,6 +31,11 @@ from src.server.scope_management.router import router as scope_management_router
 from src.server.oauth.router import router as oauth_router
 from src.server.oauth_provider.router import router as oauth_provider_router
 from src.server.providers.router import router as provider_dev_router
+from src.server.article_distribution.router import (
+    admin_router as article_distribution_admin_router,
+    router as article_distribution_router,
+    v1_router as article_distribution_v1_router,
+)
 
 # --- 配置与常量 ---
 PROJECT_ROOT = Path(global_config.project_root)
@@ -182,6 +187,9 @@ app.include_router(oauth_provider_router)
 app.include_router(example_router)
 app.include_router(admin_router)
 app.include_router(scope_management_router)
+app.include_router(article_distribution_router)
+app.include_router(article_distribution_admin_router)
+app.include_router(article_distribution_v1_router)
 if global_config.app_env == "dev":
     app.include_router(provider_dev_router)
 

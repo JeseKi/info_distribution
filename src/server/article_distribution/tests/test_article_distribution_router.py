@@ -1,0 +1,268 @@
+# -*- coding: utf-8 -*-
+"""Article distribution router tests."""
+
+from __future__ import annotations
+
+import socket
+
+import pytest
+from fastapi import HTTPException
+from sqlalchemy.orm import Session
+
+from src.server.article_distribution import router as article_distribution_router
+from src.server.article_distribution.models import ArticleDistributionAPIKey
+from src.server.auth.models import User
+from src.server.auth.schemas import UserRole
+from src.server.auth import service as auth_service
+
+
+def _create_user(
+    db: Session, *, username: str, role: UserRole = UserRole.USER
+) -> User:
+    user = User(
+        username=username,
+        email=f"{username}@example.com",
+        name=username,
+        role=role,
+    )
+    user.set_password("Password123")
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return user
+
+
+def _headers(user: User) -> dict[str, str]:
+    token = auth_service.create_access_token(
+        {
+            "sub": user.username,
+            "scope": auth_service.get_user_scopes(user),
+            "tv": user.token_version,
+        }
+    )
+    return {"Authorization": f"Bearer {token}"}
+
+
+def test_image_proxy_allows_trusted_fstc_private_address(monkeypatch):
+    def fake_getaddrinfo(host: str, port):
+        assert host == "fstc.kispace.cc"
+        assert port is None
+        return [
+            (
+                socket.AF_INET,
+                socket.SOCK_STREAM,
+                6,
+                "",
+                ("172.29.0.33", 0),
+            )
+        ]
+
+    monkeypatch.setattr(
+        article_distribution_router.socket, "getaddrinfo", fake_getaddrinfo
+    )
+
+    url = "https://fstc.kispace.cc/i/8b2737602828b9d730105b75fb5f5309.jpg"
+    assert article_distribution_router._validate_proxy_image_url(url) == url
+
+
+def test_image_proxy_rejects_untrusted_private_address(monkeypatch):
+    def fake_getaddrinfo(host: str, port):
+        assert host == "private.example.com"
+        assert port is None
+        return [
+            (
+                socket.AF_INET,
+                socket.SOCK_STREAM,
+                6,
+                "",
+                ("172.29.0.33", 0),
+            )
+        ]
+
+    monkeypatch.setattr(
+        article_distribution_router.socket, "getaddrinfo", fake_getaddrinfo
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        article_distribution_router._validate_proxy_image_url(
+            "https://private.example.com/image.jpg"
+        )
+
+    assert exc_info.value.status_code == 400
+    assert exc_info.value.detail == "不允许代理内网或本机图片地址"
+
+
+def test_user_can_manage_own_accounts(test_client, test_db_session: Session):
+    user = _create_user(test_db_session, username="dist_user")
+
+    create_resp = test_client.post(
+        "/api/article-distribution/accounts",
+        headers=_headers(user),
+        json={
+            "account_name": "主号",
+            "platform": "知乎",
+            "publication_type": "article",
+        },
+    )
+
+    assert create_resp.status_code == 201
+    account = create_resp.json()
+    assert account["user_id"] == user.id
+    assert account["account_name"] == "主号"
+
+    list_resp = test_client.get(
+        "/api/article-distribution/accounts", headers=_headers(user)
+    )
+    assert list_resp.status_code == 200
+    assert [item["id"] for item in list_resp.json()] == [account["id"]]
+
+
+def test_user_cannot_access_other_users_articles(
+    test_client, test_db_session: Session
+):
+    owner = _create_user(test_db_session, username="owner")
+    other = _create_user(test_db_session, username="other")
+    admin = _create_user(test_db_session, username="article_admin", role=UserRole.ADMIN)
+
+    account_resp = test_client.post(
+        "/api/article-distribution/accounts",
+        headers=_headers(owner),
+        json={
+            "account_name": "公众号",
+            "platform": "wechat",
+            "publication_type": "image_text",
+        },
+    )
+    account_id = account_resp.json()["id"]
+
+    upload_resp = test_client.post(
+        "/api/admin/article-distribution/articles",
+        headers=_headers(admin),
+        json={
+            "account_id": account_id,
+            "articles": [
+                {
+                    "title": "A",
+                    "markdown_content": "# A",
+                    "scheduled_date": "2026-05-20",
+                }
+            ],
+        },
+    )
+    assert upload_resp.status_code == 201
+    article_id = upload_resp.json()[0]["id"]
+
+    denied_resp = test_client.get(
+        f"/api/article-distribution/articles/{article_id}", headers=_headers(other)
+    )
+    assert denied_resp.status_code == 403
+
+
+def test_admin_and_api_key_can_upload_articles(
+    test_client, test_db_session: Session
+):
+    owner = _create_user(test_db_session, username="api_owner")
+    admin = _create_user(test_db_session, username="api_admin", role=UserRole.ADMIN)
+
+    account_resp = test_client.post(
+        "/api/article-distribution/accounts",
+        headers=_headers(admin),
+        json={
+            "user_id": owner.id,
+            "account_name": "知乎号",
+            "platform": "zhihu",
+            "publication_type": "article",
+        },
+    )
+    assert account_resp.status_code == 201
+    account_id = account_resp.json()["id"]
+
+    key_resp = test_client.post(
+        "/api/admin/article-distribution/api-keys",
+        headers=_headers(admin),
+        json={"name": "integration"},
+    )
+    assert key_resp.status_code == 201
+    raw_key = key_resp.json()["api_key"]
+    assert raw_key.startswith("adv1_")
+
+    api_resp = test_client.post(
+        "/api/v1/article-distribution/articles",
+        headers={"X-API-Key": raw_key},
+        json={
+            "account_id": account_id,
+            "articles": [
+                {
+                    "title": "API article",
+                    "markdown_content": "body",
+                    "scheduled_date": "2026-05-21",
+                },
+                {
+                    "title": "API article 2",
+                    "markdown_content": "body2",
+                    "scheduled_date": "2026-05-21",
+                },
+            ],
+        },
+    )
+    assert api_resp.status_code == 201
+    data = api_resp.json()
+    assert len(data) == 2
+    assert data[0]["user_id"] == owner.id
+    assert data[0]["source"] == "api"
+
+    stored_key = test_db_session.query(ArticleDistributionAPIKey).first()
+    assert stored_key is not None
+    assert stored_key.last_used_at is not None
+
+
+def test_publish_status_and_filters(test_client, test_db_session: Session):
+    owner = _create_user(test_db_session, username="filter_owner")
+    admin = _create_user(test_db_session, username="filter_admin", role=UserRole.ADMIN)
+
+    account_resp = test_client.post(
+        "/api/article-distribution/accounts",
+        headers=_headers(owner),
+        json={
+            "account_name": "视频号",
+            "platform": "shipinhao",
+            "publication_type": "video",
+        },
+    )
+    account_id = account_resp.json()["id"]
+    upload_resp = test_client.post(
+        "/api/admin/article-distribution/articles",
+        headers=_headers(admin),
+        json={
+            "account_id": account_id,
+            "articles": [
+                {
+                    "title": "Video",
+                    "markdown_content": "content",
+                    "scheduled_date": "2026-05-22",
+                }
+            ],
+        },
+    )
+    article_id = upload_resp.json()[0]["id"]
+
+    status_resp = test_client.patch(
+        f"/api/article-distribution/articles/{article_id}/status",
+        headers=_headers(owner),
+        json={"publish_status": "published"},
+    )
+    assert status_resp.status_code == 200
+    assert status_resp.json()["publish_status"] == "published"
+
+    filtered_resp = test_client.get(
+        "/api/article-distribution/articles",
+        headers=_headers(owner),
+        params={
+            "publish_status": "published",
+            "publication_type": "video",
+            "scheduled_from": "2026-05-22",
+            "scheduled_to": "2026-05-22",
+        },
+    )
+    assert filtered_resp.status_code == 200
+    assert [item["id"] for item in filtered_resp.json()] == [article_id]

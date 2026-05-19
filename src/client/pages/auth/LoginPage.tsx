@@ -297,7 +297,7 @@ export default function LoginPage() {
               欢迎回来
             </Typography.Title>
             <Typography.Text type="secondary">
-              输入用户名或邮箱及密码以访问现代化的前端模板。
+              输入用户名或邮箱及密码以访问文章分发工作台。
             </Typography.Text>
           </div>
           {registerSuccess && <Alert type="success" showIcon message="注册成功，请使用新账号登录。" style={{ marginBottom: 0 }} />}

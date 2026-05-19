@@ -1,0 +1,1039 @@
+import {
+  AlignmentType,
+  BorderStyle,
+  Document,
+  ExternalHyperlink,
+  HeadingLevel,
+  ImageRun,
+  LevelFormat,
+  Packer,
+  Paragraph,
+  ShadingType,
+  Table,
+  TableCell,
+  TableRow,
+  TextRun,
+  WidthType,
+  type IRunOptions,
+  type ParagraphChild,
+} from 'docx'
+import { marked, type Token, type Tokens } from 'marked'
+import api from './api'
+import { getAccessToken } from './tokenStorage'
+
+const copyFrameClass = 'wechat-preview'
+const copyContainerClass = 'wechat-preview-container'
+const copyContentClass = 'wechat-preview-content'
+const wemdDataTool = 'WeMD编辑器'
+const docxOrderedListReference = 'article-numbered-list'
+const docxBulletListReference = 'article-bullet-list'
+
+type DocxBlock = Paragraph | Table
+
+interface DocxBlockContext {
+  indent: number
+  listLevel: number
+  quote: boolean
+}
+
+interface InlineStyle {
+  bold?: boolean
+  italics?: boolean
+  strike?: boolean
+  color?: string
+}
+
+interface DocxImage {
+  data: ArrayBuffer
+  contentType: string | null
+  width: number
+  height: number
+}
+
+const docxTheme = {
+  text: '2C2C2C',
+  muted: '5F5A52',
+  heading: '3B3B38',
+  accent: 'C8A062',
+  accentDark: '8A6B41',
+  quoteBg: 'FBF7F0',
+  codeBg: '1F2937',
+  codeText: 'E5E7EB',
+  inlineCodeBg: 'F3EADB',
+  tableBorder: 'ECE3D6',
+  tableHeaderBg: 'F7F2E8',
+  tableStripeBg: 'FFFAF2',
+}
+
+const defaultDocxContext: DocxBlockContext = {
+  indent: 0,
+  listLevel: 0,
+  quote: false,
+}
+
+const inlineStyleProperties = [
+  'display',
+  'box-sizing',
+  'max-width',
+  'min-width',
+  'height',
+  'max-height',
+  'margin-top',
+  'margin-right',
+  'margin-bottom',
+  'margin-left',
+  'padding-top',
+  'padding-right',
+  'padding-bottom',
+  'padding-left',
+  'border-top-width',
+  'border-right-width',
+  'border-bottom-width',
+  'border-left-width',
+  'border-top-style',
+  'border-right-style',
+  'border-bottom-style',
+  'border-left-style',
+  'border-top-color',
+  'border-right-color',
+  'border-bottom-color',
+  'border-left-color',
+  'border-top-left-radius',
+  'border-top-right-radius',
+  'border-bottom-right-radius',
+  'border-bottom-left-radius',
+  'background',
+  'background-color',
+  'box-shadow',
+  'color',
+  'font-family',
+  'font-size',
+  'font-style',
+  'font-weight',
+  'line-height',
+  'letter-spacing',
+  'text-align',
+  'text-decoration-line',
+  'text-decoration-color',
+  'text-decoration-style',
+  'text-underline-offset',
+  'word-break',
+  'word-wrap',
+  'white-space',
+  'overflow',
+  'overflow-x',
+  'overflow-y',
+  'border-collapse',
+  'table-layout',
+  'list-style-type',
+  'list-style-position',
+  'vertical-align',
+  'opacity',
+]
+
+export function markdownToHtml(markdown: string): string {
+  return marked.parse(markdown, { async: false, gfm: true }) as string
+}
+
+export function markdownToPlainText(markdown: string): string {
+  return markdown
+    .replace(/!\[[^\]]*]\([^)]+\)/g, '')
+    .replace(/\[([^\]]+)]\([^)]+\)/g, '$1')
+    .replace(/^#{1,6}\s+/gm, '')
+    .replace(/^[>\-*+]\s+/gm, '')
+    .replace(/`{1,3}([^`]+)`{1,3}/g, '$1')
+    .replace(/[*_~>#|]/g, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+}
+
+export function buildWechatHtml(markdown: string): string {
+  return buildStyledArticleHtml(markdown, { wechatCompat: true })
+}
+
+export function buildStyledArticleHtml(
+  markdown: string,
+  options: { wechatCompat?: boolean } = {},
+): string {
+  const html = `<section id="wemd">${markdownToHtml(markdown)}</section>`
+  if (typeof document === 'undefined' || typeof window === 'undefined') {
+    return html
+  }
+
+  const host = document.createElement('div')
+  host.style.position = 'fixed'
+  host.style.left = '-10000px'
+  host.style.top = '0'
+  host.style.width = '760px'
+  host.style.pointerEvents = 'none'
+  host.style.opacity = '0'
+  host.innerHTML = [
+    `<div class="${copyFrameClass}">`,
+    `<div class="${copyContainerClass}">`,
+    `<div class="${copyContentClass}">`,
+    html,
+    '</div>',
+    '</div>',
+    '</div>',
+  ].join('')
+
+  document.body.appendChild(host)
+  try {
+    const root = host.querySelector<HTMLElement>('#wemd')
+    if (!root) return html
+    normalizeArticleCopyTree(root, Boolean(options.wechatCompat))
+    inlineComputedStyles(root)
+    return root.outerHTML
+  } finally {
+    document.body.removeChild(host)
+  }
+}
+
+export async function copyText(text: string): Promise<void> {
+  await navigator.clipboard.writeText(text)
+}
+
+export async function copyHtml(
+  html: string,
+  fallbackText: string,
+  options: { preferRenderedSelection?: boolean } = {},
+): Promise<void> {
+  if (options.preferRenderedSelection && copyRenderedHtml(html)) {
+    return
+  }
+
+  const clipboard = navigator.clipboard as Clipboard & {
+    write?: (items: ClipboardItem[]) => Promise<void>
+  }
+  if (typeof ClipboardItem !== 'undefined' && clipboard.write) {
+    await clipboard.write([
+      new ClipboardItem({
+        'text/html': new Blob([html], { type: 'text/html' }),
+        'text/plain': new Blob([fallbackText], { type: 'text/plain' }),
+      }),
+    ])
+    return
+  }
+
+  if (copyRenderedHtml(html)) {
+    return
+  }
+
+  await navigator.clipboard.writeText(fallbackText)
+}
+
+function normalizeArticleCopyTree(root: HTMLElement, wechatCompat: boolean): void {
+  root.querySelectorAll<HTMLElement>(
+    'p,h1,h2,h3,h4,h5,h6,ul,ol,li,blockquote,pre,table,thead,tbody,tr,th,td,figure,figcaption',
+  ).forEach((element) => {
+    element.dataset.tool = wemdDataTool
+  })
+
+  root.querySelectorAll<HTMLElement>('blockquote').forEach((blockquote) => {
+    blockquote.classList.add('multiquote-1')
+  })
+
+  root.querySelectorAll<HTMLElement>('pre').forEach((pre) => {
+    pre.classList.add('custom')
+  })
+
+  root.querySelectorAll<HTMLTableElement>('table').forEach((table) => {
+    if (table.parentElement?.classList.contains('table-container')) return
+    const wrapper = document.createElement('div')
+    wrapper.className = 'table-container'
+    table.replaceWith(wrapper)
+    wrapper.appendChild(table)
+  })
+
+  root.querySelectorAll<HTMLAnchorElement>('a[href]').forEach((link) => {
+    link.target = '_blank'
+    link.rel = 'noreferrer'
+  })
+
+  if (!wechatCompat) return
+
+  root.querySelectorAll<HTMLInputElement>('input[type="checkbox"]').forEach((checkbox) => {
+    checkbox.replaceWith(document.createTextNode(`${checkbox.checked ? '✅' : '⬜'}\u00a0`))
+  })
+}
+
+function inlineComputedStyles(root: HTMLElement): void {
+  const elements = [root, ...Array.from(root.querySelectorAll<HTMLElement>('*'))]
+  elements.forEach((element) => {
+    const computed = window.getComputedStyle(element)
+    const style = inlineStyleProperties
+      .map((property) => {
+        const value = computed.getPropertyValue(property)
+        if (!value) return ''
+        const priority = computed.getPropertyPriority(property)
+        return `${property}:${value}${priority ? ` !${priority}` : ''}`
+      })
+      .filter(Boolean)
+      .join(';')
+    if (style) {
+      element.setAttribute('style', style)
+    }
+  })
+}
+
+function copyRenderedHtml(html: string): boolean {
+  if (typeof document === 'undefined' || typeof window === 'undefined') {
+    return false
+  }
+
+  const selection = window.getSelection()
+  if (!selection) return false
+
+  const container = document.createElement('div')
+  container.style.position = 'fixed'
+  container.style.left = '-10000px'
+  container.style.top = '0'
+  container.style.width = '760px'
+  container.style.pointerEvents = 'none'
+  container.innerHTML = html
+  document.body.appendChild(container)
+
+  const range = document.createRange()
+  range.selectNodeContents(container)
+  selection.removeAllRanges()
+  selection.addRange(range)
+  try {
+    return document.execCommand('copy')
+  } catch {
+    return false
+  } finally {
+    selection.removeAllRanges()
+    document.body.removeChild(container)
+  }
+}
+
+export async function downloadMarkdownAsDocx(markdown: string, filename: string): Promise<void> {
+  const children = await buildDocxBlocks(markdown)
+  const doc = new Document({
+    creator: 'Info Distribution',
+    numbering: {
+      config: [
+        {
+          reference: docxOrderedListReference,
+          levels: buildNumberingLevels(LevelFormat.DECIMAL, '%1.'),
+        },
+        {
+          reference: docxBulletListReference,
+          levels: buildNumberingLevels(LevelFormat.BULLET, '•'),
+        },
+      ],
+    },
+    styles: {
+      default: {
+        document: {
+          run: {
+            font: {
+              ascii: 'Aptos',
+              eastAsia: 'Microsoft YaHei',
+              hAnsi: 'Aptos',
+            },
+            size: 24,
+            color: docxTheme.text,
+          },
+          paragraph: {
+            spacing: { line: 360, after: 180 },
+          },
+        },
+        heading1: {
+          run: {
+            size: 40,
+            bold: true,
+            color: docxTheme.heading,
+            font: { eastAsia: 'Microsoft YaHei' },
+          },
+          paragraph: { spacing: { before: 240, after: 220 } },
+        },
+        heading2: {
+          run: {
+            size: 32,
+            bold: true,
+            color: docxTheme.accent,
+            font: { eastAsia: 'Microsoft YaHei' },
+          },
+          paragraph: { spacing: { before: 360, after: 180 } },
+        },
+        heading3: {
+          run: {
+            size: 28,
+            bold: true,
+            color: docxTheme.accentDark,
+            font: { eastAsia: 'Microsoft YaHei' },
+          },
+          paragraph: { spacing: { before: 280, after: 160 } },
+        },
+        hyperlink: {
+          run: {
+            color: 'B8874A',
+            underline: {},
+          },
+        },
+      },
+    },
+    sections: [
+      {
+        properties: {
+          page: {
+            margin: {
+              top: 1080,
+              right: 1080,
+              bottom: 1080,
+              left: 1080,
+            },
+          },
+        },
+        children,
+      },
+    ],
+  })
+  const blob = await Packer.toBlob(doc)
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = `${sanitizeFilename(filename || 'article')}.docx`
+  link.click()
+  URL.revokeObjectURL(url)
+}
+
+async function buildDocxBlocks(markdown: string): Promise<DocxBlock[]> {
+  const tokens = marked.lexer(markdown, { gfm: true })
+  const blocks: DocxBlock[] = []
+  for (const token of tokens) {
+    blocks.push(...await blockTokenToDocx(token, defaultDocxContext))
+  }
+  return blocks.length > 0 ? blocks : [new Paragraph('')]
+}
+
+async function blockTokenToDocx(token: Token, context: DocxBlockContext): Promise<DocxBlock[]> {
+  switch (token.type) {
+    case 'space':
+    case 'def':
+      return []
+    case 'heading':
+      return [await headingToDocx(token as Tokens.Heading, context)]
+    case 'paragraph':
+      return [await paragraphToDocx((token as Tokens.Paragraph).tokens ?? [], context)]
+    case 'text':
+      return [await paragraphToDocx((token as Tokens.Text).tokens ?? [token], context)]
+    case 'blockquote':
+      return blockquoteToDocx(token as Tokens.Blockquote, context)
+    case 'list':
+      return listToDocx(token as Tokens.List, context)
+    case 'code':
+      return [codeBlockToDocx(token as Tokens.Code, context)]
+    case 'hr':
+      return [horizontalRuleToDocx(context)]
+    case 'table':
+      return [await tableToDocx(token as Tokens.Table)]
+    case 'html':
+      return htmlTokenToDocx(token as Tokens.HTML | Tokens.Tag, context)
+    default:
+      return token.raw?.trim()
+        ? [new Paragraph({ children: [styledTextRun(stripHtml(token.raw), context)], spacing: paragraphSpacing() })]
+        : []
+  }
+}
+
+async function headingToDocx(token: Tokens.Heading, context: DocxBlockContext): Promise<Paragraph> {
+  const heading = [
+    HeadingLevel.HEADING_1,
+    HeadingLevel.HEADING_2,
+    HeadingLevel.HEADING_3,
+    HeadingLevel.HEADING_4,
+    HeadingLevel.HEADING_5,
+    HeadingLevel.HEADING_6,
+  ][Math.min(Math.max(token.depth, 1), 6) - 1]
+  return new Paragraph({
+    heading,
+    children: await inlineTokensToRuns(token.tokens, {
+      bold: true,
+      color: token.depth === 1 ? docxTheme.heading : token.depth === 2 ? docxTheme.accent : docxTheme.accentDark,
+    }),
+    spacing: {
+      before: token.depth === 1 ? 240 : 320,
+      after: token.depth === 1 ? 220 : 180,
+    },
+    indent: paragraphIndent(context),
+  })
+}
+
+async function paragraphToDocx(tokens: Token[], context: DocxBlockContext): Promise<Paragraph> {
+  return new Paragraph({
+    children: await inlineTokensToRuns(tokens, { color: context.quote ? docxTheme.muted : docxTheme.text }),
+    spacing: paragraphSpacing(),
+    indent: paragraphIndent(context),
+    shading: context.quote ? { type: ShadingType.CLEAR, fill: docxTheme.quoteBg } : undefined,
+    border: context.quote
+      ? {
+          left: {
+            style: BorderStyle.SINGLE,
+            color: docxTheme.accent,
+            size: 16,
+            space: 8,
+          },
+        }
+      : undefined,
+  })
+}
+
+async function blockquoteToDocx(token: Tokens.Blockquote, context: DocxBlockContext): Promise<DocxBlock[]> {
+  const blocks: DocxBlock[] = []
+  const nextContext = { ...context, indent: context.indent + 240, quote: true }
+  for (const childToken of token.tokens) {
+    blocks.push(...await blockTokenToDocx(childToken, nextContext))
+  }
+  return blocks
+}
+
+async function listToDocx(token: Tokens.List, context: DocxBlockContext): Promise<DocxBlock[]> {
+  const blocks: DocxBlock[] = []
+  for (const item of token.items) {
+    const firstToken = item.tokens.find((child) => child.type !== 'space')
+    const firstTokens = firstToken && firstToken.type === 'paragraph'
+      ? firstToken.tokens
+      : [{ type: 'text', raw: item.text, text: item.text } satisfies Tokens.Text]
+    const prefix = item.task ? `${item.checked ? '☑' : '☐'} ` : ''
+    blocks.push(new Paragraph({
+      children: [
+        ...(prefix ? [styledTextRun(prefix, context, { color: docxTheme.accentDark })] : []),
+        ...await inlineTokensToRuns(firstTokens, { color: docxTheme.text }),
+      ],
+      numbering: {
+        reference: token.ordered ? docxOrderedListReference : docxBulletListReference,
+        level: Math.min(context.listLevel, 2),
+      },
+      spacing: { before: 0, after: 120, line: 330 },
+    }))
+
+    const restTokens = firstToken && firstToken.type === 'paragraph'
+      ? item.tokens.filter((child) => child !== firstToken)
+      : item.tokens
+    for (const childToken of restTokens) {
+      blocks.push(...await blockTokenToDocx(childToken, {
+        ...context,
+        indent: context.indent + 360,
+        listLevel: context.listLevel + 1,
+      }))
+    }
+  }
+  return blocks
+}
+
+function codeBlockToDocx(token: Tokens.Code, context: DocxBlockContext): Paragraph {
+  const lines = token.text.split('\n')
+  const children = lines.flatMap((line, index) => [
+    new TextRun({
+      text: line || ' ',
+      break: index === 0 ? undefined : 1,
+      font: 'Consolas',
+      size: 21,
+      color: docxTheme.codeText,
+    }),
+  ])
+  return new Paragraph({
+    children,
+    shading: { type: ShadingType.CLEAR, fill: docxTheme.codeBg },
+    spacing: { before: 160, after: 220, line: 300 },
+    indent: paragraphIndent(context),
+    border: {
+      top: { style: BorderStyle.SINGLE, color: docxTheme.codeBg, size: 8, space: 8 },
+      bottom: { style: BorderStyle.SINGLE, color: docxTheme.codeBg, size: 8, space: 8 },
+      left: { style: BorderStyle.SINGLE, color: docxTheme.codeBg, size: 8, space: 8 },
+      right: { style: BorderStyle.SINGLE, color: docxTheme.codeBg, size: 8, space: 8 },
+    },
+  })
+}
+
+function horizontalRuleToDocx(context: DocxBlockContext): Paragraph {
+  return new Paragraph({
+    children: [styledTextRun('────────────', context, { color: docxTheme.accent })],
+    alignment: AlignmentType.CENTER,
+    spacing: { before: 220, after: 220 },
+  })
+}
+
+async function tableToDocx(token: Tokens.Table): Promise<Table> {
+  const rows = [
+    new TableRow({
+      children: await Promise.all(token.header.map((cell) => tableCellToDocx(cell, true))),
+    }),
+    ...await Promise.all(token.rows.map(async (row, rowIndex) => new TableRow({
+      children: await Promise.all(row.map((cell) => tableCellToDocx(cell, false, rowIndex % 2 === 1))),
+    }))),
+  ]
+  return new Table({
+    rows,
+    width: { size: 100, type: WidthType.PERCENTAGE },
+    borders: {
+      top: tableBorder(),
+      bottom: tableBorder(),
+      left: tableBorder(),
+      right: tableBorder(),
+      insideHorizontal: tableBorder(),
+      insideVertical: tableBorder(),
+    },
+  })
+}
+
+async function tableCellToDocx(cell: Tokens.TableCell, header: boolean, striped = false): Promise<TableCell> {
+  return new TableCell({
+    shading: header
+      ? { type: ShadingType.CLEAR, fill: docxTheme.tableHeaderBg }
+      : striped ? { type: ShadingType.CLEAR, fill: docxTheme.tableStripeBg } : undefined,
+    margins: { top: 120, bottom: 120, left: 140, right: 140 },
+    children: [
+      new Paragraph({
+        children: await inlineTokensToRuns(cell.tokens, {
+          bold: header,
+          color: header ? docxTheme.accentDark : docxTheme.text,
+        }),
+        alignment: cell.align === 'center'
+          ? AlignmentType.CENTER
+          : cell.align === 'right' ? AlignmentType.RIGHT : AlignmentType.LEFT,
+        spacing: { before: 0, after: 0, line: 300 },
+      }),
+    ],
+  })
+}
+
+async function htmlTokenToDocx(token: Tokens.HTML | Tokens.Tag, context: DocxBlockContext): Promise<DocxBlock[]> {
+  const imageTokens = extractHtmlImages(token.raw)
+  if (imageTokens.length > 0) {
+    const paragraphs: Paragraph[] = []
+    for (const imageToken of imageTokens) {
+      paragraphs.push(await imageToParagraph(imageToken, context))
+    }
+    return paragraphs
+  }
+  const text = stripHtml(token.raw).trim()
+  return text ? [new Paragraph({ children: [styledTextRun(text, context)], spacing: paragraphSpacing() })] : []
+}
+
+async function inlineTokensToRuns(tokens: Token[] = [], style: InlineStyle = {}): Promise<ParagraphChild[]> {
+  const runs: ParagraphChild[] = []
+  for (const token of tokens) {
+    switch (token.type) {
+      case 'text':
+      case 'escape':
+        if ('tokens' in token && token.tokens) {
+          runs.push(...await inlineTokensToRuns(token.tokens, style))
+        } else if ('text' in token && token.text) {
+          runs.push(new TextRun({ text: token.text, ...textRunStyle(style) }))
+        }
+        break
+      case 'strong':
+        runs.push(...await inlineTokensToRuns((token as Tokens.Strong).tokens, { ...style, bold: true }))
+        break
+      case 'em':
+        runs.push(...await inlineTokensToRuns((token as Tokens.Em).tokens, { ...style, italics: true }))
+        break
+      case 'del':
+        runs.push(...await inlineTokensToRuns((token as Tokens.Del).tokens, { ...style, strike: true }))
+        break
+      case 'codespan': {
+        const codeToken = token as Tokens.Codespan
+        runs.push(new TextRun({
+          text: codeToken.text,
+          font: 'Consolas',
+          size: 21,
+          color: docxTheme.text,
+          shading: { type: ShadingType.CLEAR, fill: docxTheme.inlineCodeBg },
+        }))
+        break
+      }
+      case 'br':
+        runs.push(new TextRun({ text: '', break: 1 }))
+        break
+      case 'link': {
+        const linkToken = token as Tokens.Link
+        runs.push(new ExternalHyperlink({
+          link: linkToken.href,
+          children: await inlineTokensToRuns(linkToken.tokens, { ...style, color: 'B8874A' }),
+        }))
+        break
+      }
+      case 'image':
+        runs.push(...await imageToRuns(token as Tokens.Image))
+        break
+      case 'html':
+        runs.push(...htmlInlineToRuns(token.raw, style))
+        break
+      default:
+        if (token.raw) {
+          runs.push(new TextRun({ text: stripHtml(token.raw), ...textRunStyle(style) }))
+        }
+        break
+    }
+  }
+  return runs.length > 0 ? runs : [new TextRun('')]
+}
+
+async function imageToParagraph(token: Tokens.Image, context: DocxBlockContext): Promise<Paragraph> {
+  return new Paragraph({
+    children: await imageToRuns(token),
+    alignment: AlignmentType.CENTER,
+    spacing: { before: 160, after: token.text ? 80 : 220 },
+    indent: paragraphIndent(context),
+  })
+}
+
+async function imageToRuns(token: Tokens.Image): Promise<ParagraphChild[]> {
+  const image = await fetchImageForDocx(token.href)
+  if (!image) {
+    return [new TextRun({ text: `[图片无法下载：${token.text || token.href}]`, color: 'BE123C' })]
+  }
+  const type = resolveImageType(image.contentType, token.href)
+  if (!type) {
+    return [new TextRun({ text: `[暂不支持的图片格式：${token.text || token.href}]`, color: 'BE123C' })]
+  }
+  return [
+    new ImageRun({
+      data: image.data,
+      transformation: scaleImage(image.width, image.height),
+      type,
+      altText: {
+        title: token.text || '文章图片',
+        description: token.text || token.href,
+        name: token.text || 'article-image',
+      },
+    }),
+  ]
+}
+
+function styledTextRun(text: string, context: DocxBlockContext, style: InlineStyle = {}): TextRun {
+  return new TextRun({
+    text,
+    ...textRunStyle({ color: context.quote ? docxTheme.muted : docxTheme.text, ...style }),
+  })
+}
+
+function textRunStyle(style: InlineStyle): IRunOptions {
+  return {
+    bold: style.bold,
+    italics: style.italics,
+    strike: style.strike,
+    color: style.color,
+    font: {
+      ascii: 'Aptos',
+      eastAsia: 'Microsoft YaHei',
+      hAnsi: 'Aptos',
+    },
+  }
+}
+
+function paragraphSpacing() {
+  return { before: 0, after: 180, line: 360 }
+}
+
+function paragraphIndent(context: DocxBlockContext) {
+  return context.indent > 0 ? { left: context.indent } : undefined
+}
+
+function tableBorder() {
+  return { style: BorderStyle.SINGLE, color: docxTheme.tableBorder, size: 4 }
+}
+
+function buildNumberingLevels(format: typeof LevelFormat.DECIMAL | typeof LevelFormat.BULLET, text: string) {
+  return [0, 1, 2].map((level) => ({
+    level,
+    format,
+    text,
+    alignment: AlignmentType.LEFT,
+    style: {
+      paragraph: {
+        indent: {
+          left: 720 + level * 360,
+          hanging: 360,
+        },
+      },
+    },
+  }))
+}
+
+function extractHtmlImages(html: string): Tokens.Image[] {
+  return [...html.matchAll(/<img\b[^>]*\bsrc=["']([^"']+)["'][^>]*>/gi)].map((match) => ({
+    type: 'image',
+    raw: match[0],
+    href: decodeHtmlAttribute(match[1]),
+    title: null,
+    text: decodeHtmlAttribute(extractHtmlAttribute(match[0], 'alt') ?? ''),
+    tokens: [],
+  }))
+}
+
+function htmlInlineToRuns(html: string, style: InlineStyle): ParagraphChild[] {
+  const images = extractHtmlImages(html)
+  if (images.length > 0) return []
+  const text = stripHtml(html)
+  return text ? [new TextRun({ text, ...textRunStyle(style) })] : []
+}
+
+function extractHtmlAttribute(html: string, name: string): string | null {
+  const match = new RegExp(`\\b${name}=["']([^"']*)["']`, 'i').exec(html)
+  return match ? match[1] : null
+}
+
+function stripHtml(value: string): string {
+  const host = typeof document !== 'undefined' ? document.createElement('div') : null
+  if (host) {
+    host.innerHTML = value
+    return host.textContent || ''
+  }
+  return value.replace(/<[^>]+>/g, '')
+}
+
+function decodeHtmlAttribute(value: string): string {
+  const host = typeof document !== 'undefined' ? document.createElement('textarea') : null
+  if (!host) return value
+  host.innerHTML = value
+  return host.value
+}
+
+async function fetchImageForDocx(url: string): Promise<DocxImage | null> {
+  if (url.startsWith('data:')) {
+    const parsed = parseDataUrl(url)
+    if (!parsed) return null
+    return prepareDocxImage(parsed.data, parsed.contentType, url)
+  }
+
+  const resolvedUrl = resolveImageUrl(url)
+  try {
+    const response = await fetchImageDirectly(resolvedUrl)
+    if (response.ok) {
+      const data = await response.arrayBuffer()
+      const contentType = response.headers.get('content-type')
+      return prepareDocxImage(data, contentType, resolvedUrl)
+    }
+  } catch {
+    // Cross-origin images often fail here because the image host does not allow CORS.
+  }
+
+  if (!/^https?:\/\//i.test(resolvedUrl)) {
+    return null
+  }
+
+  if (!shouldProxyImageUrl(resolvedUrl)) {
+    return null
+  }
+
+  try {
+    const response = await api.get<ArrayBuffer>('/article-distribution/image-proxy', {
+      params: { url: resolvedUrl },
+      responseType: 'arraybuffer',
+    })
+    const data = response.data
+    const contentType = String(response.headers['content-type'] ?? '')
+    return prepareDocxImage(data, contentType, resolvedUrl)
+  } catch {
+    return null
+  }
+}
+
+async function fetchImageDirectly(url: string): Promise<Response> {
+  const headers = new Headers()
+  if (shouldAttachAppAuth(url)) {
+    const accessToken = getAccessToken()
+    if (accessToken) {
+      headers.set('Authorization', `Bearer ${accessToken}`)
+    }
+  }
+
+  return fetch(url, {
+    credentials: shouldAttachAppAuth(url) ? 'include' : 'omit',
+    headers,
+  })
+}
+
+function shouldAttachAppAuth(url: string): boolean {
+  if (typeof window === 'undefined') return false
+  try {
+    const parsed = new URL(url)
+    const current = new URL(window.location.href)
+    return parsed.origin === current.origin || isLocalOrPrivateHostname(parsed.hostname)
+  } catch {
+    return false
+  }
+}
+
+function shouldProxyImageUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url)
+    if (!['http:', 'https:'].includes(parsed.protocol)) return false
+    if (typeof window !== 'undefined' && parsed.origin === window.location.origin) {
+      return false
+    }
+    return !isLocalOrPrivateHostname(parsed.hostname)
+  } catch {
+    return false
+  }
+}
+
+async function prepareDocxImage(
+  data: ArrayBuffer,
+  contentType: string | null,
+  sourceUrl: string,
+): Promise<DocxImage> {
+  const dimensions = await resolveImageDimensions(data, contentType)
+  if (resolveImageType(contentType, sourceUrl)) {
+    return { data, contentType, ...dimensions }
+  }
+
+  const rasterized = await rasterizeImageToPng(data, contentType, dimensions)
+  if (rasterized) {
+    return rasterized
+  }
+  return { data, contentType, ...dimensions }
+}
+
+function parseDataUrl(url: string): { data: ArrayBuffer; contentType: string | null } | null {
+  const match = /^data:([^;,]+)?(;base64)?,(.*)$/i.exec(url)
+  if (!match) return null
+  const contentType = match[1] || null
+  const isBase64 = Boolean(match[2])
+  const raw = isBase64 ? atob(match[3]) : decodeURIComponent(match[3])
+  const bytes = new Uint8Array(raw.length)
+  for (let index = 0; index < raw.length; index += 1) {
+    bytes[index] = raw.charCodeAt(index)
+  }
+  return { data: bytes.buffer, contentType }
+}
+
+function resolveImageType(contentType: string | null, url: string): 'jpg' | 'png' | 'gif' | 'bmp' | null {
+  const normalizedContentType = contentType?.toLowerCase() ?? ''
+  const normalizedUrl = url.toLowerCase()
+  if (normalizedContentType.includes('png') || normalizedUrl.endsWith('.png')) return 'png'
+  if (
+    normalizedContentType.includes('jpeg') ||
+    normalizedContentType.includes('jpg') ||
+    normalizedUrl.endsWith('.jpg') ||
+    normalizedUrl.endsWith('.jpeg')
+  ) return 'jpg'
+  if (normalizedContentType.includes('gif') || normalizedUrl.endsWith('.gif')) return 'gif'
+  if (normalizedContentType.includes('bmp') || normalizedUrl.endsWith('.bmp')) return 'bmp'
+  return null
+}
+
+function resolveImageUrl(url: string): string {
+  if (/^https?:\/\//i.test(url) || url.startsWith('data:')) return url
+  if (typeof window === 'undefined') return url
+  return new URL(url, window.location.origin).toString()
+}
+
+function isLocalOrPrivateHostname(hostname: string): boolean {
+  const normalized = hostname.toLowerCase().replace(/^\[|\]$/g, '')
+  if (
+    normalized === 'localhost' ||
+    normalized.endsWith('.localhost') ||
+    normalized.endsWith('.local')
+  ) {
+    return true
+  }
+
+  if (normalized === '::1' || normalized.startsWith('fe80:') || normalized.startsWith('fc') || normalized.startsWith('fd')) {
+    return true
+  }
+
+  const parts = normalized.split('.').map((part) => Number.parseInt(part, 10))
+  if (parts.length !== 4 || parts.some((part) => Number.isNaN(part))) {
+    return false
+  }
+
+  const [first, second] = parts
+  return (
+    first === 10 ||
+    first === 127 ||
+    (first === 169 && second === 254) ||
+    (first === 172 && second >= 16 && second <= 31) ||
+    (first === 192 && second === 168)
+  )
+}
+
+async function resolveImageDimensions(
+  data: ArrayBuffer,
+  contentType: string | null,
+): Promise<{ width: number; height: number }> {
+  if (typeof Image === 'undefined' || typeof URL === 'undefined') {
+    return { width: 520, height: 292 }
+  }
+  const objectUrl = URL.createObjectURL(new Blob([data], { type: contentType || 'image/jpeg' }))
+  try {
+    return await new Promise((resolve) => {
+      const image = new Image()
+      image.onload = () => resolve({
+        width: image.naturalWidth || 520,
+        height: image.naturalHeight || 292,
+      })
+      image.onerror = () => resolve({ width: 520, height: 292 })
+      image.src = objectUrl
+    })
+  } finally {
+    URL.revokeObjectURL(objectUrl)
+  }
+}
+
+async function rasterizeImageToPng(
+  data: ArrayBuffer,
+  contentType: string | null,
+  fallbackDimensions: { width: number; height: number },
+): Promise<DocxImage | null> {
+  if (
+    typeof Image === 'undefined' ||
+    typeof URL === 'undefined' ||
+    typeof document === 'undefined'
+  ) {
+    return null
+  }
+
+  const objectUrl = URL.createObjectURL(new Blob([data], { type: contentType || 'image/*' }))
+  try {
+    const image = await new Promise<HTMLImageElement | null>((resolve) => {
+      const element = new Image()
+      element.onload = () => resolve(element)
+      element.onerror = () => resolve(null)
+      element.src = objectUrl
+    })
+    if (!image) return null
+
+    const width = image.naturalWidth || fallbackDimensions.width
+    const height = image.naturalHeight || fallbackDimensions.height
+    const canvas = document.createElement('canvas')
+    canvas.width = width
+    canvas.height = height
+    const context = canvas.getContext('2d')
+    if (!context) return null
+    context.drawImage(image, 0, 0, width, height)
+
+    const blob = await new Promise<Blob | null>((resolve) => {
+      canvas.toBlob(resolve, 'image/png')
+    })
+    if (!blob) return null
+    return {
+      data: await blob.arrayBuffer(),
+      contentType: 'image/png',
+      width,
+      height,
+    }
+  } catch {
+    return null
+  } finally {
+    URL.revokeObjectURL(objectUrl)
+  }
+}
+
+function scaleImage(width: number, height: number): { width: number; height: number } {
+  const maxWidth = 520
+  const maxHeight = 360
+  const ratio = Math.min(maxWidth / width, maxHeight / height, 1)
+  return {
+    width: Math.max(1, Math.round(width * ratio)),
+    height: Math.max(1, Math.round(height * ratio)),
+  }
+}
+
+function sanitizeFilename(filename: string): string {
+  return filename.replace(/[\\/:*?"<>|]+/g, '_').slice(0, 80)
+}
