@@ -58,10 +58,10 @@ class ArticleDistributionDAO(BaseDAO):
             self.db_session.query(ArticleDistributionAccount, User)
             .join(User, ArticleDistributionAccount.user_id == User.id)
             .order_by(
+                User.id.asc(),
                 ArticleDistributionAccount.platform.asc(),
                 ArticleDistributionAccount.account_name.asc(),
                 ArticleDistributionAccount.publication_type.asc(),
-                User.id.asc(),
                 ArticleDistributionAccount.id.asc(),
             )
             .all()

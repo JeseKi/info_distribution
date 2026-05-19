@@ -38,16 +38,16 @@ class AccountOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-class AccountOwnerOut(BaseModel):
-    id: int
-    name: str
-
-
 class AccountDirectoryOut(BaseModel):
     platform: str
     account_name: str
     publication_type: PublicationType
-    users: list[AccountOwnerOut]
+
+
+class UserAccountDirectoryOut(BaseModel):
+    id: int
+    name: str
+    accounts: list[AccountDirectoryOut]
 
 
 class ArticleUploadItem(BaseModel):

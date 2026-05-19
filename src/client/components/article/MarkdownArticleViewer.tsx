@@ -1,7 +1,11 @@
+import { DownloadOutlined } from '@ant-design/icons'
+import { App, Button, Modal, Space, Tooltip } from 'antd'
+import { useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import rehypeRaw from 'rehype-raw'
 import rehypeSanitize, { defaultSchema } from 'rehype-sanitize'
 import remarkGfm from 'remark-gfm'
+import api from '../../lib/api'
 
 const sanitizeSchema = {
   ...defaultSchema,
@@ -84,6 +88,61 @@ const sanitizeSchema = {
 
 const dataToolProps = { 'data-tool': 'WeMD编辑器' }
 
+function sanitizeFilename(filename: string): string {
+  const normalized = filename.trim() || 'image'
+  return normalized.replace(/[\\/:*?"<>|]+/g, '_').slice(0, 80)
+}
+
+function imageFilename(src: string | undefined, alt: string | undefined): string {
+  const fallback = sanitizeFilename(alt || 'article-image')
+  if (!src || src.startsWith('data:')) return `${fallback}.png`
+
+  try {
+    const parsed = new URL(src, window.location.href)
+    const pathname = parsed.pathname.split('/').filter(Boolean).at(-1)
+    return sanitizeFilename(pathname || fallback)
+  } catch {
+    return fallback
+  }
+}
+
+async function fetchImageBlob(src: string): Promise<Blob> {
+  if (src.startsWith('data:')) {
+    return fetch(src).then((response) => response.blob())
+  }
+
+  try {
+    const directResponse = await fetch(src, { credentials: 'include' })
+    if (directResponse.ok) {
+      return directResponse.blob()
+    }
+  } catch {
+    // Remote images often block browser downloads via CORS; use the image proxy below.
+  }
+
+  if (!/^https?:\/\//i.test(src)) {
+    throw new Error('图片下载失败')
+  }
+
+  const response = await api.get<ArrayBuffer>('/article-distribution/image-proxy', {
+    params: { url: src },
+    responseType: 'arraybuffer',
+  })
+  return new Blob([response.data], {
+    type: String(response.headers['content-type'] ?? 'application/octet-stream'),
+  })
+}
+
+async function downloadImage(src: string, filename: string): Promise<void> {
+  const blob = await fetchImageBlob(src)
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  link.click()
+  URL.revokeObjectURL(url)
+}
+
 function Heading({
   level,
   children,
@@ -98,6 +157,75 @@ function Heading({
       <span className="content">{children}</span>
       <span className="suffix" />
     </Tag>
+  )
+}
+
+function ArticleImage({
+  src,
+  alt,
+  title,
+}: {
+  src?: string
+  alt?: string
+  title?: string | null
+}) {
+  const { message } = App.useApp()
+  const [open, setOpen] = useState(false)
+  const [downloading, setDownloading] = useState(false)
+  const filename = imageFilename(src, alt)
+
+  const handleDownload = async () => {
+    if (!src) return
+    setDownloading(true)
+    try {
+      await downloadImage(src, filename)
+      message.success('图片已下载')
+    } catch {
+      message.error('图片下载失败')
+    } finally {
+      setDownloading(false)
+    }
+  }
+
+  if (!src) {
+    return null
+  }
+
+  return (
+    <figure {...dataToolProps}>
+      <button
+        type="button"
+        className="article-image-trigger"
+        onClick={() => setOpen(true)}
+        aria-label={alt ? `打开图片：${alt}` : '打开图片'}
+      >
+        <img src={src} alt={alt ?? ''} title={title ?? undefined} />
+      </button>
+      {alt ? <figcaption>{alt}</figcaption> : null}
+      <Modal
+        centered
+        open={open}
+        footer={null}
+        width="min(96vw, 1040px)"
+        onCancel={() => setOpen(false)}
+        className="article-image-lightbox"
+        title={
+          <Space size={8}>
+            <span>{alt || title || '图片预览'}</span>
+            <Tooltip title="下载图片">
+              <Button
+                aria-label="下载图片"
+                icon={<DownloadOutlined />}
+                loading={downloading}
+                onClick={() => void handleDownload()}
+              />
+            </Tooltip>
+          </Space>
+        }
+      >
+        <img className="article-image-lightbox__image" src={src} alt={alt ?? ''} />
+      </Modal>
+    </figure>
   )
 }
 
@@ -139,12 +267,7 @@ export default function MarkdownArticleViewer({ markdown }: { markdown: string }
                     {children}
                   </a>
                 ),
-                img: ({ src, alt, title }) => (
-                  <figure {...dataToolProps}>
-                    <img src={src} alt={alt ?? ''} title={title ?? undefined} />
-                    {alt ? <figcaption>{alt}</figcaption> : null}
-                  </figure>
-                ),
+                img: ({ src, alt, title }) => <ArticleImage src={src} alt={alt ?? undefined} title={title} />,
                 pre: ({ children }) => (
                   <pre className="custom">
                     <div className="code-toolbar">

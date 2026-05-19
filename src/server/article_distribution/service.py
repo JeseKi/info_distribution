@@ -25,11 +25,11 @@ from .schemas import (
     AccountCreate,
     AccountUpdate,
     AccountDirectoryOut,
-    AccountOwnerOut,
     ArticleBatchCreate,
     ArticleOut,
     ArticleUploadItem,
     PublicationType,
+    UserAccountDirectoryOut,
 )
 
 API_KEY_PREFIX = "adv1"
@@ -52,20 +52,22 @@ def list_accounts(
     )
 
 
-def list_account_directory(db: Session) -> list[AccountDirectoryOut]:
-    grouped: dict[tuple[str, str, PublicationType], AccountDirectoryOut] = {}
+def list_account_directory(db: Session) -> list[UserAccountDirectoryOut]:
+    grouped: dict[int, UserAccountDirectoryOut] = {}
     for account, owner in ArticleDistributionDAO(db).list_account_owner_rows():
         publication_type = _normalize_publication_type(account.publication_type)
-        key = (account.platform, account.account_name, publication_type)
-        if key not in grouped:
-            grouped[key] = AccountDirectoryOut(
+        if owner.id not in grouped:
+            grouped[owner.id] = UserAccountDirectoryOut(
+                id=owner.id,
+                name=owner.name or owner.username,
+                accounts=[],
+            )
+        grouped[owner.id].accounts.append(
+            AccountDirectoryOut(
                 platform=account.platform,
                 account_name=account.account_name,
                 publication_type=publication_type,
-                users=[],
             )
-        grouped[key].users.append(
-            AccountOwnerOut(id=owner.id, name=owner.name or owner.username)
         )
     return list(grouped.values())
 

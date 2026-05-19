@@ -96,7 +96,7 @@ def test_image_proxy_rejects_untrusted_private_address(monkeypatch):
     assert exc_info.value.detail == "不允许代理内网或本机图片地址"
 
 
-def test_v1_account_directory_groups_accounts_by_identity_with_api_key(
+def test_v1_account_directory_groups_accounts_by_user_with_api_key(
     test_client, test_db_session: Session
 ):
     owner_a = _create_user(test_db_session, username="owner_a", name="Owner A")
@@ -108,8 +108,9 @@ def test_v1_account_directory_groups_accounts_by_identity_with_api_key(
 
     for user_id, publication_type in [
         (owner_a.id, "image_text"),
+        (owner_a.id, "article"),
         (owner_b.id, "image_text"),
-        (owner_without_name.id, "article"),
+        (owner_without_name.id, "video"),
     ]:
         create_resp = test_client.post(
             "/api/article-distribution/accounts",
@@ -138,18 +139,41 @@ def test_v1_account_directory_groups_accounts_by_identity_with_api_key(
     assert directory_resp.status_code == 200
     assert directory_resp.json() == [
         {
-            "platform": "wechat",
-            "account_name": "主号",
-            "publication_type": "article",
-            "users": [{"id": owner_without_name.id, "name": "owner_no_name"}],
+            "id": owner_a.id,
+            "name": "Owner A",
+            "accounts": [
+                {
+                    "platform": "wechat",
+                    "account_name": "主号",
+                    "publication_type": "article",
+                },
+                {
+                    "platform": "wechat",
+                    "account_name": "主号",
+                    "publication_type": "image_text",
+                },
+            ],
         },
         {
-            "platform": "wechat",
-            "account_name": "主号",
-            "publication_type": "image_text",
-            "users": [
-                {"id": owner_a.id, "name": "Owner A"},
-                {"id": owner_b.id, "name": "Owner B"},
+            "id": owner_b.id,
+            "name": "Owner B",
+            "accounts": [
+                {
+                    "platform": "wechat",
+                    "account_name": "主号",
+                    "publication_type": "image_text",
+                },
+            ],
+        },
+        {
+            "id": owner_without_name.id,
+            "name": "owner_no_name",
+            "accounts": [
+                {
+                    "platform": "wechat",
+                    "account_name": "主号",
+                    "publication_type": "video",
+                },
             ],
         },
     ]

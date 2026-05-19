@@ -39,6 +39,7 @@ from .schemas import (
     ArticleStatusUpdate,
     PublishStatus,
     PublicationType,
+    UserAccountDirectoryOut,
 )
 
 router = APIRouter(prefix="/api/article-distribution", tags=["文章分发"])
@@ -288,7 +289,7 @@ def _validate_proxy_image_url(raw_url: str) -> str:
 
 @v1_router.get(
     "/accounts",
-    response_model=list[AccountDirectoryOut],
+    response_model=list[UserAccountDirectoryOut],
     summary="使用 API Key 获取账号目录",
 )
 async def list_account_directory_v1(
