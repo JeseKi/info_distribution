@@ -347,13 +347,24 @@ def test_publish_status_and_filters(test_client, test_db_session: Session):
     )
     article_id = upload_resp.json()[0]["id"]
 
-    status_resp = test_client.patch(
+    missing_url_resp = test_client.patch(
         f"/api/article-distribution/articles/{article_id}/status",
         headers=_headers(owner),
         json={"publish_status": "published"},
     )
+    assert missing_url_resp.status_code == 400
+
+    status_resp = test_client.patch(
+        f"/api/article-distribution/articles/{article_id}/status",
+        headers=_headers(owner),
+        json={
+            "publish_status": "published",
+            "published_url": "https://example.com/video",
+        },
+    )
     assert status_resp.status_code == 200
     assert status_resp.json()["publish_status"] == "published"
+    assert status_resp.json()["published_url"] == "https://example.com/video"
 
     filtered_resp = test_client.get(
         "/api/article-distribution/articles",
@@ -367,6 +378,84 @@ def test_publish_status_and_filters(test_client, test_db_session: Session):
     )
     assert filtered_resp.status_code == 200
     assert [item["id"] for item in filtered_resp.json()] == [article_id]
+
+    invalid_resp = test_client.patch(
+        f"/api/article-distribution/articles/{article_id}/status",
+        headers=_headers(owner),
+        json={"publish_status": "invalid"},
+    )
+    assert invalid_resp.status_code == 200
+    assert invalid_resp.json()["publish_status"] == "invalid"
+    assert invalid_resp.json()["published_url"] is None
+
+
+def test_admin_can_list_update_and_delete_all_articles(
+    test_client, test_db_session: Session
+):
+    owner = _create_user(test_db_session, username="admin_crud_owner")
+    admin = _create_user(test_db_session, username="admin_crud_admin", role=UserRole.ADMIN)
+
+    account_resp = test_client.post(
+        "/api/article-distribution/accounts",
+        headers=_headers(admin),
+        json={
+            "user_id": owner.id,
+            "account_name": "公众号",
+            "platform": "wechat",
+            "publication_type": "article",
+        },
+    )
+    assert account_resp.status_code == 201
+    account_id = account_resp.json()["id"]
+
+    upload_resp = test_client.post(
+        "/api/admin/article-distribution/articles",
+        headers=_headers(admin),
+        json={
+            "account_id": account_id,
+            "articles": [
+                {
+                    "title": "Original",
+                    "markdown_content": "body",
+                    "scheduled_date": "2026-05-23",
+                }
+            ],
+        },
+    )
+    assert upload_resp.status_code == 201
+    article_id = upload_resp.json()[0]["id"]
+
+    admin_list_resp = test_client.get(
+        "/api/article-distribution/articles", headers=_headers(admin)
+    )
+    assert admin_list_resp.status_code == 200
+    assert [item["id"] for item in admin_list_resp.json()] == [article_id]
+
+    update_resp = test_client.patch(
+        f"/api/admin/article-distribution/articles/{article_id}",
+        headers=_headers(admin),
+        json={
+            "title": "Updated",
+            "markdown_content": "updated body",
+            "scheduled_date": "2026-05-24",
+        },
+    )
+    assert update_resp.status_code == 200, update_resp.text
+    assert update_resp.json()["title"] == "Updated"
+    assert update_resp.json()["markdown_content"] == "updated body"
+    assert update_resp.json()["scheduled_date"] == "2026-05-24"
+
+    delete_resp = test_client.delete(
+        f"/api/admin/article-distribution/articles/{article_id}",
+        headers=_headers(admin),
+    )
+    assert delete_resp.status_code == 204
+
+    owner_list_resp = test_client.get(
+        "/api/article-distribution/articles", headers=_headers(owner)
+    )
+    assert owner_list_resp.status_code == 200
+    assert owner_list_resp.json() == []
 
 
 def test_unpublished_report_scope_can_be_assigned_to_regular_user(
@@ -416,7 +505,10 @@ def test_unpublished_report_scope_can_be_assigned_to_regular_user(
     mark_published = test_client.patch(
         f"/api/article-distribution/articles/{published_article_id}/status",
         headers=_headers(owner_a),
-        json={"publish_status": "published"},
+        json={
+            "publish_status": "published",
+            "published_url": "https://example.com/a-published",
+        },
     )
     assert mark_published.status_code == 200
 
@@ -457,12 +549,25 @@ def test_unpublished_report_scope_can_be_assigned_to_regular_user(
     )
 
     assert report_resp.status_code == 200, report_resp.text
-    data = report_resp.json()
+    report = report_resp.json()
+    assert report["summary"] == {
+        "total_users": 2,
+        "unpublished_users": 2,
+        "published_articles": 1,
+        "unpublished_articles": 2,
+        "invalid_articles": 0,
+    }
+    data = report["users"]
     assert [item["user_id"] for item in data] == [owner_a.id, owner_b.id]
     assert [item["remaining_count"] for item in data] == [1, 1]
+    assert data[0]["published_count"] == 1
+    assert data[0]["platform_summaries"][0]["published_count"] == 1
+    assert data[0]["platform_summaries"][0]["latest_published_url"] == "https://example.com/a-published"
     assert data[0]["articles"][0]["title"] == "A unpublished"
     assert data[0]["articles"][0]["markdown_content"] == "body"
     assert data[0]["articles"][0]["account_name"] == "公众号"
     assert data[0]["articles"][0]["platform"] == "wechat"
+    assert data[0]["articles"][0]["publish_status"] == "unpublished"
+    assert data[0]["articles"][1]["publish_status"] == "published"
     assert "source" not in data[0]["articles"][0]
     assert data[1]["articles"][0]["title"] == "B unpublished"

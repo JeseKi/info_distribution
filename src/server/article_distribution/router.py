@@ -35,9 +35,10 @@ from .schemas import (
     AccountOut,
     AccountUpdate,
     ArticleBatchCreate,
-    ArticleDistributionPendingUserOut,
+    ArticleDistributionReportOut,
     ArticleOut,
     ArticleStatusUpdate,
+    ArticleUpdate,
     PublishStatus,
     PublicationType,
     UserAccountDirectoryOut,
@@ -161,7 +162,7 @@ async def list_articles(
 
 @router.get(
     "/reports/unpublished",
-    response_model=list[ArticleDistributionPendingUserOut],
+    response_model=ArticleDistributionReportOut,
     summary="查看全量未发布文章进度",
 )
 async def list_unpublished_report(
@@ -266,10 +267,52 @@ async def update_article_status(
             db,
             article_id=article_id,
             publish_status=payload.publish_status,
+            published_url=payload.published_url,
             current_user=current_user,
         )
 
     return await run_in_thread(_update)
+
+
+@admin_router.patch(
+    "/articles/{article_id}",
+    response_model=ArticleOut,
+    summary="管理员更新文章",
+)
+async def update_article_as_admin(
+    article_id: int,
+    payload: ArticleUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Security(
+        get_current_user, scopes=[SCOPE_ADMIN_ARTICLE_DISTRIBUTION_WRITE]
+    ),
+):
+    def _update():
+        return service.update_article_as_admin(
+            db, article_id=article_id, payload=payload, current_user=current_user
+        )
+
+    return await run_in_thread(_update)
+
+
+@admin_router.delete(
+    "/articles/{article_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="管理员删除文章",
+)
+async def delete_article_as_admin(
+    article_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Security(
+        get_current_user, scopes=[SCOPE_ADMIN_ARTICLE_DISTRIBUTION_WRITE]
+    ),
+):
+    def _delete():
+        service.delete_article_as_admin(
+            db, article_id=article_id, current_user=current_user
+        )
+
+    return await run_in_thread(_delete)
 
 
 def _validate_proxy_image_url(raw_url: str) -> str:

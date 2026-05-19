@@ -317,7 +317,7 @@ export interface AsyncTaskDetail extends AsyncTask {
 
 export type ArticlePublicationType = 'video' | 'article' | 'image_text'
 
-export type ArticlePublishStatus = 'unpublished' | 'published'
+export type ArticlePublishStatus = 'unpublished' | 'published' | 'invalid'
 
 export interface ArticleDistributionAccount {
   id: number
@@ -344,6 +344,7 @@ export interface ArticleDistributionArticle {
   markdown_content: string
   scheduled_date: string
   publish_status: ArticlePublishStatus
+  published_url: string | null
   source: string
   created_by_user_id: number | null
   api_key_id: number | null
@@ -373,6 +374,15 @@ export interface ArticleDistributionArticleFilters {
   publication_type?: ArticlePublicationType
 }
 
+export interface ArticleDistributionArticleUpdatePayload {
+  account_id?: number
+  title?: string
+  markdown_content?: string
+  scheduled_date?: string
+  publish_status?: ArticlePublishStatus
+  published_url?: string | null
+}
+
 export interface ArticleDistributionPendingArticle {
   id: number
   title: string
@@ -382,7 +392,20 @@ export interface ArticleDistributionPendingArticle {
   account_name: string
   platform: string
   publication_type: ArticlePublicationType
+  publish_status: ArticlePublishStatus
+  published_url: string | null
   created_at: string
+}
+
+export interface ArticleDistributionPlatformSummary {
+  account_id: number
+  account_name: string
+  platform: string
+  publication_type: ArticlePublicationType
+  published_count: number
+  unpublished_count: number
+  invalid_count: number
+  latest_published_url: string | null
 }
 
 export interface ArticleDistributionPendingUser {
@@ -391,7 +414,23 @@ export interface ArticleDistributionPendingUser {
   name: string | null
   email: string
   remaining_count: number
+  published_count: number
+  invalid_count: number
+  platform_summaries: ArticleDistributionPlatformSummary[]
   articles: ArticleDistributionPendingArticle[]
+}
+
+export interface ArticleDistributionReportSummary {
+  total_users: number
+  unpublished_users: number
+  published_articles: number
+  unpublished_articles: number
+  invalid_articles: number
+}
+
+export interface ArticleDistributionReport {
+  summary: ArticleDistributionReportSummary
+  users: ArticleDistributionPendingUser[]
 }
 
 export interface ArticleDistributionPendingReportFilters {

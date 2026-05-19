@@ -24,7 +24,10 @@ import type {
   ArticleDistributionPendingArticle,
   ArticleDistributionPendingReportFilters,
   ArticleDistributionPendingUser,
+  ArticleDistributionPlatformSummary,
+  ArticleDistributionReportSummary,
   ArticlePublicationType,
+  ArticlePublishStatus,
 } from '../../lib/types'
 import { resolveApiErrorMessage } from '../../lib/error'
 
@@ -40,6 +43,20 @@ const publicationTypeText: Record<ArticlePublicationType, string> = {
   image_text: '图文',
 }
 
+function publishStatusTag(status: ArticlePublishStatus) {
+  if (status === 'published') return <Tag color="green">已发布</Tag>
+  if (status === 'invalid') return <Tag color="red">文档失效</Tag>
+  return <Tag>未发布</Tag>
+}
+
+const emptySummary: ArticleDistributionReportSummary = {
+  total_users: 0,
+  unpublished_users: 0,
+  published_articles: 0,
+  unpublished_articles: 0,
+  invalid_articles: 0,
+}
+
 interface FilterValues {
   keyword?: string
   platform?: string
@@ -52,11 +69,14 @@ export default function ArticleDistributionReportPage() {
   const [form] = Form.useForm<FilterValues>()
   const [loading, setLoading] = useState(false)
   const [rows, setRows] = useState<ArticleDistributionPendingUser[]>([])
+  const [summary, setSummary] = useState<ArticleDistributionReportSummary>(emptySummary)
 
   const loadReport = useCallback(async (filters?: ArticleDistributionPendingReportFilters) => {
     setLoading(true)
     try {
-      setRows(await articleApi.listUnpublishedArticleReport(filters))
+      const report = await articleApi.listUnpublishedArticleReport(filters)
+      setRows(report.users)
+      setSummary(report.summary)
     } catch (error) {
       message.error(resolveApiErrorMessage(error, '分发进度加载失败'))
     } finally {
@@ -102,15 +122,22 @@ export default function ArticleDistributionReportPage() {
     )
   }, [keyword, rows])
 
-  const remainingTotal = filteredRows.reduce(
-    (total, row) => total + row.remaining_count,
-    0,
-  )
+  const filteredSummary = useMemo<ArticleDistributionReportSummary>(() => {
+    if (filteredRows.length === rows.length) return summary
+    return {
+      total_users: filteredRows.length,
+      unpublished_users: filteredRows.filter((row) => row.remaining_count > 0).length,
+      published_articles: filteredRows.reduce((total, row) => total + row.published_count, 0),
+      unpublished_articles: filteredRows.reduce((total, row) => total + row.remaining_count, 0),
+      invalid_articles: filteredRows.reduce((total, row) => total + row.invalid_count, 0),
+    }
+  }, [filteredRows, rows.length, summary])
 
   const userColumns: TableColumnsType<ArticleDistributionPendingUser> = [
     {
       title: '用户',
       key: 'user',
+      width: 360,
       render: (_, record) => (
         <Space direction="vertical" size={0}>
           <Typography.Text strong>{record.name || record.username}</Typography.Text>
@@ -124,8 +151,25 @@ export default function ArticleDistributionReportPage() {
       title: '剩余未发布',
       dataIndex: 'remaining_count',
       key: 'remaining_count',
+      width: 160,
       sorter: (a, b) => a.remaining_count - b.remaining_count,
       render: (value: number) => <Tag color={value > 0 ? 'volcano' : 'default'}>{value} 篇</Tag>,
+    },
+    {
+      title: '已发布',
+      dataIndex: 'published_count',
+      key: 'published_count',
+      width: 160,
+      sorter: (a, b) => a.published_count - b.published_count,
+      render: (value: number) => <Tag color="green">{value} 篇</Tag>,
+    },
+    {
+      title: '失效',
+      dataIndex: 'invalid_count',
+      key: 'invalid_count',
+      width: 160,
+      sorter: (a, b) => a.invalid_count - b.invalid_count,
+      render: (value: number) => <Tag color={value > 0 ? 'red' : 'default'}>{value} 篇</Tag>,
     },
   ]
 
@@ -134,35 +178,107 @@ export default function ArticleDistributionReportPage() {
       title: '文章',
       dataIndex: 'title',
       key: 'title',
-      render: (value: string) => <Typography.Text strong>{value}</Typography.Text>,
+      width: 520,
+      ellipsis: true,
+      render: (value: string) => <Typography.Text strong ellipsis>{value}</Typography.Text>,
+    },
+    {
+      title: '状态',
+      dataIndex: 'publish_status',
+      key: 'publish_status',
+      width: 120,
+      render: (value: ArticlePublishStatus) => publishStatusTag(value),
     },
     {
       title: '计划日期',
       dataIndex: 'scheduled_date',
       key: 'scheduled_date',
+      width: 150,
       sorter: (a, b) => a.scheduled_date.localeCompare(b.scheduled_date),
     },
     {
       title: '目标平台',
       dataIndex: 'platform',
       key: 'platform',
+      width: 140,
       render: (value: string) => <Tag>{value}</Tag>,
     },
     {
       title: '目标账号',
       dataIndex: 'account_name',
       key: 'account_name',
+      width: 140,
+      ellipsis: true,
     },
     {
       title: '类型',
       dataIndex: 'publication_type',
       key: 'publication_type',
+      width: 100,
       render: (value: ArticlePublicationType) => publicationTypeText[value],
+    },
+    {
+      title: '发布链接',
+      dataIndex: 'published_url',
+      key: 'published_url',
+      width: 120,
+      render: (value: string | null) => value ? (
+        <Typography.Link href={value} target="_blank" rel="noreferrer">
+          检查
+        </Typography.Link>
+      ) : '-',
+    },
+  ]
+
+  const platformColumns: TableColumnsType<ArticleDistributionPlatformSummary> = [
+    {
+      title: '发布平台',
+      key: 'platform',
+      width: 360,
+      render: (_, record) => (
+        <Space>
+          <Tag>{record.platform}</Tag>
+          <Typography.Text>{record.account_name}</Typography.Text>
+          <Typography.Text type="secondary">{publicationTypeText[record.publication_type]}</Typography.Text>
+        </Space>
+      ),
+    },
+    {
+      title: '发布数量',
+      dataIndex: 'published_count',
+      key: 'published_count',
+      width: 140,
+      render: (value: number) => <Tag color="green">{value}</Tag>,
+    },
+    {
+      title: '剩余未发布',
+      dataIndex: 'unpublished_count',
+      key: 'unpublished_count',
+      width: 160,
+      render: (value: number) => <Tag color={value > 0 ? 'volcano' : 'default'}>{value}</Tag>,
+    },
+    {
+      title: '失效数量',
+      dataIndex: 'invalid_count',
+      key: 'invalid_count',
+      width: 140,
+      render: (value: number) => <Tag color={value > 0 ? 'red' : 'default'}>{value}</Tag>,
+    },
+    {
+      title: '平台链接',
+      dataIndex: 'latest_published_url',
+      key: 'latest_published_url',
+      width: 140,
+      render: (value: string | null) => value ? (
+        <Typography.Link href={value} target="_blank" rel="noreferrer">
+          检查
+        </Typography.Link>
+      ) : '-',
     },
   ]
 
   const renderArticleDetail = (article: ArticleDistributionPendingArticle) => (
-    <Flex vertical gap={12}>
+    <Flex vertical gap={12} style={{ minWidth: 0, width: '100%', overflow: 'hidden' }}>
       <Descriptions size="small" column={{ xs: 1, sm: 2, md: 4 }}>
         <Descriptions.Item label="目标平台">{article.platform}</Descriptions.Item>
         <Descriptions.Item label="目标账号">{article.account_name}</Descriptions.Item>
@@ -170,11 +286,21 @@ export default function ArticleDistributionReportPage() {
           {publicationTypeText[article.publication_type]}
         </Descriptions.Item>
         <Descriptions.Item label="计划日期">{article.scheduled_date}</Descriptions.Item>
+        <Descriptions.Item label="状态">{publishStatusTag(article.publish_status)}</Descriptions.Item>
+        <Descriptions.Item label="发布链接">
+          {article.published_url ? (
+            <Typography.Link href={article.published_url} target="_blank" rel="noreferrer">
+              检查
+            </Typography.Link>
+          ) : '-'}
+        </Descriptions.Item>
       </Descriptions>
       <Typography.Text strong>{article.title}</Typography.Text>
       <pre
         style={{
           margin: 0,
+          boxSizing: 'border-box',
+          maxWidth: '100%',
           maxHeight: 360,
           overflow: 'auto',
           whiteSpace: 'pre-wrap',
@@ -190,16 +316,29 @@ export default function ArticleDistributionReportPage() {
   )
 
   const expandedArticleTable = (record: ArticleDistributionPendingUser) => (
-    <Table
-      rowKey="id"
-      columns={articleColumns}
-      dataSource={record.articles}
-      pagination={false}
-      size="small"
-      expandable={{
-        expandedRowRender: renderArticleDetail,
-      }}
-    />
+    <Flex vertical gap={12} style={{ minWidth: 0, width: '100%', overflow: 'hidden' }}>
+      <Table
+        rowKey="account_id"
+        columns={platformColumns}
+        dataSource={record.platform_summaries}
+        pagination={false}
+        size="small"
+        tableLayout="fixed"
+        scroll={{ x: 940 }}
+      />
+      <Table
+        rowKey="id"
+        columns={articleColumns}
+        dataSource={record.articles}
+        pagination={false}
+        size="small"
+        tableLayout="fixed"
+        scroll={{ x: 1290 }}
+        expandable={{
+          expandedRowRender: renderArticleDetail,
+        }}
+      />
+    </Flex>
   )
 
   return (
@@ -210,7 +349,7 @@ export default function ArticleDistributionReportPage() {
             分发进度后台
           </Typography.Title>
           <Typography.Text type="secondary">
-            查看所有用户的未发布文章余量和明细。
+            查看所有用户的文章发布进度、失效文档和发布链接核验入口。
           </Typography.Text>
         </div>
         <Button
@@ -224,8 +363,11 @@ export default function ArticleDistributionReportPage() {
 
       <Card>
         <Flex gap={24} wrap="wrap">
-          <Statistic title="涉及用户" value={filteredRows.length} />
-          <Statistic title="未发布文章" value={remainingTotal} />
+          <Statistic title="总人数" value={filteredSummary.total_users} />
+          <Statistic title="未发布人数" value={filteredSummary.unpublished_users} />
+          <Statistic title="发布的文章总数" value={filteredSummary.published_articles} />
+          <Statistic title="未发布文章总数" value={filteredSummary.unpublished_articles} />
+          <Statistic title="失效文章总数" value={filteredSummary.invalid_articles} />
         </Flex>
         <Form form={form} layout="vertical" style={{ marginTop: 18 }}>
           <Flex gap={16} wrap="wrap" align="end">
@@ -269,9 +411,10 @@ export default function ArticleDistributionReportPage() {
           expandedRowRender: expandedArticleTable,
           defaultExpandAllRows: true,
         }}
-        locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无未发布文章" /> }}
+        locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无文章" /> }}
         pagination={{ pageSize: 10 }}
-        scroll={{ x: 'max-content' }}
+        tableLayout="fixed"
+        scroll={{ x: 840 }}
       />
     </Flex>
   )

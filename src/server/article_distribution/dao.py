@@ -153,7 +153,7 @@ class ArticleDistributionDAO(BaseDAO):
             .all()
         )
 
-    def list_unpublished_article_owner_rows(
+    def list_report_article_owner_rows(
         self,
         *,
         scheduled_from: date | None = None,
@@ -175,7 +175,6 @@ class ArticleDistributionDAO(BaseDAO):
                 == ArticleDistributionAccount.id,
             )
             .join(User, ArticleDistributionArticle.user_id == User.id)
-            .filter(ArticleDistributionArticle.publish_status == "unpublished")
         )
         if scheduled_from is not None:
             query = query.filter(
@@ -209,6 +208,10 @@ class ArticleDistributionDAO(BaseDAO):
         self.db_session.commit()
         self.db_session.refresh(article)
         return article
+
+    def delete_article(self, article: ArticleDistributionArticle) -> None:
+        self.db_session.delete(article)
+        self.db_session.commit()
 
     def create_api_key(
         self, api_key: ArticleDistributionAPIKey

@@ -8,8 +8,9 @@ import type {
   ArticleDistributionArticle,
   ArticleDistributionArticleBatchPayload,
   ArticleDistributionArticleFilters,
+  ArticleDistributionArticleUpdatePayload,
   ArticleDistributionPendingReportFilters,
-  ArticleDistributionPendingUser,
+  ArticleDistributionReport,
   ArticlePublishStatus,
 } from './types'
 
@@ -56,18 +57,19 @@ export async function getArticle(articleId: number): Promise<ArticleDistribution
 export async function updateArticleStatus(
   articleId: number,
   publishStatus: ArticlePublishStatus,
+  publishedUrl?: string | null,
 ): Promise<ArticleDistributionArticle> {
   const { data } = await api.patch<ArticleDistributionArticle>(
     `/article-distribution/articles/${articleId}/status`,
-    { publish_status: publishStatus },
+    { publish_status: publishStatus, published_url: publishedUrl },
   )
   return data
 }
 
 export async function listUnpublishedArticleReport(
   params?: ArticleDistributionPendingReportFilters,
-): Promise<ArticleDistributionPendingUser[]> {
-  const { data } = await api.get<ArticleDistributionPendingUser[]>(
+): Promise<ArticleDistributionReport> {
+  const { data } = await api.get<ArticleDistributionReport>(
     '/article-distribution/reports/unpublished',
     { params },
   )
@@ -79,6 +81,21 @@ export async function createAdminArticles(
 ): Promise<ArticleDistributionArticle[]> {
   const { data } = await api.post<ArticleDistributionArticle[]>('/admin/article-distribution/articles', payload)
   return data
+}
+
+export async function updateAdminArticle(
+  articleId: number,
+  payload: ArticleDistributionArticleUpdatePayload,
+): Promise<ArticleDistributionArticle> {
+  const { data } = await api.patch<ArticleDistributionArticle>(
+    `/admin/article-distribution/articles/${articleId}`,
+    payload,
+  )
+  return data
+}
+
+export async function deleteAdminArticle(articleId: number): Promise<void> {
+  await api.delete(`/admin/article-distribution/articles/${articleId}`)
 }
 
 export async function listArticleApiKeys(): Promise<ArticleDistributionApiKey[]> {

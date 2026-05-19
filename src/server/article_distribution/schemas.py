@@ -9,7 +9,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 PublicationType = Literal["video", "article", "image_text"]
-PublishStatus = Literal["unpublished", "published"]
+PublishStatus = Literal["unpublished", "published", "invalid"]
 
 
 class AccountCreate(BaseModel):
@@ -64,6 +64,16 @@ class ArticleBatchCreate(BaseModel):
 
 class ArticleStatusUpdate(BaseModel):
     publish_status: PublishStatus
+    published_url: str | None = Field(default=None, max_length=2048)
+
+
+class ArticleUpdate(BaseModel):
+    account_id: int | None = Field(default=None, ge=1)
+    title: str | None = Field(default=None, min_length=1, max_length=200)
+    markdown_content: str | None = Field(default=None, min_length=1)
+    scheduled_date: date | None = None
+    publish_status: PublishStatus | None = None
+    published_url: str | None = Field(default=None, max_length=2048)
 
 
 class ArticleOut(BaseModel):
@@ -74,6 +84,7 @@ class ArticleOut(BaseModel):
     markdown_content: str
     scheduled_date: date
     publish_status: PublishStatus
+    published_url: str | None
     source: str
     created_by_user_id: int | None
     api_key_id: int | None
@@ -93,7 +104,20 @@ class ArticleDistributionPendingArticleOut(BaseModel):
     account_name: str
     platform: str
     publication_type: PublicationType
+    publish_status: PublishStatus
+    published_url: str | None
     created_at: datetime
+
+
+class ArticleDistributionPlatformSummaryOut(BaseModel):
+    account_id: int
+    account_name: str
+    platform: str
+    publication_type: PublicationType
+    published_count: int
+    unpublished_count: int
+    invalid_count: int
+    latest_published_url: str | None = None
 
 
 class ArticleDistributionPendingUserOut(BaseModel):
@@ -102,7 +126,23 @@ class ArticleDistributionPendingUserOut(BaseModel):
     name: str | None
     email: str
     remaining_count: int
+    published_count: int
+    invalid_count: int
+    platform_summaries: list[ArticleDistributionPlatformSummaryOut]
     articles: list[ArticleDistributionPendingArticleOut]
+
+
+class ArticleDistributionReportSummaryOut(BaseModel):
+    total_users: int
+    unpublished_users: int
+    published_articles: int
+    unpublished_articles: int
+    invalid_articles: int
+
+
+class ArticleDistributionReportOut(BaseModel):
+    summary: ArticleDistributionReportSummaryOut
+    users: list[ArticleDistributionPendingUserOut]
 
 
 class APIKeyCreate(BaseModel):

@@ -7,6 +7,7 @@ import hashlib
 import hmac
 import secrets
 from datetime import date, datetime, timezone
+from urllib.parse import urlparse
 
 from fastapi import HTTPException, status
 from sqlalchemy.exc import IntegrityError
@@ -26,10 +27,15 @@ from .schemas import (
     AccountUpdate,
     AccountDirectoryOut,
     ArticleBatchCreate,
+    ArticleDistributionPlatformSummaryOut,
     ArticleDistributionPendingArticleOut,
+    ArticleDistributionReportOut,
+    ArticleDistributionReportSummaryOut,
     ArticleDistributionPendingUserOut,
     ArticleOut,
+    ArticleUpdate,
     ArticleUploadItem,
+    PublishStatus,
     PublicationType,
     UserAccountDirectoryOut,
 )
@@ -46,7 +52,7 @@ def list_accounts(
     platform: str | None = None,
     publication_type: str | None = None,
 ) -> list[ArticleDistributionAccount]:
-    target_user_id = _resolve_target_user_id(current_user, user_id)
+    target_user_id = _resolve_optional_target_user_id(current_user, user_id)
     return ArticleDistributionDAO(db).list_accounts(
         user_id=target_user_id,
         platform=_normalize_optional(platform),
@@ -149,10 +155,10 @@ def list_articles(
     platform: str | None = None,
     publication_type: str | None = None,
 ) -> list[ArticleOut]:
-    target_user_id = _resolve_target_user_id(current_user, user_id)
+    target_user_id = _resolve_optional_target_user_id(current_user, user_id)
     if account_id is not None:
         account = _get_accessible_account(db, account_id, current_user, write=False)
-        if account.user_id != target_user_id:
+        if target_user_id is not None and account.user_id != target_user_id:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无权限")
 
     dao = ArticleDistributionDAO(db)
@@ -175,9 +181,10 @@ def list_unpublished_report(
     scheduled_to: date | None = None,
     platform: str | None = None,
     publication_type: str | None = None,
-) -> list[ArticleDistributionPendingUserOut]:
+) -> ArticleDistributionReportOut:
     grouped: dict[int, ArticleDistributionPendingUserOut] = {}
-    rows = ArticleDistributionDAO(db).list_unpublished_article_owner_rows(
+    platform_summaries: dict[tuple[int, int], ArticleDistributionPlatformSummaryOut] = {}
+    rows = ArticleDistributionDAO(db).list_report_article_owner_rows(
         scheduled_from=scheduled_from,
         scheduled_to=scheduled_to,
         platform=_normalize_optional(platform),
@@ -191,9 +198,38 @@ def list_unpublished_report(
                 name=owner.name,
                 email=owner.email,
                 remaining_count=0,
+                published_count=0,
+                invalid_count=0,
+                platform_summaries=[],
                 articles=[],
             )
         user_report = grouped[owner.id]
+        summary_key = (owner.id, account.id)
+        if summary_key not in platform_summaries:
+            platform_summary = ArticleDistributionPlatformSummaryOut(
+                account_id=account.id,
+                account_name=account.account_name,
+                platform=account.platform,
+                publication_type=_normalize_publication_type(account.publication_type),
+                published_count=0,
+                unpublished_count=0,
+                invalid_count=0,
+                latest_published_url=None,
+            )
+            platform_summaries[summary_key] = platform_summary
+            user_report.platform_summaries.append(platform_summary)
+        platform_summary = platform_summaries[summary_key]
+        if article.publish_status == "published":
+            user_report.published_count += 1
+            platform_summary.published_count += 1
+            if article.published_url:
+                platform_summary.latest_published_url = article.published_url
+        elif article.publish_status == "invalid":
+            user_report.invalid_count += 1
+            platform_summary.invalid_count += 1
+        else:
+            user_report.remaining_count += 1
+            platform_summary.unpublished_count += 1
         user_report.articles.append(
             ArticleDistributionPendingArticleOut(
                 id=article.id,
@@ -204,11 +240,22 @@ def list_unpublished_report(
                 account_name=account.account_name,
                 platform=account.platform,
                 publication_type=_normalize_publication_type(account.publication_type),
+                publish_status=_normalize_publish_status(article.publish_status),
+                published_url=article.published_url,
                 created_at=article.created_at,
             )
         )
-        user_report.remaining_count += 1
-    return list(grouped.values())
+    users = list(grouped.values())
+    return ArticleDistributionReportOut(
+        summary=ArticleDistributionReportSummaryOut(
+            total_users=len(users),
+            unpublished_users=sum(1 for user in users if user.remaining_count > 0),
+            published_articles=sum(user.published_count for user in users),
+            unpublished_articles=sum(user.remaining_count for user in users),
+            invalid_articles=sum(user.invalid_count for user in users),
+        ),
+        users=users,
+    )
 
 
 def get_article(db: Session, *, article_id: int, current_user: User) -> ArticleOut:
@@ -217,13 +264,63 @@ def get_article(db: Session, *, article_id: int, current_user: User) -> ArticleO
 
 
 def update_article_status(
-    db: Session, *, article_id: int, publish_status: str, current_user: User
+    db: Session,
+    *,
+    article_id: int,
+    publish_status: str,
+    published_url: str | None,
+    current_user: User,
 ) -> ArticleOut:
     article = _get_accessible_article(db, article_id, current_user)
+    fields = _status_update_fields(publish_status, published_url)
     updated = ArticleDistributionDAO(db).update_article(
-        article, publish_status=publish_status
+        article,
+        **fields,
     )
     return _article_to_out(db, updated)
+
+
+def update_article_as_admin(
+    db: Session, *, article_id: int, payload: ArticleUpdate, current_user: User
+) -> ArticleOut:
+    _assert_admin(current_user)
+    dao = ArticleDistributionDAO(db)
+    article = dao.get_article(article_id)
+    if article is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="文章不存在")
+
+    fields = payload.model_dump(exclude_unset=True)
+    if "account_id" in fields and fields["account_id"] is not None:
+        account = _get_account_or_404(db, int(fields["account_id"]))
+        fields["account_id"] = account.id
+        fields["user_id"] = account.user_id
+    if "title" in fields and fields["title"] is not None:
+        fields["title"] = _normalize_required(str(fields["title"]), "标题不能为空")
+    if "markdown_content" in fields and fields["markdown_content"] is not None:
+        fields["markdown_content"] = _normalize_required(
+            str(fields["markdown_content"]), "正文不能为空"
+        )
+    if "publish_status" in fields:
+        status_value = fields.pop("publish_status")
+        published_url = fields.pop("published_url", None)
+        if status_value is not None:
+            fields.update(_status_update_fields(str(status_value), published_url))
+    elif "published_url" in fields:
+        published_url = fields.pop("published_url")
+        if article.publish_status == "published":
+            fields["published_url"] = _normalize_published_url(published_url)
+
+    updated = dao.update_article(article, **fields)
+    return _article_to_out(db, updated)
+
+
+def delete_article_as_admin(db: Session, *, article_id: int, current_user: User) -> None:
+    _assert_admin(current_user)
+    dao = ArticleDistributionDAO(db)
+    article = dao.get_article(article_id)
+    if article is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="文章不存在")
+    dao.delete_article(article)
 
 
 def create_articles_as_admin(
@@ -374,6 +471,14 @@ def _resolve_target_user_id(current_user: User, requested_user_id: int | None) -
     return current_user.id
 
 
+def _resolve_optional_target_user_id(
+    current_user: User, requested_user_id: int | None
+) -> int | None:
+    if requested_user_id is None and current_user.role == UserRole.ADMIN:
+        return None
+    return _resolve_target_user_id(current_user, requested_user_id)
+
+
 def _assert_admin(user: User) -> None:
     if user.role != UserRole.ADMIN:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="需要管理员权限")
@@ -415,6 +520,47 @@ def _normalize_publication_type(value: str) -> PublicationType:
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         detail="账号发布类型无效",
     )
+
+
+def _normalize_publish_status(value: str) -> PublishStatus:
+    if value == "unpublished":
+        return "unpublished"
+    if value == "published":
+        return "published"
+    if value == "invalid":
+        return "invalid"
+    raise HTTPException(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        detail="文章发布状态无效",
+    )
+
+
+def _status_update_fields(
+    publish_status: str, published_url: str | None
+) -> dict[str, str | None]:
+    normalized_status = _normalize_publish_status(publish_status)
+    if normalized_status == "published":
+        return {
+            "publish_status": normalized_status,
+            "published_url": _normalize_published_url(published_url),
+        }
+    return {"publish_status": normalized_status, "published_url": None}
+
+
+def _normalize_published_url(value: str | None) -> str:
+    normalized = _normalize_optional(value)
+    if not normalized:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="标记已发布时必须填写发布地址",
+        )
+    parsed = urlparse(normalized)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="发布地址必须是 http 或 https URL",
+        )
+    return normalized
 
 
 def _generate_api_key() -> str:

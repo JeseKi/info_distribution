@@ -13,7 +13,6 @@ import {
   Select,
   Space,
   Statistic,
-  Switch,
   Tabs,
   Tag,
   Typography,
@@ -57,6 +56,7 @@ const publicationTypeOptions = [
 const publishStatusOptions = [
   { label: '未发布', value: 'unpublished' },
   { label: '已发布', value: 'published' },
+  { label: '文档失效', value: 'invalid' },
 ]
 
 const publicationTypeText: Record<ArticlePublicationType, string> = {
@@ -66,7 +66,16 @@ const publicationTypeText: Record<ArticlePublicationType, string> = {
 }
 
 function publishStatusTag(status: ArticlePublishStatus) {
-  return status === 'published' ? <Tag color="green">已发布</Tag> : <Tag>未发布</Tag>
+  if (status === 'published') return <Tag color="green">已发布</Tag>
+  if (status === 'invalid') return <Tag color="red">文档失效</Tag>
+  return <Tag>未发布</Tag>
+}
+
+interface ArticleEditFormValues {
+  account_id: number
+  title: string
+  scheduled_date: dayjs.Dayjs
+  markdown_content: string
 }
 
 export default function ArticleDistributionPage() {
@@ -81,6 +90,10 @@ export default function ArticleDistributionPage() {
   const [editingAccount, setEditingAccount] = useState<ArticleDistributionAccount | null>(null)
   const [accountForm] = Form.useForm<ArticleDistributionAccountPayload>()
   const [filterForm] = Form.useForm()
+  const [publishModalOpen, setPublishModalOpen] = useState(false)
+  const [publishForm] = Form.useForm<{ published_url: string }>()
+  const [articleEditModalOpen, setArticleEditModalOpen] = useState(false)
+  const [articleEditForm] = Form.useForm<ArticleEditFormValues>()
 
   const selectedArticle = useMemo(
     () => articles.find((article) => article.id === selectedArticleId) ?? articles[0] ?? null,
@@ -88,7 +101,8 @@ export default function ArticleDistributionPage() {
   )
 
   const unreadCount = articles.filter((article) => article.publish_status === 'unpublished').length
-  const publishedCount = articles.length - unreadCount
+  const invalidCount = articles.filter((article) => article.publish_status === 'invalid').length
+  const publishedCount = articles.filter((article) => article.publish_status === 'published').length
 
   const accountOptions = useMemo(
     () => accounts.map((account) => ({
@@ -163,11 +177,71 @@ export default function ArticleDistributionPage() {
     }
   }
 
-  const handleStatusChange = async (article: ArticleDistributionArticle, checked: boolean) => {
+  const updateArticleInList = (updated: ArticleDistributionArticle) => {
+    setArticles((items) => items.map((item) => (item.id === updated.id ? updated : item)))
+  }
+
+  const handleDirectStatusChange = async (article: ArticleDistributionArticle, publishStatus: ArticlePublishStatus) => {
     try {
-      const updated = await articleApi.updateArticleStatus(article.id, checked ? 'published' : 'unpublished')
-      setArticles((items) => items.map((item) => (item.id === updated.id ? updated : item)))
+      const updated = await articleApi.updateArticleStatus(article.id, publishStatus)
+      updateArticleInList(updated)
       message.success('发布状态已更新')
+    } catch (error) {
+      message.error(resolveErrorMessage(error))
+    }
+  }
+
+  const openPublishModal = (article: ArticleDistributionArticle) => {
+    setSelectedArticleId(article.id)
+    publishForm.setFieldsValue({ published_url: article.published_url ?? '' })
+    setPublishModalOpen(true)
+  }
+
+  const handlePublishSubmit = async ({ published_url }: { published_url: string }) => {
+    if (!selectedArticle) return
+    try {
+      const updated = await articleApi.updateArticleStatus(selectedArticle.id, 'published', published_url)
+      updateArticleInList(updated)
+      setPublishModalOpen(false)
+      publishForm.resetFields()
+      message.success('发布状态已更新')
+    } catch (error) {
+      message.error(resolveErrorMessage(error))
+    }
+  }
+
+  const openArticleEditModal = (article: ArticleDistributionArticle) => {
+    articleEditForm.setFieldsValue({
+      account_id: article.account_id,
+      title: article.title,
+      scheduled_date: dayjs(article.scheduled_date),
+      markdown_content: article.markdown_content,
+    })
+    setArticleEditModalOpen(true)
+  }
+
+  const handleArticleEditSubmit = async (values: ArticleEditFormValues) => {
+    if (!selectedArticle) return
+    try {
+      const updated = await articleApi.updateAdminArticle(selectedArticle.id, {
+        account_id: values.account_id,
+        title: values.title,
+        scheduled_date: values.scheduled_date.format('YYYY-MM-DD'),
+        markdown_content: values.markdown_content,
+      })
+      updateArticleInList(updated)
+      setArticleEditModalOpen(false)
+      message.success('文章已更新')
+    } catch (error) {
+      message.error(resolveErrorMessage(error))
+    }
+  }
+
+  const handleDeleteArticle = async (article: ArticleDistributionArticle) => {
+    try {
+      await articleApi.deleteAdminArticle(article.id)
+      message.success('文章已删除')
+      await loadData(buildFilters())
     } catch (error) {
       message.error(resolveErrorMessage(error))
     }
@@ -229,6 +303,7 @@ export default function ArticleDistributionPage() {
             <Flex gap={12}>
               <Statistic title="待发布" value={unreadCount} />
               <Statistic title="已发布" value={publishedCount} />
+              <Statistic title="文档失效" value={invalidCount} />
             </Flex>
 
             <Form form={filterForm} layout="vertical">
@@ -335,12 +410,27 @@ export default function ArticleDistributionPage() {
                       <Tag>{selectedArticle.account?.platform ?? '平台'} / {selectedArticle.account?.account_name ?? selectedArticle.account_id}</Tag>
                     </Space>
                   </div>
-                  <Switch
-                    checked={selectedArticle.publish_status === 'published'}
-                    checkedChildren="已发布"
-                    unCheckedChildren="未发布"
-                    onChange={(checked) => void handleStatusChange(selectedArticle, checked)}
-                  />
+                  <Space wrap>
+                    <Button
+                      type={selectedArticle.publish_status === 'unpublished' ? 'primary' : 'default'}
+                      onClick={() => void handleDirectStatusChange(selectedArticle, 'unpublished')}
+                    >
+                      未发布
+                    </Button>
+                    <Button
+                      type={selectedArticle.publish_status === 'published' ? 'primary' : 'default'}
+                      onClick={() => openPublishModal(selectedArticle)}
+                    >
+                      已发布
+                    </Button>
+                    <Button
+                      danger
+                      type={selectedArticle.publish_status === 'invalid' ? 'primary' : 'default'}
+                      onClick={() => void handleDirectStatusChange(selectedArticle, 'invalid')}
+                    >
+                      文档失效
+                    </Button>
+                  </Space>
                 </Flex>
                 <Descriptions size="small" column={3} style={{ marginTop: 16 }}>
                   <Descriptions.Item label="发布类型">
@@ -348,6 +438,13 @@ export default function ArticleDistributionPage() {
                   </Descriptions.Item>
                   <Descriptions.Item label="来源">{selectedArticle.source}</Descriptions.Item>
                   <Descriptions.Item label="文章 ID">{selectedArticle.id}</Descriptions.Item>
+                  <Descriptions.Item label="发布地址">
+                    {selectedArticle.published_url ? (
+                      <Typography.Link href={selectedArticle.published_url} target="_blank" rel="noreferrer">
+                        打开链接
+                      </Typography.Link>
+                    ) : '-'}
+                  </Descriptions.Item>
                 </Descriptions>
                 <Space wrap style={{ marginTop: 16 }}>
                   <Button icon={<CopyOutlined />} onClick={() => void copyAction('markdown')}>复制源码</Button>
@@ -360,6 +457,18 @@ export default function ArticleDistributionPage() {
                   >
                     DOCX
                   </Button>
+                  {isAdmin && (
+                    <>
+                      <Button icon={<EditOutlined />} onClick={() => openArticleEditModal(selectedArticle)}>
+                        编辑文章
+                      </Button>
+                      <Popconfirm title="删除这篇文章？" onConfirm={() => void handleDeleteArticle(selectedArticle)}>
+                        <Button danger icon={<DeleteOutlined />}>
+                          删除文章
+                        </Button>
+                      </Popconfirm>
+                    </>
+                  )}
                 </Space>
               </div>
               <div className="article-preview-body">
@@ -409,6 +518,49 @@ export default function ArticleDistributionPage() {
           </Form.Item>
           <Form.Item label="发布类型" name="publication_type" rules={[{ required: true, message: '请选择发布类型' }]}>
             <Select options={publicationTypeOptions} />
+          </Form.Item>
+        </Form>
+      </Modal>
+      <Modal
+        title="填写发布地址"
+        open={publishModalOpen}
+        onCancel={() => setPublishModalOpen(false)}
+        onOk={() => publishForm.submit()}
+        destroyOnClose
+      >
+        <Form form={publishForm} layout="vertical" onFinish={(values) => void handlePublishSubmit(values)}>
+          <Form.Item
+            label="发布地址"
+            name="published_url"
+            rules={[
+              { required: true, message: '请输入发布地址' },
+              { type: 'url', message: '请输入有效 URL' },
+            ]}
+          >
+            <Input placeholder="https://..." />
+          </Form.Item>
+        </Form>
+      </Modal>
+      <Modal
+        title="编辑文章"
+        open={articleEditModalOpen}
+        onCancel={() => setArticleEditModalOpen(false)}
+        onOk={() => articleEditForm.submit()}
+        width={820}
+        destroyOnClose
+      >
+        <Form form={articleEditForm} layout="vertical" onFinish={(values) => void handleArticleEditSubmit(values)}>
+          <Form.Item label="账号" name="account_id" rules={[{ required: true, message: '请选择账号' }]}>
+            <Select options={accountOptions} />
+          </Form.Item>
+          <Form.Item label="标题" name="title" rules={[{ required: true, message: '请输入标题' }]}>
+            <Input />
+          </Form.Item>
+          <Form.Item label="发布日期" name="scheduled_date" rules={[{ required: true, message: '请选择发布日期' }]}>
+            <DatePicker />
+          </Form.Item>
+          <Form.Item label="Markdown" name="markdown_content" rules={[{ required: true, message: '请输入 Markdown' }]}>
+            <Input.TextArea rows={14} />
           </Form.Item>
         </Form>
       </Modal>

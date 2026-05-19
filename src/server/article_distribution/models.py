@@ -53,6 +53,7 @@ class ArticleDistributionArticle(Base):
     publish_status: Mapped[str] = mapped_column(
         String(20), nullable=False, default="unpublished", index=True
     )
+    published_url: Mapped[str | None] = mapped_column(String(2048), default=None)
     source: Mapped[str] = mapped_column(String(40), nullable=False, default="web")
     created_by_user_id: Mapped[int | None] = mapped_column(Integer, default=None)
     api_key_id: Mapped[int | None] = mapped_column(Integer, default=None)
