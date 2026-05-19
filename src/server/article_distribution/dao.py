@@ -8,6 +8,7 @@ from datetime import date, datetime
 from sqlalchemy.orm import Session
 
 from src.server.dao.dao_base import BaseDAO
+from src.server.auth.models import User
 
 from .models import (
     ArticleDistributionAPIKey,
@@ -51,6 +52,21 @@ class ArticleDistributionDAO(BaseDAO):
             )
             .all()
         )
+
+    def list_account_owner_rows(self) -> list[tuple[ArticleDistributionAccount, User]]:
+        rows = (
+            self.db_session.query(ArticleDistributionAccount, User)
+            .join(User, ArticleDistributionAccount.user_id == User.id)
+            .order_by(
+                ArticleDistributionAccount.platform.asc(),
+                ArticleDistributionAccount.account_name.asc(),
+                ArticleDistributionAccount.publication_type.asc(),
+                User.id.asc(),
+                ArticleDistributionAccount.id.asc(),
+            )
+            .all()
+        )
+        return [(account, owner) for account, owner in rows]
 
     def create_account(
         self, account: ArticleDistributionAccount

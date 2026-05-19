@@ -31,6 +31,7 @@ from .schemas import (
     APIKeyCreateOut,
     APIKeyOut,
     AccountCreate,
+    AccountDirectoryOut,
     AccountOut,
     AccountUpdate,
     ArticleBatchCreate,
@@ -283,6 +284,22 @@ def _validate_proxy_image_url(raw_url: str) -> str:
             )
 
     return raw_url.strip()
+
+
+@v1_router.get(
+    "/accounts",
+    response_model=list[AccountDirectoryOut],
+    summary="使用 API Key 获取账号目录",
+)
+async def list_account_directory_v1(
+    x_api_key: Annotated[str | None, Header(alias="X-API-Key")] = None,
+    db: Session = Depends(get_db),
+):
+    def _list():
+        service.authenticate_api_key(db, x_api_key)
+        return service.list_account_directory(db)
+
+    return await run_in_thread(_list)
 
 
 @admin_router.post(

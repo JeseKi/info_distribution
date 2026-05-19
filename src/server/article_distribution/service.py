@@ -24,9 +24,12 @@ from .models import (
 from .schemas import (
     AccountCreate,
     AccountUpdate,
+    AccountDirectoryOut,
+    AccountOwnerOut,
     ArticleBatchCreate,
     ArticleOut,
     ArticleUploadItem,
+    PublicationType,
 )
 
 API_KEY_PREFIX = "adv1"
@@ -47,6 +50,24 @@ def list_accounts(
         platform=_normalize_optional(platform),
         publication_type=publication_type,
     )
+
+
+def list_account_directory(db: Session) -> list[AccountDirectoryOut]:
+    grouped: dict[tuple[str, str, PublicationType], AccountDirectoryOut] = {}
+    for account, owner in ArticleDistributionDAO(db).list_account_owner_rows():
+        publication_type = _normalize_publication_type(account.publication_type)
+        key = (account.platform, account.account_name, publication_type)
+        if key not in grouped:
+            grouped[key] = AccountDirectoryOut(
+                platform=account.platform,
+                account_name=account.account_name,
+                publication_type=publication_type,
+                users=[],
+            )
+        grouped[key].users.append(
+            AccountOwnerOut(id=owner.id, name=owner.name or owner.username)
+        )
+    return list(grouped.values())
 
 
 def create_account(
@@ -333,6 +354,19 @@ def _normalize_optional(value: str | None) -> str | None:
         return None
     normalized = value.strip()
     return normalized or None
+
+
+def _normalize_publication_type(value: str) -> PublicationType:
+    if value == "video":
+        return "video"
+    if value == "article":
+        return "article"
+    if value == "image_text":
+        return "image_text"
+    raise HTTPException(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        detail="账号发布类型无效",
+    )
 
 
 def _generate_api_key() -> str:

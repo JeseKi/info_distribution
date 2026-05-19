@@ -17,12 +17,16 @@ from src.server.auth import service as auth_service
 
 
 def _create_user(
-    db: Session, *, username: str, role: UserRole = UserRole.USER
+    db: Session,
+    *,
+    username: str,
+    role: UserRole = UserRole.USER,
+    name: str | None = None,
 ) -> User:
     user = User(
         username=username,
         email=f"{username}@example.com",
-        name=username,
+        name=username if name is None else name,
         role=role,
     )
     user.set_password("Password123")
@@ -90,6 +94,73 @@ def test_image_proxy_rejects_untrusted_private_address(monkeypatch):
 
     assert exc_info.value.status_code == 400
     assert exc_info.value.detail == "不允许代理内网或本机图片地址"
+
+
+def test_v1_account_directory_groups_accounts_by_identity_with_api_key(
+    test_client, test_db_session: Session
+):
+    owner_a = _create_user(test_db_session, username="owner_a", name="Owner A")
+    owner_b = _create_user(test_db_session, username="owner_b", name="Owner B")
+    owner_without_name = _create_user(
+        test_db_session, username="owner_no_name", name=""
+    )
+    admin = _create_user(test_db_session, username="directory_admin", role=UserRole.ADMIN)
+
+    for user_id, publication_type in [
+        (owner_a.id, "image_text"),
+        (owner_b.id, "image_text"),
+        (owner_without_name.id, "article"),
+    ]:
+        create_resp = test_client.post(
+            "/api/article-distribution/accounts",
+            headers=_headers(admin),
+            json={
+                "user_id": user_id,
+                "account_name": "主号",
+                "platform": "wechat",
+                "publication_type": publication_type,
+            },
+        )
+        assert create_resp.status_code == 201
+
+    key_resp = test_client.post(
+        "/api/admin/article-distribution/api-keys",
+        headers=_headers(admin),
+        json={"name": "directory"},
+    )
+    assert key_resp.status_code == 201
+
+    directory_resp = test_client.get(
+        "/api/v1/article-distribution/accounts",
+        headers={"X-API-Key": key_resp.json()["api_key"]},
+    )
+
+    assert directory_resp.status_code == 200
+    assert directory_resp.json() == [
+        {
+            "platform": "wechat",
+            "account_name": "主号",
+            "publication_type": "article",
+            "users": [{"id": owner_without_name.id, "name": "owner_no_name"}],
+        },
+        {
+            "platform": "wechat",
+            "account_name": "主号",
+            "publication_type": "image_text",
+            "users": [
+                {"id": owner_a.id, "name": "Owner A"},
+                {"id": owner_b.id, "name": "Owner B"},
+            ],
+        },
+    ]
+
+
+def test_v1_account_directory_requires_api_key(
+    test_client, test_db_session: Session
+):
+    response = test_client.get("/api/v1/article-distribution/accounts")
+
+    assert response.status_code == 401
 
 
 def test_user_can_manage_own_accounts(test_client, test_db_session: Session):

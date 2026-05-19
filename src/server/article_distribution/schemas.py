@@ -38,6 +38,18 @@ class AccountOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class AccountOwnerOut(BaseModel):
+    id: int
+    name: str
+
+
+class AccountDirectoryOut(BaseModel):
+    platform: str
+    account_name: str
+    publication_type: PublicationType
+    users: list[AccountOwnerOut]
+
+
 class ArticleUploadItem(BaseModel):
     title: str = Field(..., min_length=1, max_length=200)
     markdown_content: str = Field(..., min_length=1)
