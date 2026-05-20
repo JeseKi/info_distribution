@@ -9,6 +9,7 @@ import {
   Flex,
   Form,
   Input,
+  Popover,
   Select,
   Space,
   Statistic,
@@ -240,52 +241,87 @@ export default function ArticleDistributionReportPage() {
     },
   ]
 
-  const platformColumns: TableColumnsType<ArticleDistributionPlatformSummary> = [
-    {
-      title: '发布平台',
-      key: 'platform',
-      width: 360,
-      render: (_, record) => (
-        <Space>
-          <Tag>{record.platform}</Tag>
-          <Typography.Text>{record.account_name}</Typography.Text>
-          <Typography.Text type="secondary">{publicationTypeText[record.publication_type]}</Typography.Text>
-        </Space>
-      ),
-    },
-    {
-      title: '发布数量',
-      dataIndex: 'published_count',
-      key: 'published_count',
-      width: 140,
-      render: (value: number) => <Tag color="green">{value}</Tag>,
-    },
-    {
-      title: '剩余未发布',
-      dataIndex: 'unpublished_count',
-      key: 'unpublished_count',
-      width: 160,
-      render: (value: number) => <Tag color={value > 0 ? 'volcano' : 'default'}>{value}</Tag>,
-    },
-    {
-      title: '失效数量',
-      dataIndex: 'invalid_count',
-      key: 'invalid_count',
-      width: 140,
-      render: (value: number) => <Tag color={value > 0 ? 'red' : 'default'}>{value}</Tag>,
-    },
-    {
-      title: '平台链接',
-      dataIndex: 'latest_published_url',
-      key: 'latest_published_url',
-      width: 140,
-      render: (value: string | null) => value ? (
-        <Typography.Link href={value} target="_blank" rel="noreferrer">
-          检查
-        </Typography.Link>
-      ) : '-',
-    },
-  ]
+  const buildPlatformColumns = (
+    user: ArticleDistributionPendingUser,
+  ): TableColumnsType<ArticleDistributionPlatformSummary> => [
+      {
+        title: '发布平台',
+        key: 'platform',
+        width: 360,
+        render: (_, record) => (
+          <Space>
+            <Tag>{record.platform}</Tag>
+            <Typography.Text>{record.account_name}</Typography.Text>
+            <Typography.Text type="secondary">{publicationTypeText[record.publication_type]}</Typography.Text>
+          </Space>
+        ),
+      },
+      {
+        title: '发布数量',
+        dataIndex: 'published_count',
+        key: 'published_count',
+        width: 140,
+        render: (value: number) => <Tag color="green">{value}</Tag>,
+      },
+      {
+        title: '剩余未发布',
+        dataIndex: 'unpublished_count',
+        key: 'unpublished_count',
+        width: 160,
+        render: (value: number) => <Tag color={value > 0 ? 'volcano' : 'default'}>{value}</Tag>,
+      },
+      {
+        title: '失效数量',
+        dataIndex: 'invalid_count',
+        key: 'invalid_count',
+        width: 140,
+        render: (value: number) => <Tag color={value > 0 ? 'red' : 'default'}>{value}</Tag>,
+      },
+      {
+        title: '文章链接',
+        key: 'published_article_links',
+        width: 160,
+        render: (_, record) => renderPublishedArticleLinks(user, record),
+      },
+    ]
+
+  const renderPublishedArticleLinks = (
+    user: ArticleDistributionPendingUser,
+    platformSummary: ArticleDistributionPlatformSummary,
+  ) => {
+    const articles = user.articles.filter(
+      (article): article is ArticleDistributionPendingArticle & { published_url: string } =>
+        article.account_id === platformSummary.account_id &&
+        article.publish_status === 'published' &&
+        Boolean(article.published_url),
+    )
+    if (!articles.length) return '-'
+
+    return (
+      <Popover
+        trigger="click"
+        placement="bottomRight"
+        title="已发布文章链接"
+        content={(
+          <Flex vertical gap={12} style={{ width: 420, maxWidth: '70vw', maxHeight: 360, overflow: 'auto' }}>
+            {articles.map((article) => (
+              <Space key={article.id} direction="vertical" size={0} style={{ minWidth: 0, width: '100%' }}>
+                <Typography.Text strong ellipsis>
+                  {article.title}
+                </Typography.Text>
+                <Typography.Text type="secondary">{article.scheduled_date}</Typography.Text>
+                <Typography.Link href={article.published_url} target="_blank" rel="noreferrer" ellipsis>
+                  {article.published_url}
+                </Typography.Link>
+              </Space>
+            ))}
+          </Flex>
+        )}
+      >
+        <Typography.Link>查看 {articles.length} 篇</Typography.Link>
+      </Popover>
+    )
+  }
 
   const renderArticleDetail = (article: ArticleDistributionPendingArticle) => (
     <Flex vertical gap={12} style={{ minWidth: 0, width: '100%', overflow: 'hidden' }}>
@@ -329,12 +365,12 @@ export default function ArticleDistributionReportPage() {
     <Flex vertical gap={12} style={{ minWidth: 0, width: '100%', overflow: 'hidden' }}>
       <Table
         rowKey="account_id"
-        columns={platformColumns}
+        columns={buildPlatformColumns(record)}
         dataSource={record.platform_summaries}
         pagination={false}
         size="small"
         tableLayout="fixed"
-        scroll={{ x: 940 }}
+        scroll={{ x: 960 }}
       />
       <Table
         rowKey="id"
