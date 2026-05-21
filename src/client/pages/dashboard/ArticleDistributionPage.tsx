@@ -10,6 +10,7 @@ import {
   Input,
   Modal,
   Popconfirm,
+  Popover,
   Select,
   Space,
   Statistic,
@@ -36,6 +37,7 @@ import {
   copyHtml,
   copyText,
   downloadMarkdownAsDocx,
+  downloadMarkdownImagesAsZip,
   markdownToPlainText,
 } from '../../lib/articleDistributionExport'
 import type {
@@ -94,6 +96,8 @@ export default function ArticleDistributionPage() {
   const [publishForm] = Form.useForm<{ published_url: string }>()
   const [articleEditModalOpen, setArticleEditModalOpen] = useState(false)
   const [articleEditForm] = Form.useForm<ArticleEditFormValues>()
+  const [copyMenuOpen, setCopyMenuOpen] = useState(false)
+  const [downloadingImages, setDownloadingImages] = useState(false)
 
   const selectedArticle = useMemo(
     () => articles.find((article) => article.id === selectedArticleId) ?? articles[0] ?? null,
@@ -262,9 +266,27 @@ export default function ArticleDistributionPage() {
           preferRenderedSelection: true,
         })
       }
+      setCopyMenuOpen(false)
       message.success('已复制')
     } catch {
       message.error('复制失败')
+    }
+  }
+
+  const handleDownloadImagePackage = async () => {
+    if (!selectedArticle) return
+    setDownloadingImages(true)
+    try {
+      const count = await downloadMarkdownImagesAsZip(selectedArticle.markdown_content, selectedArticle.title)
+      if (count === 0) {
+        message.warning('文章中没有图片')
+      } else {
+        message.success(`已下载 ${count} 张图片`)
+      }
+    } catch {
+      message.error('图片包下载失败')
+    } finally {
+      setDownloadingImages(false)
     }
   }
 
@@ -447,10 +469,28 @@ export default function ArticleDistributionPage() {
                   </Descriptions.Item>
                 </Descriptions>
                 <Space wrap style={{ marginTop: 16 }}>
-                  <Button icon={<CopyOutlined />} onClick={() => void copyAction('markdown')}>复制源码</Button>
-                  <Button icon={<CopyOutlined />} onClick={() => void copyAction('plain')}>复制纯文本</Button>
-                  <Button icon={<CopyOutlined />} onClick={() => void copyAction('html')}>复制 HTML</Button>
-                  <Button icon={<CopyOutlined />} onClick={() => void copyAction('wechat')}>复制为公众号</Button>
+                  <Popover
+                    trigger="click"
+                    open={copyMenuOpen}
+                    onOpenChange={setCopyMenuOpen}
+                    content={(
+                      <Space direction="vertical">
+                        <Button block icon={<CopyOutlined />} onClick={() => void copyAction('markdown')}>复制源码</Button>
+                        <Button block icon={<CopyOutlined />} onClick={() => void copyAction('plain')}>复制纯文本</Button>
+                        <Button block icon={<CopyOutlined />} onClick={() => void copyAction('html')}>复制 HTML</Button>
+                        <Button block icon={<CopyOutlined />} onClick={() => void copyAction('wechat')}>复制为公众号</Button>
+                      </Space>
+                    )}
+                  >
+                    <Button icon={<CopyOutlined />}>复制</Button>
+                  </Popover>
+                  <Button
+                    icon={<DownloadOutlined />}
+                    loading={downloadingImages}
+                    onClick={() => void handleDownloadImagePackage()}
+                  >
+                    图片包
+                  </Button>
                   <Button
                     icon={<DownloadOutlined />}
                     onClick={() => void downloadMarkdownAsDocx(selectedArticle.markdown_content, selectedArticle.title)}

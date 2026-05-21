@@ -50,6 +50,11 @@ interface DocxImage {
   height: number
 }
 
+interface ArticlePackageImage {
+  data: ArrayBuffer
+  contentType: string | null
+}
+
 const docxTheme = {
   text: '2C2C2C',
   muted: '5F5A52',
@@ -586,6 +591,40 @@ export async function downloadMarkdownAsDocx(markdown: string, filename: string)
   URL.revokeObjectURL(url)
 }
 
+export async function downloadMarkdownImagesAsZip(markdown: string, filename: string): Promise<number> {
+  const images = extractMarkdownImages(markdown)
+  if (images.length === 0) return 0
+
+  const { default: JSZip } = await import('jszip')
+  const zip = new JSZip()
+  const usedNames = new Set<string>()
+  let savedCount = 0
+
+  for (const [index, image] of images.entries()) {
+    const packageImage = await fetchImageForPackage(image.href)
+    if (!packageImage) continue
+
+    zip.file(
+      uniqueImageFilename(image, index + 1, packageImage.contentType, usedNames),
+      packageImage.data,
+    )
+    savedCount += 1
+  }
+
+  if (savedCount === 0) {
+    throw new Error('图片包下载失败')
+  }
+
+  const blob = await zip.generateAsync({ type: 'blob' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = `${sanitizeFilename(filename || 'article') || 'article'}-images.zip`
+  link.click()
+  URL.revokeObjectURL(url)
+  return savedCount
+}
+
 async function buildDocxBlocks(markdown: string): Promise<DocxBlock[]> {
   const tokens = marked.lexer(markdown, { gfm: true })
   const blocks: DocxBlock[] = []
@@ -952,6 +991,81 @@ function extractHtmlImages(html: string): Tokens.Image[] {
   }))
 }
 
+function extractMarkdownImages(markdown: string): Tokens.Image[] {
+  const tokens = marked.lexer(markdown, { gfm: true })
+  const images: Tokens.Image[] = []
+  collectImagesFromTokens(tokens, images)
+  return images
+}
+
+function collectImagesFromTokens(tokens: Token[] = [], images: Tokens.Image[]): void {
+  for (const token of tokens) {
+    if (token.type === 'image') {
+      images.push(token as Tokens.Image)
+      continue
+    }
+    if (token.type === 'html') {
+      images.push(...extractHtmlImages(token.raw))
+      continue
+    }
+    if ('tokens' in token && Array.isArray(token.tokens)) {
+      collectImagesFromTokens(token.tokens, images)
+    }
+    if (token.type === 'list') {
+      for (const item of (token as Tokens.List).items) {
+        collectImagesFromTokens(item.tokens, images)
+      }
+    }
+  }
+}
+
+function uniqueImageFilename(
+  image: Tokens.Image,
+  index: number,
+  contentType: string | null,
+  usedNames: Set<string>,
+): string {
+  const sourceName = image.href.startsWith('data:') ? '' : image.href
+  const urlName = sourceName ? imageFilenameFromUrl(sourceName) : ''
+  const fallbackName = sanitizeFilename(image.text || `image-${index}`)
+  const extension = imageExtension(contentType, image.href)
+  const rawName = sanitizeFilename(urlName || fallbackName || `image-${index}`)
+  const dotIndex = rawName.lastIndexOf('.')
+  const base = dotIndex > 0 ? rawName.slice(0, dotIndex) : rawName
+  const existingExtension = dotIndex > 0 ? rawName.slice(dotIndex + 1).toLowerCase() : ''
+  const normalizedExtension = existingExtension || extension
+  let candidate = `${base || `image-${index}`}.${normalizedExtension}`
+  let suffix = 2
+
+  while (usedNames.has(candidate)) {
+    candidate = `${base || `image-${index}`}-${suffix}.${normalizedExtension}`
+    suffix += 1
+  }
+  usedNames.add(candidate)
+  return candidate
+}
+
+function imageFilenameFromUrl(url: string): string {
+  try {
+    const parsed = new URL(resolveImageUrl(url))
+    return decodeURIComponent(parsed.pathname.split('/').filter(Boolean).at(-1) ?? '')
+  } catch {
+    return ''
+  }
+}
+
+function imageExtension(contentType: string | null, url: string): string {
+  const normalizedContentType = contentType?.toLowerCase() ?? ''
+  const normalizedUrl = url.toLowerCase()
+  if (normalizedContentType.includes('png') || normalizedUrl.endsWith('.png')) return 'png'
+  if (normalizedContentType.includes('gif') || normalizedUrl.endsWith('.gif')) return 'gif'
+  if (normalizedContentType.includes('bmp') || normalizedUrl.endsWith('.bmp')) return 'bmp'
+  if (normalizedContentType.includes('webp') || normalizedUrl.endsWith('.webp')) return 'webp'
+  if (normalizedContentType.includes('svg') || normalizedUrl.endsWith('.svg')) return 'svg'
+  if (normalizedContentType.includes('jpeg') || normalizedContentType.includes('jpg') || /\.jpe?g$/i.test(url)) return 'jpg'
+  return 'png'
+}
+
 function htmlInlineToRuns(html: string, style: InlineStyle): ParagraphChild[] {
   const images = extractHtmlImages(html)
   if (images.length > 0) return []
@@ -1015,6 +1129,42 @@ async function fetchImageForDocx(url: string): Promise<DocxImage | null> {
     const data = response.data
     const contentType = String(response.headers['content-type'] ?? '')
     return prepareDocxImage(data, contentType, resolvedUrl)
+  } catch {
+    return null
+  }
+}
+
+async function fetchImageForPackage(url: string): Promise<ArticlePackageImage | null> {
+  if (url.startsWith('data:')) {
+    return parseDataUrl(url)
+  }
+
+  const resolvedUrl = resolveImageUrl(url)
+  try {
+    const response = await fetchImageDirectly(resolvedUrl)
+    if (response.ok) {
+      return {
+        data: await response.arrayBuffer(),
+        contentType: response.headers.get('content-type'),
+      }
+    }
+  } catch {
+    // Cross-origin images often fail here because the image host does not allow CORS.
+  }
+
+  if (!/^https?:\/\//i.test(resolvedUrl) || !shouldProxyImageUrl(resolvedUrl)) {
+    return null
+  }
+
+  try {
+    const response = await api.get<ArrayBuffer>('/article-distribution/image-proxy', {
+      params: { url: resolvedUrl },
+      responseType: 'arraybuffer',
+    })
+    return {
+      data: response.data,
+      contentType: String(response.headers['content-type'] ?? ''),
+    }
   } catch {
     return null
   }
