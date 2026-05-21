@@ -36,6 +36,7 @@ from .schemas import (
     AccountUpdate,
     ArticleBatchCreate,
     ArticleDistributionReportOut,
+    ArticlePageOut,
     ArticleOut,
     ArticleStatusUpdate,
     ArticleUpdate,
@@ -155,6 +156,40 @@ async def list_articles(
             publish_status=publish_status,
             platform=platform,
             publication_type=publication_type,
+        )
+
+    return await run_in_thread(_list)
+
+
+@router.get("/articles/page", response_model=ArticlePageOut, summary="分页列出文章")
+async def list_articles_page(
+    user_id: int | None = Query(default=None, ge=1),
+    account_id: int | None = Query(default=None, ge=1),
+    scheduled_from: date | None = Query(default=None),
+    scheduled_to: date | None = Query(default=None),
+    publish_status: PublishStatus | None = Query(default=None),
+    platform: str | None = Query(default=None),
+    publication_type: PublicationType | None = Query(default=None),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=10, ge=1, le=100),
+    db: Session = Depends(get_db),
+    current_user: User = Security(
+        get_current_user, scopes=[SCOPE_ARTICLE_DISTRIBUTION_READ]
+    ),
+):
+    def _list():
+        return service.list_articles_page(
+            db,
+            current_user=current_user,
+            user_id=user_id,
+            account_id=account_id,
+            scheduled_from=scheduled_from,
+            scheduled_to=scheduled_to,
+            publish_status=publish_status,
+            platform=platform,
+            publication_type=publication_type,
+            page=page,
+            page_size=page_size,
         )
 
     return await run_in_thread(_list)

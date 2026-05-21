@@ -8,6 +8,8 @@ import type {
   ArticleDistributionArticle,
   ArticleDistributionArticleBatchPayload,
   ArticleDistributionArticleFilters,
+  ArticleDistributionArticlePage,
+  ArticleDistributionArticlePageParams,
   ArticleDistributionArticleUpdatePayload,
   ArticleDistributionPendingReportFilters,
   ArticleDistributionReport,
@@ -46,6 +48,13 @@ export async function listArticles(
   params?: ArticleDistributionArticleFilters,
 ): Promise<ArticleDistributionArticle[]> {
   const { data } = await api.get<ArticleDistributionArticle[]>('/article-distribution/articles', { params })
+  return data
+}
+
+export async function listArticlesPage(
+  params?: ArticleDistributionArticlePageParams,
+): Promise<ArticleDistributionArticlePage> {
+  const { data } = await api.get<ArticleDistributionArticlePage>('/article-distribution/articles/page', { params })
   return data
 }
 

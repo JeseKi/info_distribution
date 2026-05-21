@@ -458,6 +458,144 @@ def test_admin_can_list_update_and_delete_all_articles(
     assert owner_list_resp.json() == []
 
 
+def test_paginated_article_list_supports_filters_counts_and_access_scope(
+    test_client, test_db_session: Session
+):
+    owner = _create_user(test_db_session, username="page_owner")
+    other = _create_user(test_db_session, username="page_other")
+    admin = _create_user(test_db_session, username="page_admin", role=UserRole.ADMIN)
+
+    owner_account_resp = test_client.post(
+        "/api/article-distribution/accounts",
+        headers=_headers(admin),
+        json={
+            "user_id": owner.id,
+            "account_name": "Owner Account",
+            "platform": "wechat",
+            "publication_type": "article",
+        },
+    )
+    other_account_resp = test_client.post(
+        "/api/article-distribution/accounts",
+        headers=_headers(admin),
+        json={
+            "user_id": other.id,
+            "account_name": "Other Account",
+            "platform": "wechat",
+            "publication_type": "article",
+        },
+    )
+    assert owner_account_resp.status_code == 201
+    assert other_account_resp.status_code == 201
+    owner_account_id = owner_account_resp.json()["id"]
+    other_account_id = other_account_resp.json()["id"]
+
+    upload_owner_resp = test_client.post(
+        "/api/admin/article-distribution/articles",
+        headers=_headers(admin),
+        json={
+            "account_id": owner_account_id,
+            "articles": [
+                {
+                    "title": f"Owner Article {index}",
+                    "markdown_content": "body",
+                    "scheduled_date": f"2026-06-{index:02d}",
+                }
+                for index in range(1, 13)
+            ],
+        },
+    )
+    upload_other_resp = test_client.post(
+        "/api/admin/article-distribution/articles",
+        headers=_headers(admin),
+        json={
+            "account_id": other_account_id,
+            "articles": [
+                {
+                    "title": "Other Article",
+                    "markdown_content": "body",
+                    "scheduled_date": "2026-06-20",
+                }
+            ],
+        },
+    )
+    assert upload_owner_resp.status_code == 201
+    assert upload_other_resp.status_code == 201
+    owner_articles = upload_owner_resp.json()
+
+    published_resp = test_client.patch(
+        f"/api/article-distribution/articles/{owner_articles[0]['id']}/status",
+        headers=_headers(owner),
+        json={
+            "publish_status": "published",
+            "published_url": "https://example.com/published",
+        },
+    )
+    invalid_resp = test_client.patch(
+        f"/api/article-distribution/articles/{owner_articles[1]['id']}/status",
+        headers=_headers(owner),
+        json={"publish_status": "invalid"},
+    )
+    assert published_resp.status_code == 200
+    assert invalid_resp.status_code == 200
+
+    page_resp = test_client.get(
+        "/api/article-distribution/articles/page",
+        headers=_headers(owner),
+        params={"page": 2, "page_size": 5, "publication_type": "article"},
+    )
+    assert page_resp.status_code == 200, page_resp.text
+    page_data = page_resp.json()
+    assert page_data["total"] == 12
+    assert page_data["page"] == 2
+    assert page_data["page_size"] == 5
+    assert len(page_data["items"]) == 5
+    assert [item["title"] for item in page_data["items"]] == [
+        "Owner Article 7",
+        "Owner Article 6",
+        "Owner Article 5",
+        "Owner Article 4",
+        "Owner Article 3",
+    ]
+    assert page_data["status_counts"] == {
+        "unpublished": 10,
+        "published": 1,
+        "invalid": 1,
+    }
+
+    invalid_page_resp = test_client.get(
+        "/api/article-distribution/articles/page",
+        headers=_headers(owner),
+        params={"publish_status": "invalid", "page": 1, "page_size": 10},
+    )
+    assert invalid_page_resp.status_code == 200
+    invalid_page = invalid_page_resp.json()
+    assert invalid_page["total"] == 1
+    assert invalid_page["items"][0]["publish_status"] == "invalid"
+    assert invalid_page["status_counts"] == {
+        "unpublished": 0,
+        "published": 0,
+        "invalid": 1,
+    }
+
+    other_page_resp = test_client.get(
+        "/api/article-distribution/articles/page",
+        headers=_headers(other),
+        params={"page": 1, "page_size": 10},
+    )
+    assert other_page_resp.status_code == 200
+    assert other_page_resp.json()["total"] == 1
+    assert other_page_resp.json()["items"][0]["title"] == "Other Article"
+
+    admin_page_resp = test_client.get(
+        "/api/article-distribution/articles/page",
+        headers=_headers(admin),
+        params={"page": 1, "page_size": 20},
+    )
+    assert admin_page_resp.status_code == 200
+    assert admin_page_resp.json()["total"] == 13
+
+
 def test_unpublished_report_scope_can_be_assigned_to_regular_user(
     test_client, test_db_session: Session
 ):

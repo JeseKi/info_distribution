@@ -95,6 +95,20 @@ class ArticleOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class ArticleStatusCountsOut(BaseModel):
+    unpublished: int = 0
+    published: int = 0
+    invalid: int = 0
+
+
+class ArticlePageOut(BaseModel):
+    items: list[ArticleOut]
+    total: int
+    page: int
+    page_size: int
+    status_counts: ArticleStatusCountsOut
+
+
 class ArticleDistributionPendingArticleOut(BaseModel):
     id: int
     title: str

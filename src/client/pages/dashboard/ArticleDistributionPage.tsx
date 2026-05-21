@@ -9,6 +9,7 @@ import {
   Form,
   Input,
   Modal,
+  Pagination,
   Popconfirm,
   Popover,
   Select,
@@ -45,9 +46,17 @@ import type {
   ArticleDistributionAccountPayload,
   ArticleDistributionArticle,
   ArticleDistributionArticleFilters,
+  ArticleDistributionArticleStatusCounts,
   ArticlePublicationType,
   ArticlePublishStatus,
 } from '../../lib/types'
+
+const defaultArticlePageSize = 10
+const defaultArticleStatusCounts: ArticleDistributionArticleStatusCounts = {
+  unpublished: 0,
+  published: 0,
+  invalid: 0,
+}
 
 const publicationTypeOptions = [
   { label: '视频', value: 'video' },
@@ -98,15 +107,19 @@ export default function ArticleDistributionPage() {
   const [articleEditForm] = Form.useForm<ArticleEditFormValues>()
   const [copyMenuOpen, setCopyMenuOpen] = useState(false)
   const [downloadingImages, setDownloadingImages] = useState(false)
+  const [articlePage, setArticlePage] = useState(1)
+  const [articlePageSize, setArticlePageSize] = useState(defaultArticlePageSize)
+  const [articleTotal, setArticleTotal] = useState(0)
+  const [articleStatusCounts, setArticleStatusCounts] = useState<ArticleDistributionArticleStatusCounts>(defaultArticleStatusCounts)
 
   const selectedArticle = useMemo(
     () => articles.find((article) => article.id === selectedArticleId) ?? articles[0] ?? null,
     [articles, selectedArticleId],
   )
 
-  const unreadCount = articles.filter((article) => article.publish_status === 'unpublished').length
-  const invalidCount = articles.filter((article) => article.publish_status === 'invalid').length
-  const publishedCount = articles.filter((article) => article.publish_status === 'published').length
+  const unreadCount = articleStatusCounts.unpublished
+  const invalidCount = articleStatusCounts.invalid
+  const publishedCount = articleStatusCounts.published
 
   const accountOptions = useMemo(
     () => accounts.map((account) => ({
@@ -116,15 +129,27 @@ export default function ArticleDistributionPage() {
     [accounts],
   )
 
-  const loadData = useCallback(async (filters?: ArticleDistributionArticleFilters) => {
+  const loadData = useCallback(async (
+    filters?: ArticleDistributionArticleFilters,
+    pagination: { page: number; pageSize: number } = { page: 1, pageSize: defaultArticlePageSize },
+  ) => {
     setLoading(true)
     try {
-      const [nextAccounts, nextArticles] = await Promise.all([
+      const [nextAccounts, nextArticlePage] = await Promise.all([
         articleApi.listArticleAccounts(),
-        articleApi.listArticles(filters),
+        articleApi.listArticlesPage({
+          ...filters,
+          page: pagination.page,
+          page_size: pagination.pageSize,
+        }),
       ])
+      const nextArticles = nextArticlePage.items
       setAccounts(nextAccounts)
       setArticles(nextArticles)
+      setArticlePage(nextArticlePage.page)
+      setArticlePageSize(nextArticlePage.page_size)
+      setArticleTotal(nextArticlePage.total)
+      setArticleStatusCounts(nextArticlePage.status_counts)
       setSelectedArticleId((current) => {
         if (!nextArticles.length) return null
         if (current && nextArticles.some((article) => article.id === current)) return current
@@ -138,7 +163,7 @@ export default function ArticleDistributionPage() {
   }, [message])
 
   useEffect(() => {
-    void loadData()
+    void loadData(undefined, { page: 1, pageSize: defaultArticlePageSize })
   }, [loadData])
 
   const handleAccountSubmit = async (values: ArticleDistributionAccountPayload) => {
@@ -153,7 +178,7 @@ export default function ArticleDistributionPage() {
       setAccountModalOpen(false)
       setEditingAccount(null)
       accountForm.resetFields()
-      await loadData(buildFilters())
+      await loadData(buildFilters(), { page: articlePage, pageSize: articlePageSize })
     } catch (error) {
       message.error(resolveErrorMessage(error))
     }
@@ -163,7 +188,7 @@ export default function ArticleDistributionPage() {
     try {
       await articleApi.deleteArticleAccount(accountId)
       message.success('账号已删除')
-      await loadData(buildFilters())
+      await loadData(buildFilters(), { page: articlePage, pageSize: articlePageSize })
     } catch (error) {
       message.error(resolveErrorMessage(error))
     }
@@ -245,7 +270,10 @@ export default function ArticleDistributionPage() {
     try {
       await articleApi.deleteAdminArticle(article.id)
       message.success('文章已删除')
-      await loadData(buildFilters())
+      await loadData(buildFilters(), {
+        page: articles.length === 1 && articlePage > 1 ? articlePage - 1 : articlePage,
+        pageSize: articlePageSize,
+      })
     } catch (error) {
       message.error(resolveErrorMessage(error))
     }
@@ -302,7 +330,7 @@ export default function ArticleDistributionPage() {
           </Typography.Text>
         </div>
         <Space wrap>
-          <Button icon={<ReloadOutlined />} loading={loading} onClick={() => void loadData(buildFilters())}>
+          <Button icon={<ReloadOutlined />} loading={loading} onClick={() => void loadData(buildFilters(), { page: articlePage, pageSize: articlePageSize })}>
             刷新
           </Button>
           <Button
@@ -342,10 +370,10 @@ export default function ArticleDistributionPage() {
                 <DatePicker.RangePicker style={{ width: '100%' }} />
               </Form.Item>
               <Space>
-                <Button type="primary" onClick={() => void loadData(buildFilters())}>筛选</Button>
+                <Button type="primary" onClick={() => void loadData(buildFilters(), { page: 1, pageSize: articlePageSize })}>筛选</Button>
                 <Button onClick={() => {
                   filterForm.resetFields()
-                  void loadData()
+                  void loadData(undefined, { page: 1, pageSize: articlePageSize })
                 }}>重置</Button>
               </Space>
             </Form>
@@ -390,7 +418,7 @@ export default function ArticleDistributionPage() {
         <section className="article-list-panel">
           <Flex align="center" justify="space-between" style={{ marginBottom: 12 }}>
             <Typography.Text strong>文章队列</Typography.Text>
-            <Tag>{articles.length} 篇</Tag>
+            <Tag>{articleTotal} 篇</Tag>
           </Flex>
           <Flex vertical gap={8}>
             {articles.map((article) => (
@@ -415,6 +443,18 @@ export default function ArticleDistributionPage() {
             ))}
             {!articles.length && <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无文章" />}
           </Flex>
+          {articleTotal > 0 && (
+            <Pagination
+              size="small"
+              current={articlePage}
+              pageSize={articlePageSize}
+              total={articleTotal}
+              showSizeChanger
+              pageSizeOptions={[10, 20, 50]}
+              style={{ marginTop: 16, textAlign: 'center' }}
+              onChange={(page, pageSize) => void loadData(buildFilters(), { page, pageSize })}
+            />
+          )}
         </section>
 
         <main className="article-preview-panel">

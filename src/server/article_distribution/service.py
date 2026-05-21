@@ -29,10 +29,12 @@ from .schemas import (
     ArticleBatchCreate,
     ArticleDistributionPlatformSummaryOut,
     ArticleDistributionPendingArticleOut,
+    ArticlePageOut,
     ArticleDistributionReportOut,
     ArticleDistributionReportSummaryOut,
     ArticleDistributionPendingUserOut,
     ArticleOut,
+    ArticleStatusCountsOut,
     ArticleUpdate,
     ArticleUploadItem,
     PublishStatus,
@@ -172,6 +174,61 @@ def list_articles(
         publication_type=publication_type,
     )
     return _articles_to_out(db, articles)
+
+
+def list_articles_page(
+    db: Session,
+    *,
+    current_user: User,
+    user_id: int | None = None,
+    account_id: int | None = None,
+    scheduled_from: date | None = None,
+    scheduled_to: date | None = None,
+    publish_status: str | None = None,
+    platform: str | None = None,
+    publication_type: str | None = None,
+    page: int = 1,
+    page_size: int = 10,
+) -> ArticlePageOut:
+    target_user_id = _resolve_optional_target_user_id(current_user, user_id)
+    if account_id is not None:
+        account = _get_accessible_account(db, account_id, current_user, write=False)
+        if target_user_id is not None and account.user_id != target_user_id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无权限")
+
+    dao = ArticleDistributionDAO(db)
+    normalized_platform = _normalize_optional(platform)
+    articles, total = dao.list_articles_page(
+        user_id=target_user_id,
+        account_id=account_id,
+        scheduled_from=scheduled_from,
+        scheduled_to=scheduled_to,
+        publish_status=publish_status,
+        platform=normalized_platform,
+        publication_type=publication_type,
+        page=page,
+        page_size=page_size,
+    )
+    status_counts = dao.count_articles_by_status(
+        user_id=target_user_id,
+        account_id=account_id,
+        scheduled_from=scheduled_from,
+        scheduled_to=scheduled_to,
+        publish_status=publish_status,
+        platform=normalized_platform,
+        publication_type=publication_type,
+    )
+    return ArticlePageOut(
+        items=_articles_to_out(db, articles),
+        total=total,
+        page=page,
+        page_size=page_size,
+        status_counts=ArticleStatusCountsOut(
+            unpublished=status_counts.get("unpublished", 0),
+            published=status_counts.get("published", 0),
+            invalid=status_counts.get("invalid", 0),
+        ),
+    )
 
 
 def list_unpublished_report(

@@ -374,6 +374,25 @@ export interface ArticleDistributionArticleFilters {
   publication_type?: ArticlePublicationType
 }
 
+export interface ArticleDistributionArticlePageParams extends ArticleDistributionArticleFilters {
+  page?: number
+  page_size?: number
+}
+
+export interface ArticleDistributionArticleStatusCounts {
+  unpublished: number
+  published: number
+  invalid: number
+}
+
+export interface ArticleDistributionArticlePage {
+  items: ArticleDistributionArticle[]
+  total: number
+  page: number
+  page_size: number
+  status_counts: ArticleDistributionArticleStatusCounts
+}
+
 export interface ArticleDistributionArticleUpdatePayload {
   account_id?: number
   title?: string
