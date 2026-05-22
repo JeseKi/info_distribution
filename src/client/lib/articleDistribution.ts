@@ -20,6 +20,7 @@ export async function listArticleAccounts(params?: {
   user_id?: number
   platform?: string
   publication_type?: string
+  is_active?: boolean
 }): Promise<ArticleDistributionAccount[]> {
   const { data } = await api.get<ArticleDistributionAccount[]>('/article-distribution/accounts', { params })
   return data

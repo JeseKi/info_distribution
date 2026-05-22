@@ -24,6 +24,7 @@ from .models import (
 )
 from .schemas import (
     AccountCreate,
+    AccountStatusFilter,
     AccountUpdate,
     AccountDirectoryOut,
     ArticleBatchCreate,
@@ -53,18 +54,22 @@ def list_accounts(
     user_id: int | None = None,
     platform: str | None = None,
     publication_type: str | None = None,
+    is_active: bool | None = None,
 ) -> list[ArticleDistributionAccount]:
     target_user_id = _resolve_optional_target_user_id(current_user, user_id)
     return ArticleDistributionDAO(db).list_accounts(
         user_id=target_user_id,
         platform=_normalize_optional(platform),
         publication_type=publication_type,
+        is_active=is_active,
     )
 
 
 def list_account_directory(db: Session) -> list[UserAccountDirectoryOut]:
     grouped: dict[int, UserAccountDirectoryOut] = {}
-    for account, owner in ArticleDistributionDAO(db).list_account_owner_rows():
+    for account, owner in ArticleDistributionDAO(db).list_account_owner_rows(
+        is_active=True
+    ):
         publication_type = _normalize_publication_type(account.publication_type)
         if owner.id not in grouped:
             grouped[owner.id] = UserAccountDirectoryOut(
@@ -92,6 +97,7 @@ def create_account(
         account_name=_normalize_required(payload.account_name, "账号名称不能为空"),
         platform=_normalize_required(payload.platform, "平台不能为空"),
         publication_type=payload.publication_type,
+        is_active=payload.is_active,
     )
     try:
         return ArticleDistributionDAO(db).create_account(account)
@@ -238,6 +244,7 @@ def list_unpublished_report(
     scheduled_to: date | None = None,
     platform: str | None = None,
     publication_type: str | None = None,
+    account_status: AccountStatusFilter = "active",
 ) -> ArticleDistributionReportOut:
     grouped: dict[int, ArticleDistributionPendingUserOut] = {}
     platform_summaries: dict[tuple[int, int], ArticleDistributionPlatformSummaryOut] = {}
@@ -246,8 +253,13 @@ def list_unpublished_report(
         scheduled_to=scheduled_to,
         platform=_normalize_optional(platform),
         publication_type=publication_type,
+        account_status=account_status,
     )
+    inactive_account_articles = 0
     for article, account, owner in rows:
+        account_is_active = account.is_active
+        if not account_is_active:
+            inactive_account_articles += 1
         if owner.id not in grouped:
             grouped[owner.id] = ArticleDistributionPendingUserOut(
                 user_id=owner.id,
@@ -268,6 +280,7 @@ def list_unpublished_report(
                 account_name=account.account_name,
                 platform=account.platform,
                 publication_type=_normalize_publication_type(account.publication_type),
+                account_is_active=account_is_active,
                 published_count=0,
                 unpublished_count=0,
                 invalid_count=0,
@@ -285,8 +298,9 @@ def list_unpublished_report(
             user_report.invalid_count += 1
             platform_summary.invalid_count += 1
         else:
-            user_report.remaining_count += 1
-            platform_summary.unpublished_count += 1
+            if account_is_active:
+                user_report.remaining_count += 1
+                platform_summary.unpublished_count += 1
         user_report.articles.append(
             ArticleDistributionPendingArticleOut(
                 id=article.id,
@@ -297,6 +311,7 @@ def list_unpublished_report(
                 account_name=account.account_name,
                 platform=account.platform,
                 publication_type=_normalize_publication_type(account.publication_type),
+                account_is_active=account_is_active,
                 publish_status=_normalize_publish_status(article.publish_status),
                 published_url=article.published_url,
                 created_at=article.created_at,
@@ -310,6 +325,7 @@ def list_unpublished_report(
             published_articles=sum(user.published_count for user in users),
             unpublished_articles=sum(user.remaining_count for user in users),
             invalid_articles=sum(user.invalid_count for user in users),
+            inactive_account_articles=inactive_account_articles,
         ),
         users=users,
     )
@@ -348,7 +364,7 @@ def update_article_as_admin(
 
     fields = payload.model_dump(exclude_unset=True)
     if "account_id" in fields and fields["account_id"] is not None:
-        account = _get_account_or_404(db, int(fields["account_id"]))
+        account = _get_active_account_or_404(db, int(fields["account_id"]))
         fields["account_id"] = account.id
         fields["user_id"] = account.user_id
     if "title" in fields and fields["title"] is not None:
@@ -384,7 +400,7 @@ def create_articles_as_admin(
     db: Session, *, payload: ArticleBatchCreate, current_user: User
 ) -> list[ArticleOut]:
     _assert_admin(current_user)
-    account = _get_account_or_404(db, payload.account_id)
+    account = _get_active_account_or_404(db, payload.account_id)
     articles = _build_articles(
         account=account,
         items=payload.articles,
@@ -402,7 +418,7 @@ def create_articles_with_api_key(
     payload: ArticleBatchCreate,
     api_key: ArticleDistributionAPIKey,
 ) -> list[ArticleOut]:
-    account = _get_account_or_404(db, payload.account_id)
+    account = _get_active_account_or_404(db, payload.account_id)
     articles = _build_articles(
         account=account,
         items=payload.articles,
@@ -504,6 +520,18 @@ def _get_account_or_404(db: Session, account_id: int) -> ArticleDistributionAcco
     account = ArticleDistributionDAO(db).get_account(account_id)
     if account is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="账号不存在")
+    return account
+
+
+def _get_active_account_or_404(
+    db: Session, account_id: int
+) -> ArticleDistributionAccount:
+    account = _get_account_or_404(db, account_id)
+    if not account.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="账号已停用，不能新增文章",
+        )
     return account
 
 

@@ -36,6 +36,7 @@ class ArticleDistributionDAO(BaseDAO):
         user_id: int | None = None,
         platform: str | None = None,
         publication_type: str | None = None,
+        is_active: bool | None = None,
     ) -> list[ArticleDistributionAccount]:
         query = self.db_session.query(ArticleDistributionAccount)
         if user_id is not None:
@@ -46,6 +47,8 @@ class ArticleDistributionDAO(BaseDAO):
             query = query.filter(
                 ArticleDistributionAccount.publication_type == publication_type
             )
+        if is_active is not None:
+            query = query.filter(ArticleDistributionAccount.is_active.is_(is_active))
         return (
             query.order_by(
                 ArticleDistributionAccount.platform.asc(),
@@ -55,19 +58,22 @@ class ArticleDistributionDAO(BaseDAO):
             .all()
         )
 
-    def list_account_owner_rows(self) -> list[tuple[ArticleDistributionAccount, User]]:
-        rows = (
+    def list_account_owner_rows(
+        self, *, is_active: bool | None = None
+    ) -> list[tuple[ArticleDistributionAccount, User]]:
+        query = (
             self.db_session.query(ArticleDistributionAccount, User)
             .join(User, ArticleDistributionAccount.user_id == User.id)
-            .order_by(
-                User.id.asc(),
-                ArticleDistributionAccount.platform.asc(),
-                ArticleDistributionAccount.account_name.asc(),
-                ArticleDistributionAccount.publication_type.asc(),
-                ArticleDistributionAccount.id.asc(),
-            )
-            .all()
         )
+        if is_active is not None:
+            query = query.filter(ArticleDistributionAccount.is_active.is_(is_active))
+        rows = query.order_by(
+            User.id.asc(),
+            ArticleDistributionAccount.platform.asc(),
+            ArticleDistributionAccount.account_name.asc(),
+            ArticleDistributionAccount.publication_type.asc(),
+            ArticleDistributionAccount.id.asc(),
+        ).all()
         return [(account, owner) for account, owner in rows]
 
     def create_account(
@@ -256,6 +262,7 @@ class ArticleDistributionDAO(BaseDAO):
         scheduled_to: date | None = None,
         platform: str | None = None,
         publication_type: str | None = None,
+        account_status: str = "active",
     ) -> list[
         tuple[ArticleDistributionArticle, ArticleDistributionAccount, User]
     ]:
@@ -286,6 +293,10 @@ class ArticleDistributionDAO(BaseDAO):
             query = query.filter(
                 ArticleDistributionAccount.publication_type == publication_type
             )
+        if account_status == "active":
+            query = query.filter(ArticleDistributionAccount.is_active.is_(True))
+        elif account_status == "inactive":
+            query = query.filter(ArticleDistributionAccount.is_active.is_(False))
         rows = (
             query.order_by(
                 User.id.asc(),

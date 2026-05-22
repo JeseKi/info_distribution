@@ -22,6 +22,7 @@ import { ReloadOutlined, SearchOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import * as articleApi from '../../lib/articleDistribution'
 import type {
+  ArticleDistributionAccountStatusFilter,
   ArticleDistributionPendingArticle,
   ArticleDistributionPendingReportFilters,
   ArticleDistributionPendingUser,
@@ -38,6 +39,12 @@ const publicationTypeOptions = [
   { label: '图文', value: 'image_text' },
 ]
 
+const accountStatusOptions = [
+  { label: '启用', value: 'active' },
+  { label: '停用', value: 'inactive' },
+  { label: '全部', value: 'all' },
+]
+
 const publicationTypeText: Record<ArticlePublicationType, string> = {
   video: '视频',
   article: '文章',
@@ -50,18 +57,24 @@ function publishStatusTag(status: ArticlePublishStatus) {
   return <Tag>未发布</Tag>
 }
 
+function inactiveAccountTag(isActive?: boolean) {
+  return isActive === false ? <Tag color="red">已停用</Tag> : null
+}
+
 const emptySummary: ArticleDistributionReportSummary = {
   total_users: 0,
   unpublished_users: 0,
   published_articles: 0,
   unpublished_articles: 0,
   invalid_articles: 0,
+  inactive_account_articles: 0,
 }
 
 interface FilterValues {
   keyword?: string
   platform?: string
   publication_type?: ArticlePublicationType
+  account_status?: ArticleDistributionAccountStatusFilter
   date_range?: [dayjs.Dayjs, dayjs.Dayjs]
 }
 
@@ -95,6 +108,7 @@ export default function ArticleDistributionReportPage() {
     return {
       platform: values.platform?.trim() || undefined,
       publication_type: values.publication_type,
+      account_status: values.account_status ?? 'active',
       scheduled_from: range?.[0]?.format('YYYY-MM-DD'),
       scheduled_to: range?.[1]?.format('YYYY-MM-DD'),
     }
@@ -131,6 +145,10 @@ export default function ArticleDistributionReportPage() {
       published_articles: filteredRows.reduce((total, row) => total + row.published_count, 0),
       unpublished_articles: filteredRows.reduce((total, row) => total + row.remaining_count, 0),
       invalid_articles: filteredRows.reduce((total, row) => total + row.invalid_count, 0),
+      inactive_account_articles: filteredRows.reduce(
+        (total, row) => total + row.articles.filter((article) => !article.account_is_active).length,
+        0,
+      ),
     }
   }, [filteredRows, rows.length, summary])
 
@@ -220,6 +238,12 @@ export default function ArticleDistributionReportPage() {
       key: 'account_name',
       width: 140,
       ellipsis: true,
+      render: (value: string, record) => (
+        <Space size={4}>
+          <Typography.Text ellipsis>{value}</Typography.Text>
+          {inactiveAccountTag(record.account_is_active)}
+        </Space>
+      ),
     },
     {
       title: '类型',
@@ -252,6 +276,7 @@ export default function ArticleDistributionReportPage() {
           <Space>
             <Tag>{record.platform}</Tag>
             <Typography.Text>{record.account_name}</Typography.Text>
+            {inactiveAccountTag(record.account_is_active)}
             <Typography.Text type="secondary">{publicationTypeText[record.publication_type]}</Typography.Text>
           </Space>
         ),
@@ -327,7 +352,12 @@ export default function ArticleDistributionReportPage() {
     <Flex vertical gap={12} style={{ minWidth: 0, width: '100%', overflow: 'hidden' }}>
       <Descriptions size="small" column={{ xs: 1, sm: 2, md: 4 }}>
         <Descriptions.Item label="目标平台">{article.platform}</Descriptions.Item>
-        <Descriptions.Item label="目标账号">{article.account_name}</Descriptions.Item>
+        <Descriptions.Item label="目标账号">
+          <Space size={4}>
+            <span>{article.account_name}</span>
+            {inactiveAccountTag(article.account_is_active)}
+          </Space>
+        </Descriptions.Item>
         <Descriptions.Item label="发布类型">
           {publicationTypeText[article.publication_type]}
         </Descriptions.Item>
@@ -413,9 +443,10 @@ export default function ArticleDistributionReportPage() {
           <Statistic title="未发布人数" value={filteredSummary.unpublished_users} />
           <Statistic title="发布的文章总数" value={filteredSummary.published_articles} />
           <Statistic title="未发布文章总数" value={filteredSummary.unpublished_articles} />
+          <Statistic title="已停用账号文章总数" value={filteredSummary.inactive_account_articles} />
           <Statistic title="失效文章总数" value={filteredSummary.invalid_articles} />
         </Flex>
-        <Form form={form} layout="vertical" style={{ marginTop: 18 }}>
+        <Form form={form} layout="vertical" initialValues={{ account_status: 'active' }} style={{ marginTop: 18 }}>
           <Flex gap={16} wrap="wrap" align="end">
             <Form.Item label="搜索" name="keyword" style={{ minWidth: 240 }}>
               <Input prefix={<SearchOutlined />} allowClear placeholder="用户、账号或文章" />
@@ -425,6 +456,9 @@ export default function ArticleDistributionReportPage() {
             </Form.Item>
             <Form.Item label="发布类型" name="publication_type" style={{ minWidth: 160 }}>
               <Select allowClear options={publicationTypeOptions} placeholder="全部类型" />
+            </Form.Item>
+            <Form.Item label="账号类型" name="account_status" style={{ minWidth: 140 }}>
+              <Select options={accountStatusOptions} />
             </Form.Item>
             <Form.Item label="计划日期" name="date_range" style={{ minWidth: 260 }}>
               <DatePicker.RangePicker style={{ width: '100%' }} />

@@ -317,6 +317,76 @@ def test_admin_and_api_key_can_upload_articles(
     assert stored_key.last_used_at is not None
 
 
+def test_inactive_accounts_are_hidden_from_directory_and_reject_uploads(
+    test_client, test_db_session: Session
+):
+    owner = _create_user(test_db_session, username="inactive_owner")
+    admin = _create_user(test_db_session, username="inactive_admin", role=UserRole.ADMIN)
+
+    account_resp = test_client.post(
+        "/api/article-distribution/accounts",
+        headers=_headers(admin),
+        json={
+            "user_id": owner.id,
+            "account_name": "封禁号",
+            "platform": "wechat",
+            "publication_type": "article",
+        },
+    )
+    assert account_resp.status_code == 201
+    account = account_resp.json()
+    assert account["is_active"] is True
+
+    inactive_resp = test_client.patch(
+        f"/api/article-distribution/accounts/{account['id']}",
+        headers=_headers(owner),
+        json={"is_active": False},
+    )
+    assert inactive_resp.status_code == 200
+    assert inactive_resp.json()["is_active"] is False
+
+    key_resp = test_client.post(
+        "/api/admin/article-distribution/api-keys",
+        headers=_headers(admin),
+        json={"name": "inactive-directory"},
+    )
+    assert key_resp.status_code == 201
+    raw_key = key_resp.json()["api_key"]
+
+    directory_resp = test_client.get(
+        "/api/v1/article-distribution/accounts",
+        headers={"X-API-Key": raw_key},
+    )
+    assert directory_resp.status_code == 200
+    assert directory_resp.json() == []
+
+    upload_payload = {
+        "account_id": account["id"],
+        "articles": [
+            {
+                "title": "Blocked",
+                "markdown_content": "body",
+                "scheduled_date": "2026-05-25",
+            }
+        ],
+    }
+    admin_upload_resp = test_client.post(
+        "/api/admin/article-distribution/articles",
+        headers=_headers(admin),
+        json=upload_payload,
+    )
+    assert admin_upload_resp.status_code == 400
+    assert admin_upload_resp.json()["detail"] == "账号已停用，不能新增文章"
+
+    api_upload_resp = test_client.post(
+        "/api/v1/article-distribution/articles",
+        headers={"X-API-Key": raw_key},
+        json=upload_payload,
+    )
+    assert api_upload_resp.status_code == 400
+    assert api_upload_resp.json()["detail"] == "账号已停用，不能新增文章"
+
+
 def test_publish_status_and_filters(test_client, test_db_session: Session):
     owner = _create_user(test_db_session, username="filter_owner")
     admin = _create_user(test_db_session, username="filter_admin", role=UserRole.ADMIN)
@@ -694,6 +764,7 @@ def test_unpublished_report_scope_can_be_assigned_to_regular_user(
         "published_articles": 1,
         "unpublished_articles": 2,
         "invalid_articles": 0,
+        "inactive_account_articles": 0,
     }
     data = report["users"]
     assert [item["user_id"] for item in data] == [owner_a.id, owner_b.id]
@@ -709,3 +780,155 @@ def test_unpublished_report_scope_can_be_assigned_to_regular_user(
     assert data[0]["articles"][1]["publish_status"] == "published"
     assert "source" not in data[0]["articles"][0]
     assert data[1]["articles"][0]["title"] == "B unpublished"
+
+
+def test_unpublished_report_tracks_inactive_account_articles_separately(
+    test_client, test_db_session: Session
+):
+    owner = _create_user(test_db_session, username="inactive_report_owner")
+    admin = _create_user(
+        test_db_session, username="inactive_report_admin", role=UserRole.ADMIN
+    )
+
+    active_account_resp = test_client.post(
+        "/api/article-distribution/accounts",
+        headers=_headers(admin),
+        json={
+            "user_id": owner.id,
+            "account_name": "启用号",
+            "platform": "wechat",
+            "publication_type": "article",
+        },
+    )
+    inactive_account_resp = test_client.post(
+        "/api/article-distribution/accounts",
+        headers=_headers(admin),
+        json={
+            "user_id": owner.id,
+            "account_name": "停用号",
+            "platform": "wechat",
+            "publication_type": "image_text",
+        },
+    )
+    assert active_account_resp.status_code == 201
+    assert inactive_account_resp.status_code == 201
+    active_account_id = active_account_resp.json()["id"]
+    inactive_account_id = inactive_account_resp.json()["id"]
+
+    active_upload_resp = test_client.post(
+        "/api/admin/article-distribution/articles",
+        headers=_headers(admin),
+        json={
+            "account_id": active_account_id,
+            "articles": [
+                {
+                    "title": "Active unpublished",
+                    "markdown_content": "body",
+                    "scheduled_date": "2026-05-26",
+                }
+            ],
+        },
+    )
+    inactive_upload_resp = test_client.post(
+        "/api/admin/article-distribution/articles",
+        headers=_headers(admin),
+        json={
+            "account_id": inactive_account_id,
+            "articles": [
+                {
+                    "title": "Inactive unpublished",
+                    "markdown_content": "body",
+                    "scheduled_date": "2026-05-26",
+                },
+                {
+                    "title": "Inactive published",
+                    "markdown_content": "body",
+                    "scheduled_date": "2026-05-27",
+                },
+            ],
+        },
+    )
+    assert active_upload_resp.status_code == 201
+    assert inactive_upload_resp.status_code == 201
+    inactive_published_id = inactive_upload_resp.json()[1]["id"]
+
+    published_resp = test_client.patch(
+        f"/api/article-distribution/articles/{inactive_published_id}/status",
+        headers=_headers(owner),
+        json={
+            "publish_status": "published",
+            "published_url": "https://example.com/inactive-published",
+        },
+    )
+    assert published_resp.status_code == 200
+
+    deactivate_resp = test_client.patch(
+        f"/api/article-distribution/accounts/{inactive_account_id}",
+        headers=_headers(owner),
+        json={"is_active": False},
+    )
+    assert deactivate_resp.status_code == 200
+
+    active_report_resp = test_client.get(
+        "/api/article-distribution/reports/unpublished",
+        headers=_headers(admin),
+    )
+    assert active_report_resp.status_code == 200
+    active_report = active_report_resp.json()
+    assert active_report["summary"] == {
+        "total_users": 1,
+        "unpublished_users": 1,
+        "published_articles": 0,
+        "unpublished_articles": 1,
+        "invalid_articles": 0,
+        "inactive_account_articles": 0,
+    }
+    assert active_report["users"][0]["remaining_count"] == 1
+    assert [article["account_is_active"] for article in active_report["users"][0]["articles"]] == [True]
+
+    all_report_resp = test_client.get(
+        "/api/article-distribution/reports/unpublished",
+        headers=_headers(admin),
+        params={"account_status": "all"},
+    )
+    assert all_report_resp.status_code == 200
+    all_report = all_report_resp.json()
+    assert all_report["summary"] == {
+        "total_users": 1,
+        "unpublished_users": 1,
+        "published_articles": 1,
+        "unpublished_articles": 1,
+        "invalid_articles": 0,
+        "inactive_account_articles": 2,
+    }
+    all_user = all_report["users"][0]
+    assert all_user["remaining_count"] == 1
+    inactive_summary = next(
+        summary
+        for summary in all_user["platform_summaries"]
+        if summary["account_id"] == inactive_account_id
+    )
+    assert inactive_summary["account_is_active"] is False
+    assert inactive_summary["unpublished_count"] == 0
+    assert [article["account_is_active"] for article in all_user["articles"]] == [
+        True,
+        False,
+        False,
+    ]
+
+    inactive_report_resp = test_client.get(
+        "/api/article-distribution/reports/unpublished",
+        headers=_headers(admin),
+        params={"account_status": "inactive"},
+    )
+    assert inactive_report_resp.status_code == 200
+    inactive_report = inactive_report_resp.json()
+    assert inactive_report["summary"] == {
+        "total_users": 1,
+        "unpublished_users": 0,
+        "published_articles": 1,
+        "unpublished_articles": 0,
+        "invalid_articles": 0,
+        "inactive_account_articles": 2,
+    }
+    assert inactive_report["users"][0]["remaining_count"] == 0

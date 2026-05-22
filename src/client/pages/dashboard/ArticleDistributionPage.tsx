@@ -15,6 +15,7 @@ import {
   Select,
   Space,
   Statistic,
+  Switch,
   Tabs,
   Tag,
   Typography,
@@ -82,6 +83,10 @@ function publishStatusTag(status: ArticlePublishStatus) {
   return <Tag>未发布</Tag>
 }
 
+function inactiveAccountTag(isActive?: boolean) {
+  return isActive === false ? <Tag color="red">已停用</Tag> : null
+}
+
 interface ArticleEditFormValues {
   account_id: number
   title: string
@@ -123,7 +128,12 @@ export default function ArticleDistributionPage() {
 
   const accountOptions = useMemo(
     () => accounts.map((account) => ({
-      label: `${account.platform} / ${account.account_name} / ${publicationTypeText[account.publication_type]}`,
+      label: (
+        <Space size={4}>
+          <span>{account.platform} / {account.account_name} / {publicationTypeText[account.publication_type]}</span>
+          {inactiveAccountTag(account.is_active)}
+        </Space>
+      ),
       value: account.id,
     })),
     [accounts],
@@ -188,6 +198,16 @@ export default function ArticleDistributionPage() {
     try {
       await articleApi.deleteArticleAccount(accountId)
       message.success('账号已删除')
+      await loadData(buildFilters(), { page: articlePage, pageSize: articlePageSize })
+    } catch (error) {
+      message.error(resolveErrorMessage(error))
+    }
+  }
+
+  const handleToggleAccountActive = async (account: ArticleDistributionAccount) => {
+    try {
+      await articleApi.updateArticleAccount(account.id, { is_active: !account.is_active })
+      message.success(account.is_active ? '账号已停用' : '账号已启用')
       await loadData(buildFilters(), { page: articlePage, pageSize: articlePageSize })
     } catch (error) {
       message.error(resolveErrorMessage(error))
@@ -339,6 +359,7 @@ export default function ArticleDistributionPage() {
             onClick={() => {
               setEditingAccount(null)
               accountForm.resetFields()
+              accountForm.setFieldsValue({ is_active: true })
               setAccountModalOpen(true)
             }}
           >
@@ -390,10 +411,14 @@ export default function ArticleDistributionPage() {
                           <Typography.Text type="secondary">
                             {account.platform} · {publicationTypeText[account.publication_type]}
                           </Typography.Text>
+                          {inactiveAccountTag(account.is_active)}
                         </div>
                         {isAdmin && <Typography.Text type="secondary">用户 {account.user_id}</Typography.Text>}
                       </div>
                       <Space size={4}>
+                        <Button size="small" onClick={() => void handleToggleAccountActive(account)}>
+                          {account.is_active ? '停用' : '启用'}
+                        </Button>
                         <Button
                           size="small"
                           icon={<EditOutlined />}
@@ -403,7 +428,7 @@ export default function ArticleDistributionPage() {
                             setAccountModalOpen(true)
                           }}
                         />
-                        <Popconfirm title="删除这个账号？" onConfirm={() => void handleDeleteAccount(account.id)}>
+                        <Popconfirm title="删除这个账号？已有文章的账号请停用。" onConfirm={() => void handleDeleteAccount(account.id)}>
                           <Button size="small" danger icon={<DeleteOutlined />} />
                         </Popconfirm>
                       </Space>
@@ -437,6 +462,7 @@ export default function ArticleDistributionPage() {
                   </Flex>
                   <Typography.Text type="secondary">
                     {article.scheduled_date} · {article.account?.platform ?? '未知平台'} / {article.account?.account_name ?? article.account_id}
+                    {inactiveAccountTag(article.account?.is_active)}
                   </Typography.Text>
                 </Flex>
               </button>
@@ -470,6 +496,7 @@ export default function ArticleDistributionPage() {
                       <Tag icon={<FileTextOutlined />}>{selectedArticle.scheduled_date}</Tag>
                       {publishStatusTag(selectedArticle.publish_status)}
                       <Tag>{selectedArticle.account?.platform ?? '平台'} / {selectedArticle.account?.account_name ?? selectedArticle.account_id}</Tag>
+                      {inactiveAccountTag(selectedArticle.account?.is_active)}
                     </Space>
                   </div>
                   <Space wrap>
@@ -598,6 +625,9 @@ export default function ArticleDistributionPage() {
           </Form.Item>
           <Form.Item label="发布类型" name="publication_type" rules={[{ required: true, message: '请选择发布类型' }]}>
             <Select options={publicationTypeOptions} />
+          </Form.Item>
+          <Form.Item label="状态" name="is_active" valuePropName="checked">
+            <Switch checkedChildren="启用" unCheckedChildren="停用" />
           </Form.Item>
         </Form>
       </Modal>

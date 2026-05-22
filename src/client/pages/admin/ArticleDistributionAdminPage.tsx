@@ -27,6 +27,10 @@ import type {
   ArticleDistributionArticleBatchPayload,
 } from '../../lib/types'
 
+function inactiveAccountTag(isActive?: boolean) {
+  return isActive === false ? <Tag color="red">已停用</Tag> : null
+}
+
 interface UploadFormValues {
   user_id: number
   account_id: number
@@ -54,8 +58,14 @@ export default function ArticleDistributionAdminPage() {
 
   const accountOptions = useMemo(
     () => accounts.map((account) => ({
-      label: `${account.platform} / ${account.account_name} / ${account.publication_type}`,
+      label: (
+        <Space size={4}>
+          <span>{account.platform} / {account.account_name} / {account.publication_type}</span>
+          {inactiveAccountTag(account.is_active)}
+        </Space>
+      ),
       value: account.id,
+      disabled: !account.is_active,
     })),
     [accounts],
   )

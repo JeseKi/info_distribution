@@ -10,12 +10,14 @@ from pydantic import BaseModel, ConfigDict, Field
 
 PublicationType = Literal["video", "article", "image_text"]
 PublishStatus = Literal["unpublished", "published", "invalid"]
+AccountStatusFilter = Literal["active", "inactive", "all"]
 
 
 class AccountCreate(BaseModel):
     account_name: str = Field(..., min_length=1, max_length=120)
     platform: str = Field(..., min_length=1, max_length=80)
     publication_type: PublicationType
+    is_active: bool = True
     user_id: int | None = Field(default=None, ge=1)
 
 
@@ -23,6 +25,7 @@ class AccountUpdate(BaseModel):
     account_name: str | None = Field(default=None, min_length=1, max_length=120)
     platform: str | None = Field(default=None, min_length=1, max_length=80)
     publication_type: PublicationType | None = None
+    is_active: bool | None = None
     user_id: int | None = Field(default=None, ge=1)
 
 
@@ -32,6 +35,7 @@ class AccountOut(BaseModel):
     account_name: str
     platform: str
     publication_type: PublicationType
+    is_active: bool
     created_at: datetime
     updated_at: datetime
 
@@ -118,6 +122,7 @@ class ArticleDistributionPendingArticleOut(BaseModel):
     account_name: str
     platform: str
     publication_type: PublicationType
+    account_is_active: bool
     publish_status: PublishStatus
     published_url: str | None
     created_at: datetime
@@ -128,6 +133,7 @@ class ArticleDistributionPlatformSummaryOut(BaseModel):
     account_name: str
     platform: str
     publication_type: PublicationType
+    account_is_active: bool
     published_count: int
     unpublished_count: int
     invalid_count: int
@@ -152,6 +158,7 @@ class ArticleDistributionReportSummaryOut(BaseModel):
     published_articles: int
     unpublished_articles: int
     invalid_articles: int
+    inactive_account_articles: int
 
 
 class ArticleDistributionReportOut(BaseModel):

@@ -33,6 +33,7 @@ from .schemas import (
     APIKeyOut,
     AccountCreate,
     AccountOut,
+    AccountStatusFilter,
     AccountUpdate,
     ArticleBatchCreate,
     ArticleDistributionReportOut,
@@ -60,6 +61,7 @@ async def list_accounts(
     user_id: int | None = Query(default=None, ge=1),
     platform: str | None = Query(default=None),
     publication_type: PublicationType | None = Query(default=None),
+    is_active: bool | None = Query(default=None),
     db: Session = Depends(get_db),
     current_user: User = Security(
         get_current_user, scopes=[SCOPE_ARTICLE_DISTRIBUTION_READ]
@@ -72,6 +74,7 @@ async def list_accounts(
             user_id=user_id,
             platform=platform,
             publication_type=publication_type,
+            is_active=is_active,
         )
 
     return await run_in_thread(_list)
@@ -205,6 +208,7 @@ async def list_unpublished_report(
     scheduled_to: date | None = Query(default=None),
     platform: str | None = Query(default=None),
     publication_type: PublicationType | None = Query(default=None),
+    account_status: AccountStatusFilter = Query(default="active"),
     db: Session = Depends(get_db),
     _: User = Security(
         get_current_user, scopes=[SCOPE_ARTICLE_DISTRIBUTION_REPORT_READ]
@@ -217,6 +221,7 @@ async def list_unpublished_report(
             scheduled_to=scheduled_to,
             platform=platform,
             publication_type=publication_type,
+            account_status=account_status,
         )
 
     return await run_in_thread(_list)

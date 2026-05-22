@@ -319,12 +319,15 @@ export type ArticlePublicationType = 'video' | 'article' | 'image_text'
 
 export type ArticlePublishStatus = 'unpublished' | 'published' | 'invalid'
 
+export type ArticleDistributionAccountStatusFilter = 'active' | 'inactive' | 'all'
+
 export interface ArticleDistributionAccount {
   id: number
   user_id: number
   account_name: string
   platform: string
   publication_type: ArticlePublicationType
+  is_active: boolean
   created_at: string
   updated_at: string
 }
@@ -333,6 +336,7 @@ export interface ArticleDistributionAccountPayload {
   account_name: string
   platform: string
   publication_type: ArticlePublicationType
+  is_active?: boolean
   user_id?: number | null
 }
 
@@ -411,6 +415,7 @@ export interface ArticleDistributionPendingArticle {
   account_name: string
   platform: string
   publication_type: ArticlePublicationType
+  account_is_active: boolean
   publish_status: ArticlePublishStatus
   published_url: string | null
   created_at: string
@@ -421,6 +426,7 @@ export interface ArticleDistributionPlatformSummary {
   account_name: string
   platform: string
   publication_type: ArticlePublicationType
+  account_is_active: boolean
   published_count: number
   unpublished_count: number
   invalid_count: number
@@ -445,6 +451,7 @@ export interface ArticleDistributionReportSummary {
   published_articles: number
   unpublished_articles: number
   invalid_articles: number
+  inactive_account_articles: number
 }
 
 export interface ArticleDistributionReport {
@@ -457,6 +464,7 @@ export interface ArticleDistributionPendingReportFilters {
   scheduled_to?: string
   platform?: string
   publication_type?: ArticlePublicationType
+  account_status?: ArticleDistributionAccountStatusFilter
 }
 
 export interface ArticleDistributionApiKey {
