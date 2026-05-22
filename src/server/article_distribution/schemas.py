@@ -47,6 +47,7 @@ class AccountDirectoryOut(BaseModel):
     platform: str
     account_name: str
     publication_type: PublicationType
+    is_active: bool
 
 
 class UserAccountDirectoryOut(BaseModel):

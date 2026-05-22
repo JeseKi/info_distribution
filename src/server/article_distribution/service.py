@@ -83,6 +83,7 @@ def list_account_directory(db: Session) -> list[UserAccountDirectoryOut]:
                 platform=account.platform,
                 account_name=account.account_name,
                 publication_type=publication_type,
+                is_active=account.is_active,
             )
         )
     return list(grouped.values())
