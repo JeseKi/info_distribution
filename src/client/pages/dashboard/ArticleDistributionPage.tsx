@@ -12,6 +12,7 @@ import {
   Pagination,
   Popconfirm,
   Popover,
+  Progress,
   Select,
   Space,
   Statistic,
@@ -41,6 +42,7 @@ import {
   downloadMarkdownAsDocx,
   downloadMarkdownImagesAsZip,
   markdownToPlainText,
+  type ImagePackageDownloadProgress,
 } from '../../lib/articleDistributionExport'
 import type {
   ArticleDistributionAccount,
@@ -94,6 +96,12 @@ interface ArticleEditFormValues {
   markdown_content: string
 }
 
+interface ImagePackageProgressState {
+  percent: number
+  title: string
+  detail: string
+}
+
 export default function ArticleDistributionPage() {
   const { message } = App.useApp()
   const { user } = useAuth()
@@ -112,6 +120,7 @@ export default function ArticleDistributionPage() {
   const [articleEditForm] = Form.useForm<ArticleEditFormValues>()
   const [copyMenuOpen, setCopyMenuOpen] = useState(false)
   const [downloadingImages, setDownloadingImages] = useState(false)
+  const [imagePackageProgress, setImagePackageProgress] = useState<ImagePackageProgressState | null>(null)
   const [articlePage, setArticlePage] = useState(1)
   const [articlePageSize, setArticlePageSize] = useState(defaultArticlePageSize)
   const [articleTotal, setArticleTotal] = useState(0)
@@ -324,17 +333,22 @@ export default function ArticleDistributionPage() {
   const handleDownloadImagePackage = async () => {
     if (!selectedArticle) return
     setDownloadingImages(true)
+    setImagePackageProgress({ percent: 0, title: '准备下载图片包', detail: '正在解析文章图片' })
     try {
-      const count = await downloadMarkdownImagesAsZip(selectedArticle.markdown_content, selectedArticle.title)
+      const count = await downloadMarkdownImagesAsZip(selectedArticle.markdown_content, selectedArticle.title, {
+        onProgress: (progress) => setImagePackageProgress(buildImagePackageProgressState(progress)),
+      })
       if (count === 0) {
         message.warning('文章中没有图片')
       } else {
+        setImagePackageProgress({ percent: 100, title: '图片包已生成', detail: `已下载 ${count} 张图片` })
         message.success(`已下载 ${count} 张图片`)
       }
     } catch {
       message.error('图片包下载失败')
     } finally {
       setDownloadingImages(false)
+      setImagePackageProgress(null)
     }
   }
 
@@ -577,6 +591,23 @@ export default function ArticleDistributionPage() {
                     </>
                   )}
                 </Space>
+                {imagePackageProgress && (
+                  <div style={{ maxWidth: 420, marginTop: 12 }}>
+                    <Flex justify="space-between" gap={12}>
+                      <Typography.Text type="secondary">{imagePackageProgress.title}</Typography.Text>
+                      <Typography.Text type="secondary">{imagePackageProgress.percent}%</Typography.Text>
+                    </Flex>
+                    <Progress
+                      percent={imagePackageProgress.percent}
+                      size="small"
+                      status={downloadingImages ? 'active' : 'success'}
+                      showInfo={false}
+                    />
+                    <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                      {imagePackageProgress.detail}
+                    </Typography.Text>
+                  </div>
+                )}
               </div>
               <div className="article-preview-body">
                 <Tabs
@@ -683,6 +714,55 @@ function normalizeAccountPayload(values: ArticleDistributionAccountPayload): Art
     ...values,
     user_id: values.user_id ? Number(values.user_id) : undefined,
   }
+}
+
+function buildImagePackageProgressState(progress: ImagePackageDownloadProgress): ImagePackageProgressState {
+  if (progress.phase === 'compressing') {
+    const zipPercent = Math.round(progress.zipPercent ?? 0)
+    return {
+      percent: clampPercent(90 + zipPercent / 10),
+      title: '正在压缩图片包',
+      detail: `已保存 ${progress.savedImages} 张图片，ZIP 生成 ${zipPercent}%`,
+    }
+  }
+
+  const currentIndex = progress.currentImageIndex ?? Math.min(progress.processedImages + 1, progress.totalImages)
+  const percent = calculateImageDownloadPercent(progress)
+  return {
+    percent,
+    title: `正在下载图片 ${currentIndex}/${progress.totalImages}`,
+    detail: buildImageDownloadProgressDetail(progress),
+  }
+}
+
+function calculateImageDownloadPercent(progress: ImagePackageDownloadProgress): number {
+  if (progress.totalImages <= 0) return 0
+  if (progress.currentImageIndex && progress.currentTotalBytes && progress.currentTotalBytes > 0) {
+    const currentRatio = Math.min(progress.currentLoadedBytes / progress.currentTotalBytes, 1)
+    return clampPercent(((progress.processedImages + currentRatio) / progress.totalImages) * 90)
+  }
+  return clampPercent((progress.processedImages / progress.totalImages) * 90)
+}
+
+function buildImageDownloadProgressDetail(progress: ImagePackageDownloadProgress): string {
+  const savedText = `已保存 ${progress.savedImages} 张图片`
+  if (progress.currentTotalBytes && progress.currentTotalBytes > 0) {
+    return `当前 ${formatBytes(progress.currentLoadedBytes)} / ${formatBytes(progress.currentTotalBytes)}，累计 ${formatBytes(progress.loadedBytes)}，${savedText}`
+  }
+  if (progress.currentLoadedBytes > 0) {
+    return `当前已接收 ${formatBytes(progress.currentLoadedBytes)}，累计 ${formatBytes(progress.loadedBytes)}，${savedText}`
+  }
+  return `已处理 ${progress.processedImages}/${progress.totalImages} 张图片，${savedText}`
+}
+
+function clampPercent(value: number): number {
+  return Math.max(0, Math.min(100, Math.round(value)))
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`
 }
 
 function resolveErrorMessage(error: unknown): string {

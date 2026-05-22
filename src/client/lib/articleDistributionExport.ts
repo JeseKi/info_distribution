@@ -55,6 +55,27 @@ interface ArticlePackageImage {
   contentType: string | null
 }
 
+interface ImageFetchProgress {
+  loadedBytes: number
+  totalBytes?: number
+}
+
+export interface ImagePackageDownloadProgress {
+  phase: 'downloading' | 'compressing'
+  totalImages: number
+  processedImages: number
+  savedImages: number
+  loadedBytes: number
+  currentImageIndex?: number
+  currentLoadedBytes: number
+  currentTotalBytes?: number
+  zipPercent?: number
+}
+
+interface ImagePackageDownloadOptions {
+  onProgress?: (progress: ImagePackageDownloadProgress) => void
+}
+
 const docxTheme = {
   text: '2C2C2C',
   muted: '5F5A52',
@@ -591,7 +612,11 @@ export async function downloadMarkdownAsDocx(markdown: string, filename: string)
   URL.revokeObjectURL(url)
 }
 
-export async function downloadMarkdownImagesAsZip(markdown: string, filename: string): Promise<number> {
+export async function downloadMarkdownImagesAsZip(
+  markdown: string,
+  filename: string,
+  options: ImagePackageDownloadOptions = {},
+): Promise<number> {
   const images = extractMarkdownImages(markdown)
   if (images.length === 0) return 0
 
@@ -599,23 +624,83 @@ export async function downloadMarkdownImagesAsZip(markdown: string, filename: st
   const zip = new JSZip()
   const usedNames = new Set<string>()
   let savedCount = 0
+  let processedImages = 0
+  let loadedBytes = 0
+
+  const emitProgress = (progress: Omit<ImagePackageDownloadProgress, 'totalImages'>) => {
+    options.onProgress?.({
+      totalImages: images.length,
+      ...progress,
+    })
+  }
 
   for (const [index, image] of images.entries()) {
-    const packageImage = await fetchImageForPackage(image.href)
-    if (!packageImage) continue
+    let currentLoadedBytes = 0
+    let currentTotalBytes: number | undefined
+    emitProgress({
+      phase: 'downloading',
+      processedImages,
+      savedImages: savedCount,
+      loadedBytes,
+      currentImageIndex: index + 1,
+      currentLoadedBytes,
+      currentTotalBytes,
+    })
 
+    const packageImage = await fetchImageForPackage(image.href, (progress) => {
+      currentLoadedBytes = progress.loadedBytes
+      currentTotalBytes = progress.totalBytes
+      emitProgress({
+        phase: 'downloading',
+        processedImages,
+        savedImages: savedCount,
+        loadedBytes: loadedBytes + currentLoadedBytes,
+        currentImageIndex: index + 1,
+        currentLoadedBytes,
+        currentTotalBytes,
+      })
+    })
+    processedImages += 1
+    if (!packageImage) {
+      emitProgress({
+        phase: 'downloading',
+        processedImages,
+        savedImages: savedCount,
+        loadedBytes,
+        currentLoadedBytes: 0,
+      })
+      continue
+    }
+
+    loadedBytes += packageImage.data.byteLength
     zip.file(
       uniqueImageFilename(image, index + 1, packageImage.contentType, usedNames),
       packageImage.data,
     )
     savedCount += 1
+    emitProgress({
+      phase: 'downloading',
+      processedImages,
+      savedImages: savedCount,
+      loadedBytes,
+      currentLoadedBytes: 0,
+    })
   }
 
   if (savedCount === 0) {
     throw new Error('图片包下载失败')
   }
 
-  const blob = await zip.generateAsync({ type: 'blob' })
+  const blob = await zip.generateAsync({ type: 'blob' }, (metadata) => {
+    emitProgress({
+      phase: 'compressing',
+      processedImages,
+      savedImages: savedCount,
+      loadedBytes,
+      currentLoadedBytes: 0,
+      zipPercent: metadata.percent,
+    })
+  })
   const url = URL.createObjectURL(blob)
   const link = document.createElement('a')
   link.href = url
@@ -1134,17 +1219,25 @@ async function fetchImageForDocx(url: string): Promise<DocxImage | null> {
   }
 }
 
-async function fetchImageForPackage(url: string): Promise<ArticlePackageImage | null> {
+async function fetchImageForPackage(
+  url: string,
+  onProgress?: (progress: ImageFetchProgress) => void,
+): Promise<ArticlePackageImage | null> {
   if (url.startsWith('data:')) {
-    return parseDataUrl(url)
+    const parsed = parseDataUrl(url)
+    if (parsed) {
+      onProgress?.({ loadedBytes: parsed.data.byteLength, totalBytes: parsed.data.byteLength })
+    }
+    return parsed
   }
 
   const resolvedUrl = resolveImageUrl(url)
   try {
     const response = await fetchImageDirectly(resolvedUrl)
     if (response.ok) {
+      const data = await readResponseArrayBuffer(response, onProgress)
       return {
-        data: await response.arrayBuffer(),
+        data,
         contentType: response.headers.get('content-type'),
       }
     }
@@ -1160,7 +1253,14 @@ async function fetchImageForPackage(url: string): Promise<ArticlePackageImage | 
     const response = await api.get<ArrayBuffer>('/article-distribution/image-proxy', {
       params: { url: resolvedUrl },
       responseType: 'arraybuffer',
+      onDownloadProgress: (event) => {
+        onProgress?.({
+          loadedBytes: event.loaded,
+          totalBytes: event.total && event.total > 0 ? event.total : undefined,
+        })
+      },
     })
+    onProgress?.({ loadedBytes: response.data.byteLength, totalBytes: response.data.byteLength })
     return {
       data: response.data,
       contentType: String(response.headers['content-type'] ?? ''),
@@ -1168,6 +1268,46 @@ async function fetchImageForPackage(url: string): Promise<ArticlePackageImage | 
   } catch {
     return null
   }
+}
+
+async function readResponseArrayBuffer(
+  response: Response,
+  onProgress?: (progress: ImageFetchProgress) => void,
+): Promise<ArrayBuffer> {
+  const totalBytes = parseContentLength(response.headers.get('content-length'))
+  if (!response.body) {
+    const data = await response.arrayBuffer()
+    onProgress?.({ loadedBytes: data.byteLength, totalBytes: totalBytes ?? data.byteLength })
+    return data
+  }
+
+  const reader = response.body.getReader()
+  const chunks: Uint8Array[] = []
+  let loadedBytes = 0
+
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+    if (!value) continue
+
+    chunks.push(value)
+    loadedBytes += value.byteLength
+    onProgress?.({ loadedBytes, totalBytes })
+  }
+
+  const data = new Uint8Array(loadedBytes)
+  let offset = 0
+  for (const chunk of chunks) {
+    data.set(chunk, offset)
+    offset += chunk.byteLength
+  }
+  return data.buffer as ArrayBuffer
+}
+
+function parseContentLength(value: string | null): number | undefined {
+  if (!value) return undefined
+  const parsed = Number.parseInt(value, 10)
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined
 }
 
 async function fetchImageDirectly(url: string): Promise<Response> {
