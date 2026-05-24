@@ -397,6 +397,41 @@ export interface ArticleDistributionArticlePage {
   status_counts: ArticleDistributionArticleStatusCounts
 }
 
+export interface ArticleDistributionTrafficStat {
+  id: number
+  user_id: number
+  account_id: number
+  article_id: number
+  read_count: number
+  like_count: number
+  favorite_count: number
+  share_count: number
+  recorded_at: string
+  created_at: string
+  updated_at: string
+}
+
+export interface ArticleDistributionTrafficStatPayload {
+  read_count: number
+  like_count: number
+  favorite_count: number
+  share_count: number
+  recorded_at?: string | null
+}
+
+export interface ArticleDistributionTrafficSummary {
+  article: ArticleDistributionArticle
+  latest_stat: ArticleDistributionTrafficStat | null
+  record_count: number
+}
+
+export interface ArticleDistributionTrafficSummaryPage {
+  items: ArticleDistributionTrafficSummary[]
+  total: number
+  page: number
+  page_size: number
+}
+
 export interface ArticleDistributionArticleUpdatePayload {
   account_id?: number
   title?: string

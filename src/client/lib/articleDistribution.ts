@@ -11,6 +11,9 @@ import type {
   ArticleDistributionArticlePage,
   ArticleDistributionArticlePageParams,
   ArticleDistributionArticleUpdatePayload,
+  ArticleDistributionTrafficStat,
+  ArticleDistributionTrafficStatPayload,
+  ArticleDistributionTrafficSummaryPage,
   ArticleDistributionPendingReportFilters,
   ArticleDistributionReport,
   ArticlePublishStatus,
@@ -57,6 +60,38 @@ export async function listArticlesPage(
 ): Promise<ArticleDistributionArticlePage> {
   const { data } = await api.get<ArticleDistributionArticlePage>('/article-distribution/articles/page', { params })
   return data
+}
+
+export async function listArticleTrafficSummaries(
+  params?: ArticleDistributionArticlePageParams,
+): Promise<ArticleDistributionTrafficSummaryPage> {
+  const { data } = await api.get<ArticleDistributionTrafficSummaryPage>(
+    '/article-distribution/traffic-stats/articles/page',
+    { params },
+  )
+  return data
+}
+
+export async function listArticleTrafficStats(articleId: number): Promise<ArticleDistributionTrafficStat[]> {
+  const { data } = await api.get<ArticleDistributionTrafficStat[]>(
+    `/article-distribution/articles/${articleId}/traffic-stats`,
+  )
+  return data
+}
+
+export async function createArticleTrafficStat(
+  articleId: number,
+  payload: ArticleDistributionTrafficStatPayload,
+): Promise<ArticleDistributionTrafficStat> {
+  const { data } = await api.post<ArticleDistributionTrafficStat>(
+    `/article-distribution/articles/${articleId}/traffic-stats`,
+    payload,
+  )
+  return data
+}
+
+export async function deleteArticleTrafficStat(statId: number): Promise<void> {
+  await api.delete(`/article-distribution/traffic-stats/${statId}`)
 }
 
 export async function getArticle(articleId: number): Promise<ArticleDistributionArticle> {

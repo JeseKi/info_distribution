@@ -3,6 +3,7 @@ import MainLayout from './components/layout/MainLayout'
 import DashboardPage from './pages/dashboard/DashboardPage'
 import ArticleDistributionPage from './pages/dashboard/ArticleDistributionPage'
 import ArticleDistributionReportPage from './pages/dashboard/ArticleDistributionReportPage'
+import ArticleTrafficStatsPage from './pages/dashboard/ArticleTrafficStatsPage'
 import ProfilePage from './pages/profile/ProfilePage'
 import SecurityPage from './pages/profile/SecurityPage'
 import DevicesPage from './pages/profile/DevicesPage'
@@ -54,6 +55,7 @@ export default function App() {
             >
               <Route path="/dashboard" element={<DashboardPage />} />
               <Route path="/article-distribution" element={<ArticleDistributionPage />} />
+              <Route path="/article-distribution/traffic" element={<ArticleTrafficStatsPage />} />
               <Route
                 path="/article-distribution/report"
                 element={

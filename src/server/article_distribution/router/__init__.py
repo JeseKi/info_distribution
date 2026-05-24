@@ -1,21 +1,20 @@
 # -*- coding: utf-8 -*-
 """Article distribution routes."""
 
-from importlib import import_module
-
 from .shared import admin_router, router, v1_router
+from . import accounts as _accounts
+from . import admin as _admin
+from . import articles as _articles
+from . import proxy as _proxy
+from . import reports as _reports
+from . import traffic as _traffic
+from . import v1 as _v1
 
-# Import route modules so decorators register endpoints on the shared routers.
-for _route_module in ("accounts", "admin", "articles", "proxy", "reports", "v1"):
-    _module = import_module(f"{__name__}.{_route_module}")
-    if _route_module == "proxy":
-        _proxy_module = _module
-del _route_module
-del _module
+# Keep module references so route decorators are registered and imports are explicit.
+_ROUTE_MODULES = (_accounts, _admin, _articles, _proxy, _reports, _traffic, _v1)
 
-_validate_proxy_image_url = _proxy_module._validate_proxy_image_url
-socket = _proxy_module.socket
-del _proxy_module
+_validate_proxy_image_url = _proxy._validate_proxy_image_url
+socket = _proxy.socket
 
 __all__ = [
     "_validate_proxy_image_url",

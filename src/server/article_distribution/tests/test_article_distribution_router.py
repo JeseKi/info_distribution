@@ -463,6 +463,151 @@ def test_publish_status_and_filters(test_client, test_db_session: Session):
     assert invalid_resp.json()["published_url"] is None
 
 
+def test_owner_can_add_multiple_traffic_stats_for_article(
+    test_client, test_db_session: Session
+):
+    owner = _create_user(test_db_session, username="traffic_owner")
+    admin = _create_user(test_db_session, username="traffic_admin", role=UserRole.ADMIN)
+
+    account_resp = test_client.post(
+        "/api/article-distribution/accounts",
+        headers=_headers(owner),
+        json={
+            "account_name": "公众号",
+            "platform": "wechat",
+            "publication_type": "article",
+        },
+    )
+    assert account_resp.status_code == 201
+    account_id = account_resp.json()["id"]
+
+    upload_resp = test_client.post(
+        "/api/admin/article-distribution/articles",
+        headers=_headers(admin),
+        json={
+            "account_id": account_id,
+            "articles": [
+                {
+                    "title": "Traffic Article",
+                    "markdown_content": "body",
+                    "scheduled_date": "2026-05-24",
+                }
+            ],
+        },
+    )
+    assert upload_resp.status_code == 201
+    article_id = upload_resp.json()[0]["id"]
+
+    first_resp = test_client.post(
+        f"/api/article-distribution/articles/{article_id}/traffic-stats",
+        headers=_headers(owner),
+        json={
+            "read_count": 50,
+            "like_count": 5,
+            "favorite_count": 2,
+            "share_count": 1,
+        },
+    )
+    assert first_resp.status_code == 201, first_resp.text
+    assert first_resp.json()["recorded_at"] is not None
+
+    second_resp = test_client.post(
+        f"/api/article-distribution/articles/{article_id}/traffic-stats",
+        headers=_headers(owner),
+        json={
+            "read_count": 180,
+            "like_count": 18,
+            "favorite_count": 9,
+            "share_count": 4,
+            "recorded_at": "2099-05-24T10:00:00+00:00",
+        },
+    )
+    assert second_resp.status_code == 201, second_resp.text
+    assert second_resp.json()["read_count"] == 180
+    assert second_resp.json()["recorded_at"].startswith("2099-05-24T10:00:00")
+
+    list_resp = test_client.get(
+        f"/api/article-distribution/articles/{article_id}/traffic-stats",
+        headers=_headers(owner),
+    )
+    assert list_resp.status_code == 200
+    assert [item["read_count"] for item in list_resp.json()] == [180, 50]
+
+    summary_resp = test_client.get(
+        "/api/article-distribution/traffic-stats/articles/page",
+        headers=_headers(owner),
+    )
+    assert summary_resp.status_code == 200
+    summary = summary_resp.json()
+    assert summary["total"] == 1
+    assert summary["items"][0]["article"]["id"] == article_id
+    assert summary["items"][0]["latest_stat"]["read_count"] == 180
+    assert summary["items"][0]["record_count"] == 2
+
+
+def test_user_cannot_manage_other_users_traffic_stats(
+    test_client, test_db_session: Session
+):
+    owner = _create_user(test_db_session, username="traffic_private_owner")
+    other = _create_user(test_db_session, username="traffic_private_other")
+    admin = _create_user(
+        test_db_session, username="traffic_private_admin", role=UserRole.ADMIN
+    )
+
+    account_resp = test_client.post(
+        "/api/article-distribution/accounts",
+        headers=_headers(owner),
+        json={
+            "account_name": "主号",
+            "platform": "zhihu",
+            "publication_type": "article",
+        },
+    )
+    account_id = account_resp.json()["id"]
+
+    upload_resp = test_client.post(
+        "/api/admin/article-distribution/articles",
+        headers=_headers(admin),
+        json={
+            "account_id": account_id,
+            "articles": [
+                {
+                    "title": "Private Traffic",
+                    "markdown_content": "body",
+                    "scheduled_date": "2026-05-24",
+                }
+            ],
+        },
+    )
+    article_id = upload_resp.json()[0]["id"]
+
+    denied_create_resp = test_client.post(
+        f"/api/article-distribution/articles/{article_id}/traffic-stats",
+        headers=_headers(other),
+        json={"read_count": 1},
+    )
+    assert denied_create_resp.status_code == 403
+
+    owner_create_resp = test_client.post(
+        f"/api/article-distribution/articles/{article_id}/traffic-stats",
+        headers=_headers(owner),
+        json={"read_count": 1},
+    )
+    stat_id = owner_create_resp.json()["id"]
+
+    denied_list_resp = test_client.get(
+        f"/api/article-distribution/articles/{article_id}/traffic-stats",
+        headers=_headers(other),
+    )
+    assert denied_list_resp.status_code == 403
+
+    denied_delete_resp = test_client.delete(
+        f"/api/article-distribution/traffic-stats/{stat_id}",
+        headers=_headers(other),
+    )
+    assert denied_delete_resp.status_code == 403
+
+
 def test_admin_can_list_update_and_delete_all_articles(
     test_client, test_db_session: Session
 ):

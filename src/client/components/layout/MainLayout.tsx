@@ -24,6 +24,7 @@ import {
   TabletOutlined,
   FileTextOutlined,
   BarChartOutlined,
+  LineChartOutlined,
 } from '@ant-design/icons'
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth'
@@ -93,6 +94,9 @@ export default function MainLayout() {
     if (location.pathname === '/article-distribution/report') {
       return ['article-distribution-report']
     }
+    if (location.pathname === '/article-distribution/traffic') {
+      return ['article-distribution-traffic']
+    }
     if (location.pathname === '/article-distribution') {
       return ['article-distribution']
     }
@@ -121,6 +125,11 @@ export default function MainLayout() {
             key: 'article-distribution',
             icon: <FileTextOutlined />,
             label: <Link to="/article-distribution">文章分发</Link>,
+          },
+          {
+            key: 'article-distribution-traffic',
+            icon: <LineChartOutlined />,
+            label: <Link to="/article-distribution/traffic">流量统计</Link>,
           },
           ...(canViewDistributionReport
             ? [
@@ -477,9 +486,11 @@ export default function MainLayout() {
                 ? '内容概览'
                 : selectedKeys[0] === 'article-distribution'
                   ? '文章分发'
-                  : selectedKeys[0] === 'article-distribution-report'
-                    ? '分发后台'
-                  : ''}
+                  : selectedKeys[0] === 'article-distribution-traffic'
+                    ? '流量统计'
+                    : selectedKeys[0] === 'article-distribution-report'
+                      ? '分发后台'
+                      : ''}
           </Typography.Title>
         </Header>
         <Content style={{ padding: '24px 16px 48px' }}>

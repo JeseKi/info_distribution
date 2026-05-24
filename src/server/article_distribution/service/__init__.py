@@ -25,6 +25,12 @@ from .articles import (
     update_article_status,
 )
 from .reports import list_unpublished_report
+from .traffic import (
+    create_article_traffic_stat,
+    delete_article_traffic_stat,
+    list_article_traffic_stats,
+    list_article_traffic_summaries,
+)
 
 __all__ = [
     "authenticate_api_key",
@@ -32,11 +38,15 @@ __all__ = [
     "create_api_key",
     "create_articles_as_admin",
     "create_articles_with_api_key",
+    "create_article_traffic_stat",
     "delete_account",
     "delete_article_as_admin",
+    "delete_article_traffic_stat",
     "get_article",
     "list_account_directory",
     "list_accounts",
+    "list_article_traffic_stats",
+    "list_article_traffic_summaries",
     "list_api_keys",
     "list_articles",
     "list_articles_page",
