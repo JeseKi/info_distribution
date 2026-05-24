@@ -17,6 +17,7 @@ from src.server.database import get_db
 from .. import service
 from ..schemas import (
     AccountStatusFilter,
+    ArticleDistributionPendingUserOut,
     ArticleDistributionPublicDashboardOut,
     ArticleDistributionReportOut,
     PublicationType,
@@ -51,6 +52,37 @@ async def list_unpublished_report(
         )
 
     return await run_in_thread(_list)
+
+
+@router.get(
+    "/reports/unpublished/users/{user_id}",
+    response_model=ArticleDistributionPendingUserOut,
+    summary="查看单个用户的文章分发明细",
+)
+async def get_unpublished_report_user_detail(
+    user_id: int,
+    scheduled_from: date | None = Query(default=None),
+    scheduled_to: date | None = Query(default=None),
+    platform: str | None = Query(default=None),
+    publication_type: PublicationType | None = Query(default=None),
+    account_status: AccountStatusFilter = Query(default="active"),
+    db: Session = Depends(get_db),
+    _: User = Security(
+        get_current_user, scopes=[SCOPE_ARTICLE_DISTRIBUTION_REPORT_READ]
+    ),
+):
+    def _get():
+        return service.get_unpublished_report_user_detail(
+            db,
+            user_id=user_id,
+            scheduled_from=scheduled_from,
+            scheduled_to=scheduled_to,
+            platform=platform,
+            publication_type=publication_type,
+            account_status=account_status,
+        )
+
+    return await run_in_thread(_get)
 
 
 @router.get(

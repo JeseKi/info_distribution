@@ -16,6 +16,7 @@ import type {
   ArticleDistributionTrafficSummaryPage,
   ArticleDistributionPublicDashboard,
   ArticleDistributionPendingReportFilters,
+  ArticleDistributionPendingUser,
   ArticleDistributionReport,
   ArticlePublishStatus,
 } from './types'
@@ -117,6 +118,17 @@ export async function listUnpublishedArticleReport(
 ): Promise<ArticleDistributionReport> {
   const { data } = await api.get<ArticleDistributionReport>(
     '/article-distribution/reports/unpublished',
+    { params },
+  )
+  return data
+}
+
+export async function getUnpublishedArticleReportUser(
+  userId: number,
+  params?: ArticleDistributionPendingReportFilters,
+): Promise<ArticleDistributionPendingUser> {
+  const { data } = await api.get<ArticleDistributionPendingUser>(
+    `/article-distribution/reports/unpublished/users/${userId}`,
     { params },
   )
   return data

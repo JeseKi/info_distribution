@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from datetime import date, datetime
 
-from sqlalchemy import func
+from sqlalchemy import case, func
 from sqlalchemy.orm import Query
 from sqlalchemy.orm import Session
 
@@ -259,6 +259,7 @@ class ArticleDistributionDAO(BaseDAO):
     def list_report_article_owner_rows(
         self,
         *,
+        user_id: int | None = None,
         scheduled_from: date | None = None,
         scheduled_to: date | None = None,
         platform: str | None = None,
@@ -267,12 +268,112 @@ class ArticleDistributionDAO(BaseDAO):
     ) -> list[
         tuple[ArticleDistributionArticle, ArticleDistributionAccount, User]
     ]:
-        query = (
-            self.db_session.query(
-                ArticleDistributionArticle,
-                ArticleDistributionAccount,
-                User,
+        query = self._report_query(
+            user_id=user_id,
+            scheduled_from=scheduled_from,
+            scheduled_to=scheduled_to,
+            platform=platform,
+            publication_type=publication_type,
+            account_status=account_status,
+        ).with_entities(
+            ArticleDistributionArticle,
+            ArticleDistributionAccount,
+            User,
+        )
+        rows = (
+            query.order_by(
+                User.id.asc(),
+                ArticleDistributionArticle.scheduled_date.asc(),
+                ArticleDistributionArticle.id.asc(),
             )
+            .all()
+        )
+        return [(article, account, owner) for article, account, owner in rows]
+
+    def list_report_user_summary_rows(
+        self,
+        *,
+        scheduled_from: date | None = None,
+        scheduled_to: date | None = None,
+        platform: str | None = None,
+        publication_type: str | None = None,
+        account_status: str = "active",
+    ) -> list[tuple[User, int, int, int, int]]:
+        query = self._report_query(
+            scheduled_from=scheduled_from,
+            scheduled_to=scheduled_to,
+            platform=platform,
+            publication_type=publication_type,
+            account_status=account_status,
+        )
+        rows = (
+            query.with_entities(
+                User,
+                func.sum(
+                    case(
+                        (ArticleDistributionArticle.publish_status == "published", 1),
+                        else_=0,
+                    )
+                ).label("published_count"),
+                func.sum(
+                    case(
+                        (
+                            (
+                                ArticleDistributionArticle.publish_status
+                                == "unpublished"
+                            )
+                            & ArticleDistributionAccount.is_active.is_(True),
+                            1,
+                        ),
+                        else_=0,
+                    )
+                ).label("unpublished_count"),
+                func.sum(
+                    case(
+                        (ArticleDistributionArticle.publish_status == "invalid", 1),
+                        else_=0,
+                    )
+                ).label("invalid_count"),
+                func.sum(
+                    case(
+                        (ArticleDistributionAccount.is_active.is_(False), 1),
+                        else_=0,
+                    )
+                ).label("inactive_account_articles"),
+            )
+            .group_by(User.id)
+            .order_by(User.id.asc())
+            .all()
+        )
+        return [
+            (
+                owner,
+                int(published_count or 0),
+                int(unpublished_count or 0),
+                int(invalid_count or 0),
+                int(inactive_account_articles or 0),
+            )
+            for (
+                owner,
+                published_count,
+                unpublished_count,
+                invalid_count,
+                inactive_account_articles,
+            ) in rows
+        ]
+
+    def _report_query(
+        self,
+        *,
+        user_id: int | None = None,
+        scheduled_from: date | None = None,
+        scheduled_to: date | None = None,
+        platform: str | None = None,
+        publication_type: str | None = None,
+        account_status: str = "active",
+    ) -> Query[ArticleDistributionArticle]:
+        query = (
+            self.db_session.query(ArticleDistributionArticle)
             .join(
                 ArticleDistributionAccount,
                 ArticleDistributionArticle.account_id
@@ -280,6 +381,8 @@ class ArticleDistributionDAO(BaseDAO):
             )
             .join(User, ArticleDistributionArticle.user_id == User.id)
         )
+        if user_id is not None:
+            query = query.filter(ArticleDistributionArticle.user_id == user_id)
         if scheduled_from is not None:
             query = query.filter(
                 ArticleDistributionArticle.scheduled_date >= scheduled_from
@@ -298,15 +401,7 @@ class ArticleDistributionDAO(BaseDAO):
             query = query.filter(ArticleDistributionAccount.is_active.is_(True))
         elif account_status == "inactive":
             query = query.filter(ArticleDistributionAccount.is_active.is_(False))
-        rows = (
-            query.order_by(
-                User.id.asc(),
-                ArticleDistributionArticle.scheduled_date.asc(),
-                ArticleDistributionArticle.id.asc(),
-            )
-            .all()
-        )
-        return [(article, account, owner) for article, account, owner in rows]
+        return query
 
     def update_article(
         self, article: ArticleDistributionArticle, **fields: object

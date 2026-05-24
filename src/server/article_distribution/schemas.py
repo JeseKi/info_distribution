@@ -187,6 +187,7 @@ class ArticleDistributionPendingUserOut(BaseModel):
     remaining_count: int
     published_count: int
     invalid_count: int
+    inactive_account_articles: int = 0
     platform_summaries: list[ArticleDistributionPlatformSummaryOut]
     articles: list[ArticleDistributionPendingArticleOut]
 

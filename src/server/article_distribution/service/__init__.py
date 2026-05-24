@@ -24,7 +24,11 @@ from .articles import (
     update_article_as_admin,
     update_article_status,
 )
-from .reports import list_public_dashboard, list_unpublished_report
+from .reports import (
+    get_unpublished_report_user_detail,
+    list_public_dashboard,
+    list_unpublished_report,
+)
 from .traffic import (
     create_article_traffic_stat,
     delete_article_traffic_stat,
@@ -43,6 +47,7 @@ __all__ = [
     "delete_article_as_admin",
     "delete_article_traffic_stat",
     "get_article",
+    "get_unpublished_report_user_detail",
     "list_account_directory",
     "list_accounts",
     "list_article_traffic_stats",

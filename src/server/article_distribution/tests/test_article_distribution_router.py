@@ -549,7 +549,13 @@ def test_owner_can_add_multiple_traffic_stats_for_article(
         headers=_headers(admin),
     )
     assert report_resp.status_code == 200
-    report_article = report_resp.json()["users"][0]["articles"][0]
+    assert report_resp.json()["users"][0]["articles"] == []
+    detail_resp = test_client.get(
+        f"/api/article-distribution/reports/unpublished/users/{owner.id}",
+        headers=_headers(admin),
+    )
+    assert detail_resp.status_code == 200
+    report_article = detail_resp.json()["articles"][0]
     assert report_article["id"] == article_id
     assert report_article["latest_traffic_stat"]["read_count"] == 180
     assert report_article["latest_traffic_stat"]["like_count"] == 18
@@ -929,16 +935,31 @@ def test_unpublished_report_scope_can_be_assigned_to_regular_user(
     assert [item["user_id"] for item in data] == [owner_a.id, owner_b.id]
     assert [item["remaining_count"] for item in data] == [1, 1]
     assert data[0]["published_count"] == 1
-    assert data[0]["platform_summaries"][0]["published_count"] == 1
-    assert data[0]["platform_summaries"][0]["latest_published_url"] == "https://example.com/a-published"
-    assert data[0]["articles"][0]["title"] == "A unpublished"
-    assert data[0]["articles"][0]["markdown_content"] == "body"
-    assert data[0]["articles"][0]["account_name"] == "公众号"
-    assert data[0]["articles"][0]["platform"] == "wechat"
-    assert data[0]["articles"][0]["publish_status"] == "unpublished"
-    assert data[0]["articles"][1]["publish_status"] == "published"
-    assert "source" not in data[0]["articles"][0]
-    assert data[1]["articles"][0]["title"] == "B unpublished"
+    assert data[0]["platform_summaries"] == []
+    assert data[0]["articles"] == []
+
+    detail_resp = test_client.get(
+        f"/api/article-distribution/reports/unpublished/users/{owner_a.id}",
+        headers=_headers(viewer),
+    )
+    assert detail_resp.status_code == 200
+    detail = detail_resp.json()
+    assert detail["platform_summaries"][0]["published_count"] == 1
+    assert detail["platform_summaries"][0]["latest_published_url"] == "https://example.com/a-published"
+    assert detail["articles"][0]["title"] == "A unpublished"
+    assert detail["articles"][0]["markdown_content"] == "body"
+    assert detail["articles"][0]["account_name"] == "公众号"
+    assert detail["articles"][0]["platform"] == "wechat"
+    assert detail["articles"][0]["publish_status"] == "unpublished"
+    assert detail["articles"][1]["publish_status"] == "published"
+    assert "source" not in detail["articles"][0]
+
+    detail_b_resp = test_client.get(
+        f"/api/article-distribution/reports/unpublished/users/{owner_b.id}",
+        headers=_headers(viewer),
+    )
+    assert detail_b_resp.status_code == 200
+    assert detail_b_resp.json()["articles"][0]["title"] == "B unpublished"
 
     public_resp = test_client.get("/api/article-distribution/public/dashboard")
     assert public_resp.status_code == 200, public_resp.text
@@ -1079,7 +1100,13 @@ def test_unpublished_report_tracks_inactive_account_articles_separately(
         "inactive_account_articles": 0,
     }
     assert active_report["users"][0]["remaining_count"] == 1
-    assert [article["account_is_active"] for article in active_report["users"][0]["articles"]] == [True]
+    assert active_report["users"][0]["articles"] == []
+    active_detail_resp = test_client.get(
+        f"/api/article-distribution/reports/unpublished/users/{owner.id}",
+        headers=_headers(admin),
+    )
+    assert active_detail_resp.status_code == 200
+    assert [article["account_is_active"] for article in active_detail_resp.json()["articles"]] == [True]
 
     all_report_resp = test_client.get(
         "/api/article-distribution/reports/unpublished",
@@ -1098,14 +1125,23 @@ def test_unpublished_report_tracks_inactive_account_articles_separately(
     }
     all_user = all_report["users"][0]
     assert all_user["remaining_count"] == 1
+    assert all_user["platform_summaries"] == []
+    assert all_user["articles"] == []
+    all_detail_resp = test_client.get(
+        f"/api/article-distribution/reports/unpublished/users/{owner.id}",
+        headers=_headers(admin),
+        params={"account_status": "all"},
+    )
+    assert all_detail_resp.status_code == 200
+    all_detail = all_detail_resp.json()
     inactive_summary = next(
         summary
-        for summary in all_user["platform_summaries"]
+        for summary in all_detail["platform_summaries"]
         if summary["account_id"] == inactive_account_id
     )
     assert inactive_summary["account_is_active"] is False
     assert inactive_summary["unpublished_count"] == 0
-    assert [article["account_is_active"] for article in all_user["articles"]] == [
+    assert [article["account_is_active"] for article in all_detail["articles"]] == [
         True,
         False,
         False,
@@ -1127,3 +1163,10 @@ def test_unpublished_report_tracks_inactive_account_articles_separately(
         "inactive_account_articles": 2,
     }
     assert inactive_report["users"][0]["remaining_count"] == 0
+    inactive_detail_resp = test_client.get(
+        f"/api/article-distribution/reports/unpublished/users/{owner.id}",
+        headers=_headers(admin),
+        params={"account_status": "inactive"},
+    )
+    assert inactive_detail_resp.status_code == 200
+    assert inactive_detail_resp.json()["remaining_count"] == 0

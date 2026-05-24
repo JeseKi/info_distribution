@@ -88,6 +88,9 @@ export default function ArticleDistributionReportPage() {
   const [loading, setLoading] = useState(false)
   const [rows, setRows] = useState<ArticleDistributionPendingUser[]>([])
   const [summary, setSummary] = useState<ArticleDistributionReportSummary>(emptySummary)
+  const [userDetails, setUserDetails] = useState<Record<number, ArticleDistributionPendingUser>>({})
+  const [detailLoadingUserIds, setDetailLoadingUserIds] = useState<Set<number>>(() => new Set())
+  const [expandedRowKeys, setExpandedRowKeys] = useState<number[]>([])
 
   const loadReport = useCallback(async (filters?: ArticleDistributionPendingReportFilters) => {
     setLoading(true)
@@ -95,10 +98,28 @@ export default function ArticleDistributionReportPage() {
       const report = await articleApi.listUnpublishedArticleReport(filters)
       setRows(report.users)
       setSummary(report.summary)
+      setUserDetails({})
+      setExpandedRowKeys([])
     } catch (error) {
       message.error(resolveApiErrorMessage(error, '分发进度加载失败'))
     } finally {
       setLoading(false)
+    }
+  }, [message])
+
+  const loadUserDetail = useCallback(async (userId: number) => {
+    setDetailLoadingUserIds((current) => new Set(current).add(userId))
+    try {
+      const detail = await articleApi.getUnpublishedArticleReportUser(userId, buildFilters())
+      setUserDetails((current) => ({ ...current, [userId]: detail }))
+    } catch (error) {
+      message.error(resolveApiErrorMessage(error, '用户分发明细加载失败'))
+    } finally {
+      setDetailLoadingUserIds((current) => {
+        const next = new Set(current)
+        next.delete(userId)
+        return next
+      })
     }
   }, [message])
 
@@ -129,14 +150,6 @@ export default function ArticleDistributionReportPage() {
         row.username,
         row.name ?? '',
         row.email,
-        ...row.articles.map((article) =>
-          [
-            article.title,
-            article.account_name,
-            article.platform,
-            article.scheduled_date,
-          ].join(' '),
-        ),
       ].join(' ').toLowerCase().includes(normalized),
     )
   }, [keyword, rows])
@@ -150,26 +163,11 @@ export default function ArticleDistributionReportPage() {
       unpublished_articles: filteredRows.reduce((total, row) => total + row.remaining_count, 0),
       invalid_articles: filteredRows.reduce((total, row) => total + row.invalid_count, 0),
       inactive_account_articles: filteredRows.reduce(
-        (total, row) => total + row.articles.filter((article) => !article.account_is_active).length,
+        (total, row) => total + row.inactive_account_articles,
         0,
       ),
     }
   }, [filteredRows, rows.length, summary])
-
-  const filteredTrafficTotals = useMemo(() => filteredRows.reduce(
-    (totals, row) => {
-      for (const article of row.articles) {
-        const stat = article.latest_traffic_stat
-        if (!stat) continue
-        totals.read_count += stat.read_count
-        totals.like_count += stat.like_count
-        totals.favorite_count += stat.favorite_count
-        totals.share_count += stat.share_count
-      }
-      return totals
-    },
-    { read_count: 0, like_count: 0, favorite_count: 0, share_count: 0 },
-  ), [filteredRows])
 
   const userPagination = useMemo<TablePaginationConfig>(() => ({
     pageSize: 10,
@@ -453,31 +451,42 @@ export default function ArticleDistributionReportPage() {
     </Flex>
   )
 
-  const expandedArticleTable = (record: ArticleDistributionPendingUser) => (
-    <Flex vertical gap={12} style={{ minWidth: 0, width: '100%', overflow: 'hidden' }}>
-      <Table
-        rowKey="account_id"
-        columns={buildPlatformColumns(record)}
-        dataSource={record.platform_summaries}
-        pagination={false}
-        size="small"
-        tableLayout="fixed"
-        scroll={{ x: 960 }}
-      />
-      <Table
-        rowKey="id"
-        columns={articleColumns}
-        dataSource={record.articles}
-        pagination={false}
-        size="small"
-        tableLayout="fixed"
-        scroll={{ x: 1790 }}
-        expandable={{
-          expandedRowRender: renderArticleDetail,
-        }}
-      />
-    </Flex>
-  )
+  const expandedArticleTable = (record: ArticleDistributionPendingUser) => {
+    const detail = userDetails[record.user_id]
+    const loadingDetail = detailLoadingUserIds.has(record.user_id)
+
+    if (!detail && !loadingDetail) {
+      return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="展开后加载明细" />
+    }
+
+    return (
+      <Flex vertical gap={12} style={{ minWidth: 0, width: '100%', overflow: 'hidden' }}>
+        <Table
+          rowKey="account_id"
+          columns={buildPlatformColumns(detail ?? record)}
+          dataSource={detail?.platform_summaries ?? []}
+          pagination={false}
+          size="small"
+          tableLayout="fixed"
+          loading={loadingDetail}
+          scroll={{ x: 960 }}
+        />
+        <Table
+          rowKey="id"
+          columns={articleColumns}
+          dataSource={detail?.articles ?? []}
+          pagination={false}
+          size="small"
+          tableLayout="fixed"
+          loading={loadingDetail}
+          scroll={{ x: 1790 }}
+          expandable={{
+            expandedRowRender: renderArticleDetail,
+          }}
+        />
+      </Flex>
+    )
+  }
 
   return (
     <Flex vertical gap={18}>
@@ -507,10 +516,6 @@ export default function ArticleDistributionReportPage() {
           <Statistic title="未发布文章总数" value={filteredSummary.unpublished_articles} />
           <Statistic title="已停用账号文章总数" value={filteredSummary.inactive_account_articles} />
           <Statistic title="失效文章总数" value={filteredSummary.invalid_articles} />
-          <Statistic title="阅读量" value={filteredTrafficTotals.read_count} />
-          <Statistic title="点赞量" value={filteredTrafficTotals.like_count} />
-          <Statistic title="收藏量" value={filteredTrafficTotals.favorite_count} />
-          <Statistic title="转发量" value={filteredTrafficTotals.share_count} />
         </Flex>
         <Form form={form} layout="vertical" initialValues={{ account_status: 'active' }} style={{ marginTop: 18 }}>
           <Flex gap={16} wrap="wrap" align="end">
@@ -555,7 +560,17 @@ export default function ArticleDistributionReportPage() {
         dataSource={filteredRows}
         expandable={{
           expandedRowRender: expandedArticleTable,
-          defaultExpandAllRows: true,
+          expandedRowKeys,
+          onExpand: (expanded, record) => {
+            setExpandedRowKeys((current) => (
+              expanded
+                ? [...current, record.user_id]
+                : current.filter((key) => key !== record.user_id)
+            ))
+            if (expanded && !userDetails[record.user_id]) {
+              void loadUserDetail(record.user_id)
+            }
+          },
         }}
         locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无文章" /> }}
         pagination={userPagination}

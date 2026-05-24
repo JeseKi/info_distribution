@@ -477,6 +477,7 @@ export interface ArticleDistributionPendingUser {
   remaining_count: number
   published_count: number
   invalid_count: number
+  inactive_account_articles: number
   platform_summaries: ArticleDistributionPlatformSummary[]
   articles: ArticleDistributionPendingArticle[]
 }
