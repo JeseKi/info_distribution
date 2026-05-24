@@ -454,6 +454,7 @@ export interface ArticleDistributionPendingArticle {
   publish_status: ArticlePublishStatus
   published_url: string | null
   created_at: string
+  latest_traffic_stat: ArticleDistributionTrafficStat | null
 }
 
 export interface ArticleDistributionPlatformSummary {

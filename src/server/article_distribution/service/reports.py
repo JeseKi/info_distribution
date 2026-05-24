@@ -15,6 +15,7 @@ from ..schemas import (
     ArticleDistributionPlatformSummaryOut,
     ArticleDistributionReportOut,
     ArticleDistributionReportSummaryOut,
+    ArticleTrafficStatOut,
 )
 from .helpers import (
     normalize_optional,
@@ -40,6 +41,9 @@ def list_unpublished_report(
         platform=normalize_optional(platform),
         publication_type=publication_type,
         account_status=account_status,
+    )
+    latest_traffic_stats = ArticleDistributionDAO(db).latest_traffic_stats_by_article_ids(
+        [article.id for article, _, _ in rows]
     )
     inactive_account_articles = 0
     for article, account, owner in rows:
@@ -101,6 +105,11 @@ def list_unpublished_report(
                 publish_status=normalize_publish_status(article.publish_status),
                 published_url=article.published_url,
                 created_at=article.created_at,
+                latest_traffic_stat=(
+                    ArticleTrafficStatOut.model_validate(latest_traffic_stats[article.id])
+                    if article.id in latest_traffic_stats
+                    else None
+                ),
             )
         )
     users = list(grouped.values())

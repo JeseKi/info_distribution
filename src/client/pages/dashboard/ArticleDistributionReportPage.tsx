@@ -61,6 +61,10 @@ function inactiveAccountTag(isActive?: boolean) {
   return isActive === false ? <Tag color="red">已停用</Tag> : null
 }
 
+function renderTrafficValue(value: number | undefined) {
+  return typeof value === 'number' ? value : '-'
+}
+
 const emptySummary: ArticleDistributionReportSummary = {
   total_users: 0,
   unpublished_users: 0,
@@ -151,6 +155,21 @@ export default function ArticleDistributionReportPage() {
       ),
     }
   }, [filteredRows, rows.length, summary])
+
+  const filteredTrafficTotals = useMemo(() => filteredRows.reduce(
+    (totals, row) => {
+      for (const article of row.articles) {
+        const stat = article.latest_traffic_stat
+        if (!stat) continue
+        totals.read_count += stat.read_count
+        totals.like_count += stat.like_count
+        totals.favorite_count += stat.favorite_count
+        totals.share_count += stat.share_count
+      }
+      return totals
+    },
+    { read_count: 0, like_count: 0, favorite_count: 0, share_count: 0 },
+  ), [filteredRows])
 
   const userPagination = useMemo<TablePaginationConfig>(() => ({
     pageSize: 10,
@@ -251,6 +270,42 @@ export default function ArticleDistributionReportPage() {
       key: 'publication_type',
       width: 100,
       render: (value: ArticlePublicationType) => publicationTypeText[value],
+    },
+    {
+      title: '阅读量',
+      key: 'read_count',
+      width: 100,
+      sorter: (a, b) => (a.latest_traffic_stat?.read_count ?? 0) - (b.latest_traffic_stat?.read_count ?? 0),
+      render: (_, record) => renderTrafficValue(record.latest_traffic_stat?.read_count),
+    },
+    {
+      title: '点赞量',
+      key: 'like_count',
+      width: 100,
+      sorter: (a, b) => (a.latest_traffic_stat?.like_count ?? 0) - (b.latest_traffic_stat?.like_count ?? 0),
+      render: (_, record) => renderTrafficValue(record.latest_traffic_stat?.like_count),
+    },
+    {
+      title: '收藏量',
+      key: 'favorite_count',
+      width: 100,
+      sorter: (a, b) => (a.latest_traffic_stat?.favorite_count ?? 0) - (b.latest_traffic_stat?.favorite_count ?? 0),
+      render: (_, record) => renderTrafficValue(record.latest_traffic_stat?.favorite_count),
+    },
+    {
+      title: '转发量',
+      key: 'share_count',
+      width: 100,
+      sorter: (a, b) => (a.latest_traffic_stat?.share_count ?? 0) - (b.latest_traffic_stat?.share_count ?? 0),
+      render: (_, record) => renderTrafficValue(record.latest_traffic_stat?.share_count),
+    },
+    {
+      title: '统计时间',
+      key: 'traffic_recorded_at',
+      width: 150,
+      render: (_, record) => record.latest_traffic_stat
+        ? dayjs(record.latest_traffic_stat.recorded_at).format('YYYY-MM-DD HH:mm')
+        : '-',
     },
     {
       title: '发布链接',
@@ -363,6 +418,13 @@ export default function ArticleDistributionReportPage() {
         </Descriptions.Item>
         <Descriptions.Item label="计划日期">{article.scheduled_date}</Descriptions.Item>
         <Descriptions.Item label="状态">{publishStatusTag(article.publish_status)}</Descriptions.Item>
+        <Descriptions.Item label="阅读量">{renderTrafficValue(article.latest_traffic_stat?.read_count)}</Descriptions.Item>
+        <Descriptions.Item label="点赞量">{renderTrafficValue(article.latest_traffic_stat?.like_count)}</Descriptions.Item>
+        <Descriptions.Item label="收藏量">{renderTrafficValue(article.latest_traffic_stat?.favorite_count)}</Descriptions.Item>
+        <Descriptions.Item label="转发量">{renderTrafficValue(article.latest_traffic_stat?.share_count)}</Descriptions.Item>
+        <Descriptions.Item label="统计时间">
+          {article.latest_traffic_stat ? dayjs(article.latest_traffic_stat.recorded_at).format('YYYY-MM-DD HH:mm') : '-'}
+        </Descriptions.Item>
         <Descriptions.Item label="发布链接">
           {article.published_url ? (
             <Typography.Link href={article.published_url} target="_blank" rel="noreferrer">
@@ -409,7 +471,7 @@ export default function ArticleDistributionReportPage() {
         pagination={false}
         size="small"
         tableLayout="fixed"
-        scroll={{ x: 1290 }}
+        scroll={{ x: 1790 }}
         expandable={{
           expandedRowRender: renderArticleDetail,
         }}
@@ -445,6 +507,10 @@ export default function ArticleDistributionReportPage() {
           <Statistic title="未发布文章总数" value={filteredSummary.unpublished_articles} />
           <Statistic title="已停用账号文章总数" value={filteredSummary.inactive_account_articles} />
           <Statistic title="失效文章总数" value={filteredSummary.invalid_articles} />
+          <Statistic title="阅读量" value={filteredTrafficTotals.read_count} />
+          <Statistic title="点赞量" value={filteredTrafficTotals.like_count} />
+          <Statistic title="收藏量" value={filteredTrafficTotals.favorite_count} />
+          <Statistic title="转发量" value={filteredTrafficTotals.share_count} />
         </Flex>
         <Form form={form} layout="vertical" initialValues={{ account_status: 'active' }} style={{ marginTop: 18 }}>
           <Flex gap={16} wrap="wrap" align="end">

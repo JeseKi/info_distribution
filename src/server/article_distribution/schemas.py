@@ -164,6 +164,7 @@ class ArticleDistributionPendingArticleOut(BaseModel):
     publish_status: PublishStatus
     published_url: str | None
     created_at: datetime
+    latest_traffic_stat: ArticleTrafficStatOut | None = None
 
 
 class ArticleDistributionPlatformSummaryOut(BaseModel):

@@ -544,6 +544,16 @@ def test_owner_can_add_multiple_traffic_stats_for_article(
     assert summary["items"][0]["latest_stat"]["read_count"] == 180
     assert summary["items"][0]["record_count"] == 2
 
+    report_resp = test_client.get(
+        "/api/article-distribution/reports/unpublished",
+        headers=_headers(admin),
+    )
+    assert report_resp.status_code == 200
+    report_article = report_resp.json()["users"][0]["articles"][0]
+    assert report_article["id"] == article_id
+    assert report_article["latest_traffic_stat"]["read_count"] == 180
+    assert report_article["latest_traffic_stat"]["like_count"] == 18
+
 
 def test_user_cannot_manage_other_users_traffic_stats(
     test_client, test_db_session: Session
