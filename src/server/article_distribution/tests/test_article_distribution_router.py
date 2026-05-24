@@ -972,6 +972,9 @@ def test_unpublished_report_scope_can_be_assigned_to_regular_user(
         "invalid_articles": 0,
         "inactive_account_articles": 0,
     }
+    assert public_report["total"] == 1
+    assert public_report["page"] == 1
+    assert public_report["page_size"] == 10
     assert public_report["articles"] == [
         {
             "id": published_article_id,
@@ -995,6 +998,7 @@ def test_unpublished_report_scope_can_be_assigned_to_regular_user(
     )
     assert public_filtered_resp.status_code == 200
     assert public_filtered_resp.json()["summary"]["total_users"] == 0
+    assert public_filtered_resp.json()["total"] == 0
     assert public_filtered_resp.json()["articles"] == []
 
 

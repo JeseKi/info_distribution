@@ -220,6 +220,9 @@ class ArticleDistributionPublicArticleOut(BaseModel):
 class ArticleDistributionPublicDashboardOut(BaseModel):
     summary: ArticleDistributionReportSummaryOut
     articles: list[ArticleDistributionPublicArticleOut]
+    total: int
+    page: int
+    page_size: int
 
 
 class APIKeyCreate(BaseModel):

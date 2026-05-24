@@ -510,6 +510,9 @@ export interface ArticleDistributionPublicArticle {
 export interface ArticleDistributionPublicDashboard {
   summary: ArticleDistributionReportSummary
   articles: ArticleDistributionPublicArticle[]
+  total: number
+  page: number
+  page_size: number
 }
 
 export interface ArticleDistributionPendingReportFilters {

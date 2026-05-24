@@ -362,6 +362,40 @@ class ArticleDistributionDAO(BaseDAO):
             ) in rows
         ]
 
+    def list_public_published_article_rows_page(
+        self,
+        *,
+        scheduled_from: date | None = None,
+        scheduled_to: date | None = None,
+        publication_type: str | None = None,
+        page: int = 1,
+        page_size: int = 10,
+    ) -> tuple[list[tuple[ArticleDistributionArticle, ArticleDistributionAccount]], int]:
+        query = (
+            self._report_query(
+                scheduled_from=scheduled_from,
+                scheduled_to=scheduled_to,
+                publication_type=publication_type,
+                account_status="active",
+            )
+            .filter(
+                ArticleDistributionArticle.publish_status == "published",
+                ArticleDistributionArticle.published_url.isnot(None),
+            )
+            .with_entities(ArticleDistributionArticle, ArticleDistributionAccount)
+        )
+        total = query.count()
+        rows = (
+            query.order_by(
+                ArticleDistributionArticle.scheduled_date.desc(),
+                ArticleDistributionArticle.id.desc(),
+            )
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+            .all()
+        )
+        return [(article, account) for article, account in rows], total
+
     def _report_query(
         self,
         *,

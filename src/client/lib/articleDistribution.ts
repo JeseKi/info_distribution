@@ -135,7 +135,10 @@ export async function getUnpublishedArticleReportUser(
 }
 
 export async function listPublicArticleDashboard(
-  params?: Pick<ArticleDistributionPendingReportFilters, 'scheduled_from' | 'scheduled_to' | 'publication_type'>,
+  params?: Pick<ArticleDistributionPendingReportFilters, 'scheduled_from' | 'scheduled_to' | 'publication_type'> & {
+    page?: number
+    page_size?: number
+  },
 ): Promise<ArticleDistributionPublicDashboard> {
   const { data } = await api.get<ArticleDistributionPublicDashboard>(
     '/article-distribution/public/dashboard',

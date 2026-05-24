@@ -94,6 +94,8 @@ async def list_public_dashboard(
     scheduled_from: date | None = Query(default=None),
     scheduled_to: date | None = Query(default=None),
     publication_type: PublicationType | None = Query(default=None),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=10, ge=1, le=100),
     db: Session = Depends(get_db),
 ):
     def _list():
@@ -102,6 +104,8 @@ async def list_public_dashboard(
             scheduled_from=scheduled_from,
             scheduled_to=scheduled_to,
             publication_type=publication_type,
+            page=page,
+            page_size=page_size,
         )
 
     return await run_in_thread(_list)

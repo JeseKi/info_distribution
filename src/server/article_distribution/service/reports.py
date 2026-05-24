@@ -189,65 +189,69 @@ def list_public_dashboard(
     scheduled_from: date | None = None,
     scheduled_to: date | None = None,
     publication_type: str | None = None,
+    page: int = 1,
+    page_size: int = 10,
 ) -> ArticleDistributionPublicDashboardOut:
-    rows = ArticleDistributionDAO(db).list_report_article_owner_rows(
+    dao = ArticleDistributionDAO(db)
+    summary_rows = dao.list_report_user_summary_rows(
         scheduled_from=scheduled_from,
         scheduled_to=scheduled_to,
         publication_type=publication_type,
         account_status="active",
     )
-    latest_traffic_stats = ArticleDistributionDAO(db).latest_traffic_stats_by_article_ids(
-        [article.id for article, _, _ in rows]
+    article_rows, total = dao.list_public_published_article_rows_page(
+        scheduled_from=scheduled_from,
+        scheduled_to=scheduled_to,
+        publication_type=publication_type,
+        page=page,
+        page_size=page_size,
+    )
+    latest_traffic_stats = dao.latest_traffic_stats_by_article_ids(
+        [article.id for article, _ in article_rows]
     )
 
-    user_counts: dict[int, dict[str, int]] = {}
-    published_articles: list[ArticleDistributionPublicArticleOut] = []
-    for article, account, owner in rows:
-        counts = user_counts.setdefault(
-            owner.id,
-            {"published": 0, "unpublished": 0, "invalid": 0},
+    published_articles = [
+        ArticleDistributionPublicArticleOut(
+            id=article.id,
+            title=article.title,
+            published_at=article.scheduled_date,
+            published_url=article.published_url or "",
+            account_name=account.account_name,
+            platform=account.platform,
+            publication_type=normalize_publication_type(account.publication_type),
+            latest_traffic_stat=(
+                ArticleTrafficStatOut.model_validate(latest_traffic_stats[article.id])
+                if article.id in latest_traffic_stats
+                else None
+            ),
         )
-        if article.publish_status == "published":
-            counts["published"] += 1
-            if article.published_url:
-                published_articles.append(
-                    ArticleDistributionPublicArticleOut(
-                        id=article.id,
-                        title=article.title,
-                        published_at=article.scheduled_date,
-                        published_url=article.published_url,
-                        account_name=account.account_name,
-                        platform=account.platform,
-                        publication_type=normalize_publication_type(
-                            account.publication_type
-                        ),
-                        latest_traffic_stat=(
-                            ArticleTrafficStatOut.model_validate(
-                                latest_traffic_stats[article.id]
-                            )
-                            if article.id in latest_traffic_stats
-                            else None
-                        ),
-                    )
-                )
-        elif article.publish_status == "invalid":
-            counts["invalid"] += 1
-        else:
-            counts["unpublished"] += 1
-
-    published_articles.sort(key=lambda item: (item.published_at, item.id), reverse=True)
+        for article, account in article_rows
+    ]
     return ArticleDistributionPublicDashboardOut(
         summary=ArticleDistributionReportSummaryOut(
-            total_users=len(user_counts),
+            total_users=len(summary_rows),
             unpublished_users=sum(
-                1 for counts in user_counts.values() if counts["unpublished"] > 0
+                1
+                for _, _, unpublished_count, _, _ in summary_rows
+                if unpublished_count > 0
             ),
-            published_articles=sum(counts["published"] for counts in user_counts.values()),
+            published_articles=sum(
+                published_count
+                for _, published_count, _, _, _ in summary_rows
+            ),
             unpublished_articles=sum(
-                counts["unpublished"] for counts in user_counts.values()
+                unpublished_count
+                for _, _, unpublished_count, _, _ in summary_rows
             ),
-            invalid_articles=sum(counts["invalid"] for counts in user_counts.values()),
-            inactive_account_articles=0,
+            invalid_articles=sum(
+                invalid_count for _, _, _, invalid_count, _ in summary_rows
+            ),
+            inactive_account_articles=sum(
+                inactive_count for _, _, _, _, inactive_count in summary_rows
+            ),
         ),
         articles=published_articles,
+        total=total,
+        page=page,
+        page_size=page_size,
     )

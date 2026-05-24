@@ -26,6 +26,8 @@ import type {
   ArticlePublicationType,
 } from '../../lib/types'
 
+const defaultPageSize = 10
+
 const publicationTypeOptions = [
   { label: '视频', value: 'video' },
   { label: '文章', value: 'article' },
@@ -58,6 +60,9 @@ export default function PublicDashboardPage() {
   const [loading, setLoading] = useState(false)
   const [summary, setSummary] = useState<ArticleDistributionReportSummary>(emptySummary)
   const [articles, setArticles] = useState<ArticleDistributionPublicArticle[]>([])
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(defaultPageSize)
+  const [total, setTotal] = useState(0)
 
   const buildFilters = (): Pick<ArticleDistributionPendingReportFilters, 'scheduled_from' | 'scheduled_to' | 'publication_type'> => {
     const values = form.getFieldsValue()
@@ -71,12 +76,20 @@ export default function PublicDashboardPage() {
 
   const loadDashboard = useCallback(async (
     filters?: Pick<ArticleDistributionPendingReportFilters, 'scheduled_from' | 'scheduled_to' | 'publication_type'>,
+    pagination: { page: number; pageSize: number } = { page: 1, pageSize: defaultPageSize },
   ) => {
     setLoading(true)
     try {
-      const dashboard = await articleApi.listPublicArticleDashboard(filters)
+      const dashboard = await articleApi.listPublicArticleDashboard({
+        ...filters,
+        page: pagination.page,
+        page_size: pagination.pageSize,
+      })
       setSummary(dashboard.summary)
       setArticles(dashboard.articles)
+      setPage(dashboard.page)
+      setPageSize(dashboard.page_size)
+      setTotal(dashboard.total)
     } catch (error) {
       message.error(resolveApiErrorMessage(error, '公开看板加载失败'))
     } finally {
@@ -151,7 +164,7 @@ export default function PublicDashboardPage() {
               查看已发布文章与分发进度统计。
             </Typography.Text>
           </div>
-          <Button icon={<ReloadOutlined />} loading={loading} onClick={() => void loadDashboard(buildFilters())}>
+          <Button icon={<ReloadOutlined />} loading={loading} onClick={() => void loadDashboard(buildFilters(), { page, pageSize })}>
             刷新
           </Button>
         </Flex>
@@ -174,13 +187,13 @@ export default function PublicDashboardPage() {
               </Form.Item>
               <Form.Item>
                 <Space>
-                  <Button type="primary" onClick={() => void loadDashboard(buildFilters())}>
+                  <Button type="primary" onClick={() => void loadDashboard(buildFilters(), { page: 1, pageSize })}>
                     筛选
                   </Button>
                   <Button
                     onClick={() => {
                       form.resetFields()
-                      void loadDashboard()
+                      void loadDashboard(undefined, { page: 1, pageSize })
                     }}
                   >
                     重置
@@ -199,10 +212,16 @@ export default function PublicDashboardPage() {
           tableLayout="fixed"
           scroll={{ x: 1000 }}
           pagination={{
-            pageSize: 10,
+            current: page,
+            pageSize,
+            total,
             pageSizeOptions: [10, 20, 50, 100],
             showSizeChanger: true,
             showTotal: (total, range) => `第 ${range[0]}-${range[1]} 篇，共 ${total} 篇`,
+            onChange: (nextPage, nextPageSize) => void loadDashboard(
+              buildFilters(),
+              { page: nextPage, pageSize: nextPageSize },
+            ),
           }}
           locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无已发布文章" /> }}
         />
