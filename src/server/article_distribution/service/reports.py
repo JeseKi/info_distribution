@@ -53,6 +53,10 @@ def list_unpublished_report(
             published_count=published_count,
             invalid_count=invalid_count,
             inactive_account_articles=inactive_account_articles,
+            read_count=read_count,
+            like_count=like_count,
+            favorite_count=favorite_count,
+            share_count=share_count,
             platform_summaries=[],
             articles=[],
         )
@@ -62,6 +66,10 @@ def list_unpublished_report(
             unpublished_count,
             invalid_count,
             inactive_account_articles,
+            read_count,
+            like_count,
+            favorite_count,
+            share_count,
         ) in rows
     ]
     return ArticleDistributionReportOut(
@@ -74,6 +82,10 @@ def list_unpublished_report(
             inactive_account_articles=sum(
                 user.inactive_account_articles for user in users
             ),
+            read_count=sum(user.read_count for user in users),
+            like_count=sum(user.like_count for user in users),
+            favorite_count=sum(user.favorite_count for user in users),
+            share_count=sum(user.share_count for user in users),
         ),
         users=users,
     )
@@ -125,12 +137,22 @@ def _build_user_reports_from_rows(
                 published_count=0,
                 invalid_count=0,
                 inactive_account_articles=0,
+                read_count=0,
+                like_count=0,
+                favorite_count=0,
+                share_count=0,
                 platform_summaries=[],
                 articles=[],
             )
         user_report = grouped[owner.id]
         if not account_is_active:
             user_report.inactive_account_articles += 1
+        latest_stat = latest_traffic_stats.get(article.id)
+        if latest_stat is not None:
+            user_report.read_count += latest_stat.read_count
+            user_report.like_count += latest_stat.like_count
+            user_report.favorite_count += latest_stat.favorite_count
+            user_report.share_count += latest_stat.share_count
         summary_key = (owner.id, account.id)
         if summary_key not in platform_summaries:
             platform_summary = ArticleDistributionPlatformSummaryOut(
@@ -230,25 +252,15 @@ def list_public_dashboard(
     return ArticleDistributionPublicDashboardOut(
         summary=ArticleDistributionReportSummaryOut(
             total_users=len(summary_rows),
-            unpublished_users=sum(
-                1
-                for _, _, unpublished_count, _, _ in summary_rows
-                if unpublished_count > 0
-            ),
-            published_articles=sum(
-                published_count
-                for _, published_count, _, _, _ in summary_rows
-            ),
-            unpublished_articles=sum(
-                unpublished_count
-                for _, _, unpublished_count, _, _ in summary_rows
-            ),
-            invalid_articles=sum(
-                invalid_count for _, _, _, invalid_count, _ in summary_rows
-            ),
-            inactive_account_articles=sum(
-                inactive_count for _, _, _, _, inactive_count in summary_rows
-            ),
+            unpublished_users=sum(1 for row in summary_rows if row[2] > 0),
+            published_articles=sum(row[1] for row in summary_rows),
+            unpublished_articles=sum(row[2] for row in summary_rows),
+            invalid_articles=sum(row[3] for row in summary_rows),
+            inactive_account_articles=sum(row[4] for row in summary_rows),
+            read_count=sum(row[5] for row in summary_rows),
+            like_count=sum(row[6] for row in summary_rows),
+            favorite_count=sum(row[7] for row in summary_rows),
+            share_count=sum(row[8] for row in summary_rows),
         ),
         articles=published_articles,
         total=total,

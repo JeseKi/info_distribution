@@ -72,6 +72,10 @@ const emptySummary: ArticleDistributionReportSummary = {
   unpublished_articles: 0,
   invalid_articles: 0,
   inactive_account_articles: 0,
+  read_count: 0,
+  like_count: 0,
+  favorite_count: 0,
+  share_count: 0,
 }
 
 interface FilterValues {
@@ -166,6 +170,10 @@ export default function ArticleDistributionReportPage() {
         (total, row) => total + row.inactive_account_articles,
         0,
       ),
+      read_count: filteredRows.reduce((total, row) => total + row.read_count, 0),
+      like_count: filteredRows.reduce((total, row) => total + row.like_count, 0),
+      favorite_count: filteredRows.reduce((total, row) => total + row.favorite_count, 0),
+      share_count: filteredRows.reduce((total, row) => total + row.share_count, 0),
     }
   }, [filteredRows, rows.length, summary])
 
@@ -516,6 +524,10 @@ export default function ArticleDistributionReportPage() {
           <Statistic title="未发布文章总数" value={filteredSummary.unpublished_articles} />
           <Statistic title="已停用账号文章总数" value={filteredSummary.inactive_account_articles} />
           <Statistic title="失效文章总数" value={filteredSummary.invalid_articles} />
+          <Statistic title="阅读量" value={filteredSummary.read_count} />
+          <Statistic title="点赞量" value={filteredSummary.like_count} />
+          <Statistic title="收藏量" value={filteredSummary.favorite_count} />
+          <Statistic title="转发量" value={filteredSummary.share_count} />
         </Flex>
         <Form form={form} layout="vertical" initialValues={{ account_status: 'active' }} style={{ marginTop: 18 }}>
           <Flex gap={16} wrap="wrap" align="end">

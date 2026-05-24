@@ -298,13 +298,17 @@ class ArticleDistributionDAO(BaseDAO):
         platform: str | None = None,
         publication_type: str | None = None,
         account_status: str = "active",
-    ) -> list[tuple[User, int, int, int, int]]:
+    ) -> list[tuple[User, int, int, int, int, int, int, int, int]]:
+        latest_stats = self._latest_traffic_stat_subquery()
         query = self._report_query(
             scheduled_from=scheduled_from,
             scheduled_to=scheduled_to,
             platform=platform,
             publication_type=publication_type,
             account_status=account_status,
+        ).outerjoin(
+            latest_stats,
+            latest_stats.c.article_id == ArticleDistributionArticle.id,
         )
         rows = (
             query.with_entities(
@@ -340,6 +344,18 @@ class ArticleDistributionDAO(BaseDAO):
                         else_=0,
                     )
                 ).label("inactive_account_articles"),
+                func.coalesce(func.sum(latest_stats.c.read_count), 0).label(
+                    "read_count"
+                ),
+                func.coalesce(func.sum(latest_stats.c.like_count), 0).label(
+                    "like_count"
+                ),
+                func.coalesce(func.sum(latest_stats.c.favorite_count), 0).label(
+                    "favorite_count"
+                ),
+                func.coalesce(func.sum(latest_stats.c.share_count), 0).label(
+                    "share_count"
+                ),
             )
             .group_by(User.id)
             .order_by(User.id.asc())
@@ -352,6 +368,10 @@ class ArticleDistributionDAO(BaseDAO):
                 int(unpublished_count or 0),
                 int(invalid_count or 0),
                 int(inactive_account_articles or 0),
+                int(read_count or 0),
+                int(like_count or 0),
+                int(favorite_count or 0),
+                int(share_count or 0),
             )
             for (
                 owner,
@@ -359,6 +379,10 @@ class ArticleDistributionDAO(BaseDAO):
                 unpublished_count,
                 invalid_count,
                 inactive_account_articles,
+                read_count,
+                like_count,
+                favorite_count,
+                share_count,
             ) in rows
         ]
 
@@ -436,6 +460,38 @@ class ArticleDistributionDAO(BaseDAO):
         elif account_status == "inactive":
             query = query.filter(ArticleDistributionAccount.is_active.is_(False))
         return query
+
+    def _latest_traffic_stat_subquery(self):
+        ranked_stats = (
+            self.db_session.query(
+                ArticleDistributionTrafficStat.article_id.label("article_id"),
+                ArticleDistributionTrafficStat.read_count.label("read_count"),
+                ArticleDistributionTrafficStat.like_count.label("like_count"),
+                ArticleDistributionTrafficStat.favorite_count.label("favorite_count"),
+                ArticleDistributionTrafficStat.share_count.label("share_count"),
+                func.row_number()
+                .over(
+                    partition_by=ArticleDistributionTrafficStat.article_id,
+                    order_by=[
+                        ArticleDistributionTrafficStat.recorded_at.desc(),
+                        ArticleDistributionTrafficStat.id.desc(),
+                    ],
+                )
+                .label("rank"),
+            )
+            .subquery()
+        )
+        return (
+            self.db_session.query(
+                ranked_stats.c.article_id,
+                ranked_stats.c.read_count,
+                ranked_stats.c.like_count,
+                ranked_stats.c.favorite_count,
+                ranked_stats.c.share_count,
+            )
+            .filter(ranked_stats.c.rank == 1)
+            .subquery()
+        )
 
     def update_article(
         self, article: ArticleDistributionArticle, **fields: object

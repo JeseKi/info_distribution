@@ -188,6 +188,10 @@ class ArticleDistributionPendingUserOut(BaseModel):
     published_count: int
     invalid_count: int
     inactive_account_articles: int = 0
+    read_count: int = 0
+    like_count: int = 0
+    favorite_count: int = 0
+    share_count: int = 0
     platform_summaries: list[ArticleDistributionPlatformSummaryOut]
     articles: list[ArticleDistributionPendingArticleOut]
 
@@ -199,6 +203,10 @@ class ArticleDistributionReportSummaryOut(BaseModel):
     unpublished_articles: int
     invalid_articles: int
     inactive_account_articles: int
+    read_count: int = 0
+    like_count: int = 0
+    favorite_count: int = 0
+    share_count: int = 0
 
 
 class ArticleDistributionReportOut(BaseModel):

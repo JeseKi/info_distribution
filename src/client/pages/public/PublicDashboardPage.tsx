@@ -47,6 +47,10 @@ const emptySummary: ArticleDistributionReportSummary = {
   unpublished_articles: 0,
   invalid_articles: 0,
   inactive_account_articles: 0,
+  read_count: 0,
+  like_count: 0,
+  favorite_count: 0,
+  share_count: 0,
 }
 
 interface FilterValues {

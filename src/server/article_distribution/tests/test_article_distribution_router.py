@@ -549,6 +549,9 @@ def test_owner_can_add_multiple_traffic_stats_for_article(
         headers=_headers(admin),
     )
     assert report_resp.status_code == 200
+    assert report_resp.json()["summary"]["read_count"] == 180
+    assert report_resp.json()["summary"]["like_count"] == 18
+    assert report_resp.json()["users"][0]["read_count"] == 180
     assert report_resp.json()["users"][0]["articles"] == []
     detail_resp = test_client.get(
         f"/api/article-distribution/reports/unpublished/users/{owner.id}",
@@ -930,6 +933,10 @@ def test_unpublished_report_scope_can_be_assigned_to_regular_user(
         "unpublished_articles": 2,
         "invalid_articles": 0,
         "inactive_account_articles": 0,
+        "read_count": 0,
+        "like_count": 0,
+        "favorite_count": 0,
+        "share_count": 0,
     }
     data = report["users"]
     assert [item["user_id"] for item in data] == [owner_a.id, owner_b.id]
@@ -971,6 +978,10 @@ def test_unpublished_report_scope_can_be_assigned_to_regular_user(
         "unpublished_articles": 2,
         "invalid_articles": 0,
         "inactive_account_articles": 0,
+        "read_count": 0,
+        "like_count": 0,
+        "favorite_count": 0,
+        "share_count": 0,
     }
     assert public_report["total"] == 1
     assert public_report["page"] == 1
@@ -1102,6 +1113,10 @@ def test_unpublished_report_tracks_inactive_account_articles_separately(
         "unpublished_articles": 1,
         "invalid_articles": 0,
         "inactive_account_articles": 0,
+        "read_count": 0,
+        "like_count": 0,
+        "favorite_count": 0,
+        "share_count": 0,
     }
     assert active_report["users"][0]["remaining_count"] == 1
     assert active_report["users"][0]["articles"] == []
@@ -1126,6 +1141,10 @@ def test_unpublished_report_tracks_inactive_account_articles_separately(
         "unpublished_articles": 1,
         "invalid_articles": 0,
         "inactive_account_articles": 2,
+        "read_count": 0,
+        "like_count": 0,
+        "favorite_count": 0,
+        "share_count": 0,
     }
     all_user = all_report["users"][0]
     assert all_user["remaining_count"] == 1
@@ -1165,6 +1184,10 @@ def test_unpublished_report_tracks_inactive_account_articles_separately(
         "unpublished_articles": 0,
         "invalid_articles": 0,
         "inactive_account_articles": 2,
+        "read_count": 0,
+        "like_count": 0,
+        "favorite_count": 0,
+        "share_count": 0,
     }
     assert inactive_report["users"][0]["remaining_count"] == 0
     inactive_detail_resp = test_client.get(

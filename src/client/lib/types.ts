@@ -478,6 +478,10 @@ export interface ArticleDistributionPendingUser {
   published_count: number
   invalid_count: number
   inactive_account_articles: number
+  read_count: number
+  like_count: number
+  favorite_count: number
+  share_count: number
   platform_summaries: ArticleDistributionPlatformSummary[]
   articles: ArticleDistributionPendingArticle[]
 }
@@ -489,6 +493,10 @@ export interface ArticleDistributionReportSummary {
   unpublished_articles: number
   invalid_articles: number
   inactive_account_articles: number
+  read_count: number
+  like_count: number
+  favorite_count: number
+  share_count: number
 }
 
 export interface ArticleDistributionReport {
