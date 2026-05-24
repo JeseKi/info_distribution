@@ -205,6 +205,22 @@ class ArticleDistributionReportOut(BaseModel):
     users: list[ArticleDistributionPendingUserOut]
 
 
+class ArticleDistributionPublicArticleOut(BaseModel):
+    id: int
+    title: str
+    published_at: date
+    published_url: str
+    account_name: str
+    platform: str
+    publication_type: PublicationType
+    latest_traffic_stat: ArticleTrafficStatOut | None = None
+
+
+class ArticleDistributionPublicDashboardOut(BaseModel):
+    summary: ArticleDistributionReportSummaryOut
+    articles: list[ArticleDistributionPublicArticleOut]
+
+
 class APIKeyCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=120)
 

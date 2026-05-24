@@ -17,6 +17,7 @@ from src.server.database import get_db
 from .. import service
 from ..schemas import (
     AccountStatusFilter,
+    ArticleDistributionPublicDashboardOut,
     ArticleDistributionReportOut,
     PublicationType,
 )
@@ -47,6 +48,28 @@ async def list_unpublished_report(
             platform=platform,
             publication_type=publication_type,
             account_status=account_status,
+        )
+
+    return await run_in_thread(_list)
+
+
+@router.get(
+    "/public/dashboard",
+    response_model=ArticleDistributionPublicDashboardOut,
+    summary="公开查看已发布文章分发看板",
+)
+async def list_public_dashboard(
+    scheduled_from: date | None = Query(default=None),
+    scheduled_to: date | None = Query(default=None),
+    publication_type: PublicationType | None = Query(default=None),
+    db: Session = Depends(get_db),
+):
+    def _list():
+        return service.list_public_dashboard(
+            db,
+            scheduled_from=scheduled_from,
+            scheduled_to=scheduled_to,
+            publication_type=publication_type,
         )
 
     return await run_in_thread(_list)

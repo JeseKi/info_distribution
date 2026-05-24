@@ -14,6 +14,7 @@ import RegisterPage from './pages/auth/RegisterPage'
 import ResetPasswordPage from './pages/auth/ResetPasswordPage'
 import OAuthAuthorizePage from './pages/auth/OAuthAuthorizePage'
 import OAuthDeviceAuthorizePage from './pages/auth/OAuthDeviceAuthorizePage'
+import PublicDashboardPage from './pages/public/PublicDashboardPage'
 import { AuthProvider, RequireAdmin, RequireAuth, RequireScope } from './providers/AuthProvider'
 import { RuntimeConfigProvider } from './providers/RuntimeConfigProvider'
 import ThemeToggle from './components/theme/ThemeToggle'
@@ -30,6 +31,7 @@ export default function App() {
             <Route path="/register" element={<RegisterPage />} />
             <Route path="/reset-password/:token" element={<ResetPasswordPage />} />
             <Route path="/profile/password-change/:token" element={<ConfirmPasswordChangePage />} />
+            <Route path="/public/dashboard" element={<PublicDashboardPage />} />
             <Route
               path="/oauth/authorize"
               element={

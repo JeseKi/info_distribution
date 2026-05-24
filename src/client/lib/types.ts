@@ -495,6 +495,22 @@ export interface ArticleDistributionReport {
   users: ArticleDistributionPendingUser[]
 }
 
+export interface ArticleDistributionPublicArticle {
+  id: number
+  title: string
+  published_at: string
+  published_url: string
+  account_name: string
+  platform: string
+  publication_type: ArticlePublicationType
+  latest_traffic_stat: ArticleDistributionTrafficStat | null
+}
+
+export interface ArticleDistributionPublicDashboard {
+  summary: ArticleDistributionReportSummary
+  articles: ArticleDistributionPublicArticle[]
+}
+
 export interface ArticleDistributionPendingReportFilters {
   scheduled_from?: string
   scheduled_to?: string

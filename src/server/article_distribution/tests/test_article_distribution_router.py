@@ -940,6 +940,42 @@ def test_unpublished_report_scope_can_be_assigned_to_regular_user(
     assert "source" not in data[0]["articles"][0]
     assert data[1]["articles"][0]["title"] == "B unpublished"
 
+    public_resp = test_client.get("/api/article-distribution/public/dashboard")
+    assert public_resp.status_code == 200, public_resp.text
+    public_report = public_resp.json()
+    assert public_report["summary"] == {
+        "total_users": 2,
+        "unpublished_users": 2,
+        "published_articles": 1,
+        "unpublished_articles": 2,
+        "invalid_articles": 0,
+        "inactive_account_articles": 0,
+    }
+    assert public_report["articles"] == [
+        {
+            "id": published_article_id,
+            "title": "A published",
+            "published_at": "2026-05-21",
+            "published_url": "https://example.com/a-published",
+            "account_name": "公众号",
+            "platform": "wechat",
+            "publication_type": "article",
+            "latest_traffic_stat": None,
+        }
+    ]
+
+    public_filtered_resp = test_client.get(
+        "/api/article-distribution/public/dashboard",
+        params={
+            "publication_type": "video",
+            "scheduled_from": "2026-05-20",
+            "scheduled_to": "2026-05-22",
+        },
+    )
+    assert public_filtered_resp.status_code == 200
+    assert public_filtered_resp.json()["summary"]["total_users"] == 0
+    assert public_filtered_resp.json()["articles"] == []
+
 
 def test_unpublished_report_tracks_inactive_account_articles_separately(
     test_client, test_db_session: Session
