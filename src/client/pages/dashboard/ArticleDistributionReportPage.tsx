@@ -9,7 +9,6 @@ import {
   Flex,
   Form,
   Input,
-  Pagination,
   Popover,
   Select,
   Space,
@@ -27,6 +26,8 @@ import type {
   ArticleDistributionAccountStatusFilter,
   ArticleDistributionMissingTrafficArticle,
   ArticleDistributionMissingTrafficFilters,
+  ArticleDistributionMissingTrafficSummary,
+  ArticleDistributionMissingTrafficUser,
   ArticleDistributionPendingArticle,
   ArticleDistributionPendingReportFilters,
   ArticleDistributionPendingUser,
@@ -98,7 +99,14 @@ interface MissingTrafficFilterValues {
   date_range?: [dayjs.Dayjs, dayjs.Dayjs]
 }
 
-const defaultMissingTrafficPageSize = 10
+const emptyMissingTrafficSummary: ArticleDistributionMissingTrafficSummary = {
+  total_users: 0,
+  missing_articles: 0,
+  read_count: 0,
+  like_count: 0,
+  favorite_count: 0,
+  share_count: 0,
+}
 
 export default function ArticleDistributionReportPage() {
   return (
@@ -630,10 +638,11 @@ function MissingTrafficReportContent() {
   const { message } = App.useApp()
   const [form] = Form.useForm<MissingTrafficFilterValues>()
   const [loading, setLoading] = useState(false)
-  const [items, setItems] = useState<ArticleDistributionMissingTrafficArticle[]>([])
-  const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(defaultMissingTrafficPageSize)
-  const [total, setTotal] = useState(0)
+  const [rows, setRows] = useState<ArticleDistributionMissingTrafficUser[]>([])
+  const [summary, setSummary] = useState<ArticleDistributionMissingTrafficSummary>(emptyMissingTrafficSummary)
+  const [userDetails, setUserDetails] = useState<Record<number, ArticleDistributionMissingTrafficUser>>({})
+  const [detailLoadingUserIds, setDetailLoadingUserIds] = useState<Set<number>>(() => new Set())
+  const [expandedRowKeys, setExpandedRowKeys] = useState<number[]>([])
 
   const buildFilters = useCallback((): ArticleDistributionMissingTrafficFilters => {
     const values = form.getFieldsValue()
@@ -650,24 +659,14 @@ function MissingTrafficReportContent() {
     }
   }, [form])
 
-  const loadData = useCallback(async (
-    filters?: ArticleDistributionMissingTrafficFilters,
-    pagination: { page: number; pageSize: number } = {
-      page: 1,
-      pageSize: defaultMissingTrafficPageSize,
-    },
-  ) => {
+  const loadReport = useCallback(async (filters?: ArticleDistributionMissingTrafficFilters) => {
     setLoading(true)
     try {
-      const nextPage = await articleApi.listMissingTrafficArticles({
-        ...(filters ?? buildFilters()),
-        page: pagination.page,
-        page_size: pagination.pageSize,
-      })
-      setItems(nextPage.items)
-      setTotal(nextPage.total)
-      setPage(nextPage.page)
-      setPageSize(nextPage.page_size)
+      const report = await articleApi.listMissingTrafficReport(filters ?? buildFilters())
+      setRows(report.users)
+      setSummary(report.summary)
+      setUserDetails({})
+      setExpandedRowKeys([])
     } catch (error) {
       message.error(resolveApiErrorMessage(error, '未填流量文章加载失败'))
     } finally {
@@ -675,11 +674,93 @@ function MissingTrafficReportContent() {
     }
   }, [buildFilters, message])
 
-  useEffect(() => {
-    void loadData()
-  }, [loadData])
+  const loadUserDetail = useCallback(async (userId: number) => {
+    setDetailLoadingUserIds((current) => new Set(current).add(userId))
+    try {
+      const detail = await articleApi.getMissingTrafficReportUser(userId, buildFilters())
+      setUserDetails((current) => ({ ...current, [userId]: detail }))
+    } catch (error) {
+      message.error(resolveApiErrorMessage(error, '用户未填流量明细加载失败'))
+    } finally {
+      setDetailLoadingUserIds((current) => {
+        const next = new Set(current)
+        next.delete(userId)
+        return next
+      })
+    }
+  }, [buildFilters, message])
 
-  const columns: TableColumnsType<ArticleDistributionMissingTrafficArticle> = [
+  useEffect(() => {
+    void loadReport()
+  }, [loadReport])
+
+  const userPagination = useMemo<TablePaginationConfig>(() => ({
+    pageSize: 10,
+    pageSizeOptions: [10, 20, 50, 100],
+    showSizeChanger: true,
+    hideOnSinglePage: false,
+    responsive: true,
+    showTotal: (total, range) => `第 ${range[0]}-${range[1]} 位，共 ${total} 人`,
+    total: rows.length,
+  }), [rows.length])
+
+  const userColumns: TableColumnsType<ArticleDistributionMissingTrafficUser> = [
+    {
+      title: '用户',
+      key: 'user',
+      width: 360,
+      render: (_, record) => (
+        <Space direction="vertical" size={0}>
+          <Typography.Text strong>{record.name || record.username}</Typography.Text>
+          <Typography.Text type="secondary">
+            {record.username} · {record.email}
+          </Typography.Text>
+        </Space>
+      ),
+    },
+    {
+      title: '未填流量',
+      dataIndex: 'missing_count',
+      key: 'missing_count',
+      width: 160,
+      sorter: (a, b) => a.missing_count - b.missing_count,
+      render: (value: number) => <Tag color={value > 0 ? 'volcano' : 'default'}>{value} 篇</Tag>,
+    },
+    {
+      title: '上次阅读量',
+      dataIndex: 'read_count',
+      key: 'read_count',
+      width: 140,
+      sorter: (a, b) => a.read_count - b.read_count,
+      render: (value: number) => renderTrafficValue(value),
+    },
+    {
+      title: '上次点赞量',
+      dataIndex: 'like_count',
+      key: 'like_count',
+      width: 140,
+      sorter: (a, b) => a.like_count - b.like_count,
+      render: (value: number) => renderTrafficValue(value),
+    },
+    {
+      title: '上次收藏量',
+      dataIndex: 'favorite_count',
+      key: 'favorite_count',
+      width: 140,
+      sorter: (a, b) => a.favorite_count - b.favorite_count,
+      render: (value: number) => renderTrafficValue(value),
+    },
+    {
+      title: '上次转发量',
+      dataIndex: 'share_count',
+      key: 'share_count',
+      width: 140,
+      sorter: (a, b) => a.share_count - b.share_count,
+      render: (value: number) => renderTrafficValue(value),
+    },
+  ]
+
+  const articleColumns: TableColumnsType<ArticleDistributionMissingTrafficArticle> = [
     {
       title: '文章',
       dataIndex: 'title',
@@ -687,19 +768,6 @@ function MissingTrafficReportContent() {
       width: 320,
       ellipsis: true,
       render: (value: string) => <Typography.Text strong ellipsis>{value}</Typography.Text>,
-    },
-    {
-      title: '用户',
-      key: 'user',
-      width: 240,
-      render: (_, record) => (
-        <Space direction="vertical" size={0}>
-          <Typography.Text>{record.name || record.username}</Typography.Text>
-          <Typography.Text type="secondary" ellipsis>
-            {record.username} · {record.email}
-          </Typography.Text>
-        </Space>
-      ),
     },
     {
       title: '计划日期',
@@ -782,6 +850,28 @@ function MissingTrafficReportContent() {
     },
   ]
 
+  const expandedArticleTable = (record: ArticleDistributionMissingTrafficUser) => {
+    const detail = userDetails[record.user_id]
+    const loadingDetail = detailLoadingUserIds.has(record.user_id)
+
+    if (!detail && !loadingDetail) {
+      return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="展开后加载明细" />
+    }
+
+    return (
+      <Table
+        rowKey="id"
+        columns={articleColumns}
+        dataSource={detail?.articles ?? []}
+        pagination={false}
+        size="small"
+        tableLayout="fixed"
+        loading={loadingDetail}
+        scroll={{ x: 1480 }}
+      />
+    )
+  }
+
   return (
     <Flex vertical gap={18}>
       <Flex align="center" justify="space-between" gap={16} wrap="wrap">
@@ -796,7 +886,7 @@ function MissingTrafficReportContent() {
         <Button
           icon={<ReloadOutlined />}
           loading={loading}
-          onClick={() => void loadData(buildFilters(), { page, pageSize })}
+          onClick={() => void loadReport(buildFilters())}
         >
           刷新
         </Button>
@@ -804,8 +894,12 @@ function MissingTrafficReportContent() {
 
       <Card>
         <Flex gap={24} wrap="wrap">
-          <Statistic title="未填文章数" value={total} />
-          <Statistic title="当前页" value={items.length} suffix="篇" />
+          <Statistic title="未填用户数" value={summary.total_users} />
+          <Statistic title="未填文章数" value={summary.missing_articles} />
+          <Statistic title="上次阅读量" value={summary.read_count} />
+          <Statistic title="上次点赞量" value={summary.like_count} />
+          <Statistic title="上次收藏量" value={summary.favorite_count} />
+          <Statistic title="上次转发量" value={summary.share_count} />
         </Flex>
         <Form
           form={form}
@@ -831,13 +925,13 @@ function MissingTrafficReportContent() {
             </Form.Item>
             <Form.Item>
               <Space>
-                <Button type="primary" onClick={() => void loadData(buildFilters(), { page: 1, pageSize })}>
+                <Button type="primary" onClick={() => void loadReport(buildFilters())}>
                   筛选
                 </Button>
                 <Button
                   onClick={() => {
                     form.resetFields()
-                    void loadData(undefined, { page: 1, pageSize })
+                    void loadReport()
                   }}
                 >
                   重置
@@ -848,31 +942,30 @@ function MissingTrafficReportContent() {
         </Form>
       </Card>
 
-      <Card>
-        <Table
-          rowKey="id"
-          loading={loading}
-          columns={columns}
-          dataSource={items}
-          pagination={false}
-          tableLayout="fixed"
-          scroll={{ x: 1720 }}
-          locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无未填流量文章" /> }}
-        />
-        {total > 0 && (
-          <Pagination
-            current={page}
-            pageSize={pageSize}
-            total={total}
-            showSizeChanger
-            pageSizeOptions={[10, 20, 50]}
-            style={{ marginTop: 16, textAlign: 'right' }}
-            onChange={(nextPage, nextPageSize) => (
-              void loadData(buildFilters(), { page: nextPage, pageSize: nextPageSize })
-            )}
-          />
-        )}
-      </Card>
+      <Table
+        rowKey="user_id"
+        loading={loading}
+        columns={userColumns}
+        dataSource={rows}
+        expandable={{
+          expandedRowRender: expandedArticleTable,
+          expandedRowKeys,
+          onExpand: (expanded, record) => {
+            setExpandedRowKeys((current) => (
+              expanded
+                ? [...current, record.user_id]
+                : current.filter((key) => key !== record.user_id)
+            ))
+            if (expanded && !userDetails[record.user_id]) {
+              void loadUserDetail(record.user_id)
+            }
+          },
+        }}
+        locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无未填流量文章" /> }}
+        pagination={userPagination}
+        tableLayout="fixed"
+        scroll={{ x: 1080 }}
+      />
     </Flex>
   )
 }

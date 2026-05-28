@@ -12,7 +12,10 @@ import type {
   ArticleDistributionArticlePageParams,
   ArticleDistributionArticleUpdatePayload,
   ArticleDistributionMissingTrafficFilters,
+  ArticleDistributionMissingTrafficPageParams,
   ArticleDistributionMissingTrafficPage,
+  ArticleDistributionMissingTrafficReport,
+  ArticleDistributionMissingTrafficUser,
   ArticleDistributionTrafficStat,
   ArticleDistributionTrafficStatPayload,
   ArticleDistributionTrafficSummaryPage,
@@ -137,10 +140,31 @@ export async function getUnpublishedArticleReportUser(
 }
 
 export async function listMissingTrafficArticles(
-  params: ArticleDistributionMissingTrafficFilters,
+  params: ArticleDistributionMissingTrafficPageParams,
 ): Promise<ArticleDistributionMissingTrafficPage> {
   const { data } = await api.get<ArticleDistributionMissingTrafficPage>(
     '/article-distribution/reports/missing-traffic',
+    { params },
+  )
+  return data
+}
+
+export async function listMissingTrafficReport(
+  params: ArticleDistributionMissingTrafficFilters,
+): Promise<ArticleDistributionMissingTrafficReport> {
+  const { data } = await api.get<ArticleDistributionMissingTrafficReport>(
+    '/article-distribution/reports/missing-traffic/users',
+    { params },
+  )
+  return data
+}
+
+export async function getMissingTrafficReportUser(
+  userId: number,
+  params: ArticleDistributionMissingTrafficFilters,
+): Promise<ArticleDistributionMissingTrafficUser> {
+  const { data } = await api.get<ArticleDistributionMissingTrafficUser>(
+    `/article-distribution/reports/missing-traffic/users/${userId}`,
     { params },
   )
   return data

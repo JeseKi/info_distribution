@@ -191,6 +191,33 @@ class ArticleDistributionMissingTrafficPageOut(BaseModel):
     page_size: int
 
 
+class ArticleDistributionMissingTrafficUserOut(BaseModel):
+    user_id: int
+    username: str
+    name: str | None
+    email: str
+    missing_count: int
+    read_count: int = 0
+    like_count: int = 0
+    favorite_count: int = 0
+    share_count: int = 0
+    articles: list[ArticleDistributionMissingTrafficArticleOut]
+
+
+class ArticleDistributionMissingTrafficSummaryOut(BaseModel):
+    total_users: int
+    missing_articles: int
+    read_count: int = 0
+    like_count: int = 0
+    favorite_count: int = 0
+    share_count: int = 0
+
+
+class ArticleDistributionMissingTrafficReportOut(BaseModel):
+    summary: ArticleDistributionMissingTrafficSummaryOut
+    users: list[ArticleDistributionMissingTrafficUserOut]
+
+
 class ArticleDistributionPlatformSummaryOut(BaseModel):
     account_id: int
     account_name: str

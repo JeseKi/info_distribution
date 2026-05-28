@@ -481,6 +481,33 @@ export interface ArticleDistributionMissingTrafficPage {
   page_size: number
 }
 
+export interface ArticleDistributionMissingTrafficUser {
+  user_id: number
+  username: string
+  name: string | null
+  email: string
+  missing_count: number
+  read_count: number
+  like_count: number
+  favorite_count: number
+  share_count: number
+  articles: ArticleDistributionMissingTrafficArticle[]
+}
+
+export interface ArticleDistributionMissingTrafficSummary {
+  total_users: number
+  missing_articles: number
+  read_count: number
+  like_count: number
+  favorite_count: number
+  share_count: number
+}
+
+export interface ArticleDistributionMissingTrafficReport {
+  summary: ArticleDistributionMissingTrafficSummary
+  users: ArticleDistributionMissingTrafficUser[]
+}
+
 export interface ArticleDistributionPlatformSummary {
   account_id: number
   account_name: string
@@ -558,6 +585,9 @@ export interface ArticleDistributionPendingReportFilters {
 export interface ArticleDistributionMissingTrafficFilters extends ArticleDistributionPendingReportFilters {
   recorded_from: string
   recorded_to: string
+}
+
+export interface ArticleDistributionMissingTrafficPageParams extends ArticleDistributionMissingTrafficFilters {
   page?: number
   page_size?: number
 }

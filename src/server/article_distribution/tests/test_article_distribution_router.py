@@ -809,14 +809,39 @@ def test_missing_traffic_report_lists_published_articles_without_today_stats(
     )
     assert report_resp.status_code == 200, report_resp.text
     report = report_resp.json()
-    assert report["total"] == 2
-    assert [item["title"] for item in report["items"]] == [
-        "Only yesterday stat",
-        "No stat today",
-    ]
+    assert report["total"] == 1
+    assert [item["title"] for item in report["items"]] == ["Only yesterday stat"]
     assert report["items"][0]["latest_traffic_stat"]["read_count"] == 50
-    assert report["items"][1]["latest_traffic_stat"] is None
     assert all(item["published_url"] for item in report["items"])
+
+    user_report_resp = test_client.get(
+        "/api/article-distribution/reports/missing-traffic/users",
+        headers=_headers(viewer),
+        params=params,
+    )
+    assert user_report_resp.status_code == 200, user_report_resp.text
+    user_report = user_report_resp.json()
+    assert user_report["summary"] == {
+        "total_users": 1,
+        "missing_articles": 1,
+        "read_count": 50,
+        "like_count": 5,
+        "favorite_count": 0,
+        "share_count": 0,
+    }
+    assert user_report["users"][0]["user_id"] == owner.id
+    assert user_report["users"][0]["missing_count"] == 1
+    assert user_report["users"][0]["articles"] == []
+
+    detail_resp = test_client.get(
+        f"/api/article-distribution/reports/missing-traffic/users/{owner.id}",
+        headers=_headers(viewer),
+        params=params,
+    )
+    assert detail_resp.status_code == 200, detail_resp.text
+    detail = detail_resp.json()
+    assert detail["missing_count"] == 1
+    assert [item["title"] for item in detail["articles"]] == ["Only yesterday stat"]
 
     all_accounts_resp = test_client.get(
         "/api/article-distribution/reports/missing-traffic",
@@ -824,7 +849,7 @@ def test_missing_traffic_report_lists_published_articles_without_today_stats(
         params={**params, "account_status": "all"},
     )
     assert all_accounts_resp.status_code == 200
-    assert all_accounts_resp.json()["total"] == 3
+    assert all_accounts_resp.json()["total"] == 2
     assert all_accounts_resp.json()["items"][0]["title"] == "Inactive no stat today"
 
     filtered_resp = test_client.get(

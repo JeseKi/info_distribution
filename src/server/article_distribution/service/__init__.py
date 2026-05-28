@@ -25,8 +25,10 @@ from .articles import (
     update_article_status,
 )
 from .reports import (
+    get_missing_traffic_report_user_detail,
     get_unpublished_report_user_detail,
     list_missing_traffic_articles,
+    list_missing_traffic_report,
     list_public_dashboard,
     list_unpublished_report,
 )
@@ -48,6 +50,7 @@ __all__ = [
     "delete_article_as_admin",
     "delete_article_traffic_stat",
     "get_article",
+    "get_missing_traffic_report_user_detail",
     "get_unpublished_report_user_detail",
     "list_account_directory",
     "list_accounts",
@@ -55,6 +58,7 @@ __all__ = [
     "list_article_traffic_summaries",
     "list_api_keys",
     "list_missing_traffic_articles",
+    "list_missing_traffic_report",
     "list_public_dashboard",
     "list_articles",
     "list_articles_page",
