@@ -136,13 +136,6 @@ export default function PublicDashboardPage() {
       render: (value: string) => <Tag>{value}</Tag>,
     },
     {
-      title: '账号',
-      dataIndex: 'account_name',
-      key: 'account_name',
-      width: 150,
-      ellipsis: true,
-    },
-    {
       title: '链接',
       dataIndex: 'published_url',
       key: 'published_url',
@@ -175,8 +168,6 @@ export default function PublicDashboardPage() {
 
         <Card>
           <Flex gap={24} wrap="wrap">
-            <Statistic title="总人数" value={summary.total_users} />
-            <Statistic title="未发布人数" value={summary.unpublished_users} />
             <Statistic title="发布的文章总数" value={summary.published_articles} />
             <Statistic title="未发布的文章总数" value={summary.unpublished_articles} />
           </Flex>
@@ -214,7 +205,7 @@ export default function PublicDashboardPage() {
           columns={columns}
           dataSource={articles}
           tableLayout="fixed"
-          scroll={{ x: 1000 }}
+          scroll={{ x: 850 }}
           pagination={{
             current: page,
             pageSize,

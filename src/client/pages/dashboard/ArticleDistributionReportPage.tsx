@@ -62,10 +62,6 @@ function publishStatusTag(status: ArticlePublishStatus) {
   return <Tag>未发布</Tag>
 }
 
-function inactiveAccountTag(isActive?: boolean) {
-  return isActive === false ? <Tag color="red">已停用</Tag> : null
-}
-
 function renderTrafficValue(value: number | undefined) {
   return typeof value === 'number' ? value : '-'
 }
@@ -224,7 +220,7 @@ function DistributionProgressReportContent() {
     showSizeChanger: true,
     hideOnSinglePage: false,
     responsive: true,
-    showTotal: (total, range) => `第 ${range[0]}-${range[1]} 位，共 ${total} 人`,
+    showTotal: (_, range) => `第 ${range[0]}-${range[1]} 条`,
     total: filteredRows.length,
   }), [filteredRows.length])
 
@@ -299,19 +295,6 @@ function DistributionProgressReportContent() {
       render: (value: string) => <Tag>{value}</Tag>,
     },
     {
-      title: '目标账号',
-      dataIndex: 'account_name',
-      key: 'account_name',
-      width: 140,
-      ellipsis: true,
-      render: (value: string, record) => (
-        <Space size={4}>
-          <Typography.Text ellipsis>{value}</Typography.Text>
-          {inactiveAccountTag(record.account_is_active)}
-        </Space>
-      ),
-    },
-    {
       title: '类型',
       dataIndex: 'publication_type',
       key: 'publication_type',
@@ -377,8 +360,6 @@ function DistributionProgressReportContent() {
         render: (_, record) => (
           <Space>
             <Tag>{record.platform}</Tag>
-            <Typography.Text>{record.account_name}</Typography.Text>
-            {inactiveAccountTag(record.account_is_active)}
             <Typography.Text type="secondary">{publicationTypeText[record.publication_type]}</Typography.Text>
           </Space>
         ),
@@ -454,12 +435,6 @@ function DistributionProgressReportContent() {
     <Flex vertical gap={12} style={{ minWidth: 0, width: '100%', overflow: 'hidden' }}>
       <Descriptions size="small" column={{ xs: 1, sm: 2, md: 4 }}>
         <Descriptions.Item label="目标平台">{article.platform}</Descriptions.Item>
-        <Descriptions.Item label="目标账号">
-          <Space size={4}>
-            <span>{article.account_name}</span>
-            {inactiveAccountTag(article.account_is_active)}
-          </Space>
-        </Descriptions.Item>
         <Descriptions.Item label="发布类型">
           {publicationTypeText[article.publication_type]}
         </Descriptions.Item>
@@ -528,7 +503,7 @@ function DistributionProgressReportContent() {
           size="small"
           tableLayout="fixed"
           loading={loadingDetail}
-          scroll={{ x: 1790 }}
+          scroll={{ x: 1650 }}
           expandable={{
             expandedRowRender: renderArticleDetail,
           }}
@@ -559,8 +534,6 @@ function DistributionProgressReportContent() {
 
       <Card>
         <Flex gap={24} wrap="wrap">
-          <Statistic title="总人数" value={filteredSummary.total_users} />
-          <Statistic title="未发布人数" value={filteredSummary.unpublished_users} />
           <Statistic title="发布的文章总数" value={filteredSummary.published_articles} />
           <Statistic title="未发布文章总数" value={filteredSummary.unpublished_articles} />
           <Statistic title="已停用账号文章总数" value={filteredSummary.inactive_account_articles} />
@@ -573,7 +546,7 @@ function DistributionProgressReportContent() {
         <Form form={form} layout="vertical" initialValues={{ account_status: 'active' }} style={{ marginTop: 18 }}>
           <Flex gap={16} wrap="wrap" align="end">
             <Form.Item label="搜索" name="keyword" style={{ minWidth: 240 }}>
-              <Input prefix={<SearchOutlined />} allowClear placeholder="用户、账号或文章" />
+              <Input prefix={<SearchOutlined />} allowClear placeholder="用户或文章" />
             </Form.Item>
             <Form.Item label="平台" name="platform" style={{ minWidth: 180 }}>
               <Input allowClear placeholder="wechat、zhihu..." />
@@ -700,7 +673,7 @@ function MissingTrafficReportContent() {
     showSizeChanger: true,
     hideOnSinglePage: false,
     responsive: true,
-    showTotal: (total, range) => `第 ${range[0]}-${range[1]} 位，共 ${total} 人`,
+    showTotal: (_, range) => `第 ${range[0]}-${range[1]} 条`,
     total: rows.length,
   }), [rows.length])
 
@@ -784,19 +757,6 @@ function MissingTrafficReportContent() {
       render: (value: string) => <Tag>{value}</Tag>,
     },
     {
-      title: '目标账号',
-      dataIndex: 'account_name',
-      key: 'account_name',
-      width: 150,
-      ellipsis: true,
-      render: (value: string, record) => (
-        <Space size={4}>
-          <Typography.Text ellipsis>{value}</Typography.Text>
-          {inactiveAccountTag(record.account_is_active)}
-        </Space>
-      ),
-    },
-    {
       title: '类型',
       dataIndex: 'publication_type',
       key: 'publication_type',
@@ -867,7 +827,7 @@ function MissingTrafficReportContent() {
         size="small"
         tableLayout="fixed"
         loading={loadingDetail}
-        scroll={{ x: 1480 }}
+        scroll={{ x: 1330 }}
       />
     )
   }
@@ -894,7 +854,6 @@ function MissingTrafficReportContent() {
 
       <Card>
         <Flex gap={24} wrap="wrap">
-          <Statistic title="未填用户数" value={summary.total_users} />
           <Statistic title="未填文章数" value={summary.missing_articles} />
           <Statistic title="上次阅读量" value={summary.read_count} />
           <Statistic title="上次点赞量" value={summary.like_count} />
