@@ -582,6 +582,8 @@ export interface ArticleDistributionPendingReportFilters {
   account_status?: ArticleDistributionAccountStatusFilter
 }
 
+export type ArticleDistributionPublicityRecordExportParams = ArticleDistributionPendingReportFilters
+
 export interface ArticleDistributionMissingTrafficFilters extends ArticleDistributionPendingReportFilters {
   recorded_from: string
   recorded_to: string

@@ -16,11 +16,12 @@ import type {
   ArticleDistributionMissingTrafficPage,
   ArticleDistributionMissingTrafficReport,
   ArticleDistributionMissingTrafficUser,
+  ArticleDistributionPendingReportFilters,
+  ArticleDistributionPublicityRecordExportParams,
   ArticleDistributionTrafficStat,
   ArticleDistributionTrafficStatPayload,
   ArticleDistributionTrafficSummaryPage,
   ArticleDistributionPublicDashboard,
-  ArticleDistributionPendingReportFilters,
   ArticleDistributionPendingUser,
   ArticleDistributionReport,
   ArticlePublishStatus,
@@ -190,6 +191,27 @@ export async function createAdminArticles(
   return data
 }
 
+export async function downloadPublicityRecordsCsv(
+  params?: ArticleDistributionPublicityRecordExportParams,
+): Promise<void> {
+  const response = await api.get<Blob>('/admin/article-distribution/publicity-records.csv', {
+    params,
+    responseType: 'blob',
+  })
+  const filename = resolveDownloadFilename(
+    response.headers['content-disposition'],
+    `publicity-records-${new Date().toISOString().slice(0, 10)}.csv`,
+  )
+  const objectUrl = URL.createObjectURL(response.data)
+  const link = document.createElement('a')
+  link.href = objectUrl
+  link.download = filename
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  URL.revokeObjectURL(objectUrl)
+}
+
 export async function updateAdminArticle(
   articleId: number,
   payload: ArticleDistributionArticleUpdatePayload,
@@ -220,4 +242,20 @@ export async function createArticleApiKey(
 export async function revokeArticleApiKey(apiKeyId: number): Promise<ArticleDistributionApiKey> {
   const { data } = await api.post<ArticleDistributionApiKey>(`/admin/article-distribution/api-keys/${apiKeyId}/revoke`)
   return data
+}
+
+function resolveDownloadFilename(contentDisposition: unknown, fallback: string): string {
+  if (typeof contentDisposition !== 'string') {
+    return fallback
+  }
+  const utf8Match = contentDisposition.match(/filename\*=UTF-8''([^;]+)/i)
+  if (utf8Match?.[1]) {
+    return decodeURIComponent(utf8Match[1])
+  }
+  const quotedMatch = contentDisposition.match(/filename="([^"]+)"/i)
+  if (quotedMatch?.[1]) {
+    return quotedMatch[1]
+  }
+  const plainMatch = contentDisposition.match(/filename=([^;]+)/i)
+  return plainMatch?.[1]?.trim() || fallback
 }

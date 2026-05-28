@@ -25,6 +25,7 @@ from .articles import (
     update_article_status,
 )
 from .reports import (
+    build_publicity_records_csv,
     get_missing_traffic_report_user_detail,
     get_unpublished_report_user_detail,
     list_missing_traffic_articles,
@@ -41,6 +42,7 @@ from .traffic import (
 
 __all__ = [
     "authenticate_api_key",
+    "build_publicity_records_csv",
     "create_account",
     "create_api_key",
     "create_articles_as_admin",

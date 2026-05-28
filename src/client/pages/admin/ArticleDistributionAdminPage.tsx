@@ -16,20 +16,35 @@ import {
   Typography,
 } from 'antd'
 import type { TableColumnsType } from 'antd'
-import { KeyOutlined, PlusOutlined } from '@ant-design/icons'
+import { DownloadOutlined, KeyOutlined, PlusOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import { listUsers } from '../../lib/admin'
 import * as articleApi from '../../lib/articleDistribution'
 import type {
   AdminUser,
   ArticleDistributionAccount,
+  ArticleDistributionAccountStatusFilter,
   ArticleDistributionApiKey,
   ArticleDistributionArticleBatchPayload,
+  ArticleDistributionPublicityRecordExportParams,
+  ArticlePublicationType,
 } from '../../lib/types'
 
 function inactiveAccountTag(isActive?: boolean) {
   return isActive === false ? <Tag color="red">已停用</Tag> : null
 }
+
+const publicationTypeOptions = [
+  { label: '视频', value: 'video' },
+  { label: '文章', value: 'article' },
+  { label: '图文', value: 'image_text' },
+]
+
+const accountStatusOptions = [
+  { label: '全部', value: 'all' },
+  { label: '启用', value: 'active' },
+  { label: '停用', value: 'inactive' },
+]
 
 interface UploadFormValues {
   user_id: number
@@ -41,15 +56,25 @@ interface UploadFormValues {
   }>
 }
 
+interface CsvExportFormValues {
+  scheduled_from?: dayjs.Dayjs
+  scheduled_to?: dayjs.Dayjs
+  platform?: string
+  publication_type?: ArticlePublicationType
+  account_status?: ArticleDistributionAccountStatusFilter
+}
+
 export default function ArticleDistributionAdminPage() {
   const { message, modal } = App.useApp()
   const [users, setUsers] = useState<AdminUser[]>([])
   const [accounts, setAccounts] = useState<ArticleDistributionAccount[]>([])
   const [apiKeys, setApiKeys] = useState<ArticleDistributionApiKey[]>([])
   const [loading, setLoading] = useState(false)
+  const [exportingCsv, setExportingCsv] = useState(false)
   const [selectedUserId, setSelectedUserId] = useState<number | undefined>()
   const [uploadForm] = Form.useForm<UploadFormValues>()
   const [keyForm] = Form.useForm<{ name: string }>()
+  const [csvExportForm] = Form.useForm<CsvExportFormValues>()
 
   const userOptions = useMemo(
     () => users.map((user) => ({ label: `${user.username} (${user.id})`, value: user.id })),
@@ -147,6 +172,30 @@ export default function ArticleDistributionAdminPage() {
     }
   }
 
+  const handleExportCsv = async () => {
+    const values = csvExportForm.getFieldsValue()
+    if (values.scheduled_from && values.scheduled_to && values.scheduled_from.isAfter(values.scheduled_to, 'day')) {
+      message.error('起始日期不能晚于截止日期')
+      return
+    }
+    const params: ArticleDistributionPublicityRecordExportParams = {
+      scheduled_from: values.scheduled_from?.format('YYYY-MM-DD'),
+      scheduled_to: (values.scheduled_to ?? dayjs()).format('YYYY-MM-DD'),
+      platform: values.platform?.trim() || undefined,
+      publication_type: values.publication_type,
+      account_status: values.account_status ?? 'all',
+    }
+    setExportingCsv(true)
+    try {
+      await articleApi.downloadPublicityRecordsCsv(params)
+      message.success('CSV 已开始下载')
+    } catch (error) {
+      message.error(resolveErrorMessage(error))
+    } finally {
+      setExportingCsv(false)
+    }
+  }
+
   const apiKeyColumns: TableColumnsType<ArticleDistributionApiKey> = [
     { title: '名称', dataIndex: 'name', key: 'name' },
     {
@@ -175,6 +224,51 @@ export default function ArticleDistributionAdminPage() {
 
   return (
     <Flex vertical gap={20}>
+      <Card title="对外宣发记录">
+        <Form
+          form={csvExportForm}
+          layout="vertical"
+          initialValues={{ scheduled_to: dayjs(), account_status: 'all' }}
+        >
+          <Flex gap={16} wrap="wrap" align="end">
+            <Form.Item label="起始日期" name="scheduled_from" style={{ minWidth: 180 }}>
+              <DatePicker style={{ width: '100%' }} />
+            </Form.Item>
+            <Form.Item label="截止日期" name="scheduled_to" style={{ minWidth: 180 }}>
+              <DatePicker allowClear={false} style={{ width: '100%' }} />
+            </Form.Item>
+            <Form.Item label="平台" name="platform" style={{ minWidth: 180 }}>
+              <Input allowClear placeholder="wechat、zhihu..." />
+            </Form.Item>
+            <Form.Item label="发布类型" name="publication_type" style={{ minWidth: 160 }}>
+              <Select allowClear options={publicationTypeOptions} placeholder="全部类型" />
+            </Form.Item>
+            <Form.Item label="账号状态" name="account_status" style={{ minWidth: 140 }}>
+              <Select options={accountStatusOptions} />
+            </Form.Item>
+            <Form.Item>
+              <Space>
+                <Button
+                  type="primary"
+                  icon={<DownloadOutlined />}
+                  loading={exportingCsv}
+                  onClick={() => void handleExportCsv()}
+                >
+                  导出 CSV
+                </Button>
+                <Button
+                  onClick={() => {
+                    csvExportForm.resetFields()
+                  }}
+                >
+                  重置
+                </Button>
+              </Space>
+            </Form.Item>
+          </Flex>
+        </Form>
+      </Card>
+
       <Card title="上传文章">
         <Form
           form={uploadForm}

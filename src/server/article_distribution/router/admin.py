@@ -3,7 +3,9 @@
 
 from __future__ import annotations
 
-from fastapi import Depends, HTTPException, Security, status
+from datetime import date
+
+from fastapi import Depends, HTTPException, Query, Response, Security, status
 from sqlalchemy.orm import Session
 
 from src.server.auth.dependencies import get_current_user
@@ -15,11 +17,13 @@ from src.server.database import get_db
 
 from .. import service
 from ..schemas import (
+    AccountStatusFilter,
     APIKeyCreate,
     APIKeyCreateOut,
     APIKeyOut,
     ArticleBatchCreate,
     ArticleOut,
+    PublicationType,
 )
 from .shared import admin_router
 
@@ -47,6 +51,45 @@ async def create_articles_as_admin(
         )
 
     return await run_in_thread(_create)
+
+
+@admin_router.get(
+    "/publicity-records.csv",
+    summary="导出对外宣发记录 CSV",
+)
+async def export_publicity_records_csv(
+    scheduled_from: date | None = Query(default=None),
+    scheduled_to: date | None = Query(default=None),
+    platform: str | None = Query(default=None),
+    publication_type: PublicationType | None = Query(default=None),
+    account_status: AccountStatusFilter = Query(default="all"),
+    db: Session = Depends(get_db),
+    current_user: User = Security(
+        get_current_user, scopes=[SCOPE_ADMIN_ARTICLE_DISTRIBUTION_WRITE]
+    ),
+):
+    def _export():
+        return service.build_publicity_records_csv(
+            db,
+            current_user=current_user,
+            scheduled_from=scheduled_from,
+            scheduled_to=scheduled_to,
+            platform=platform,
+            publication_type=publication_type,
+            account_status=account_status,
+        )
+
+    content = await run_in_thread(_export)
+    filename_date = (scheduled_to or date.today()).isoformat()
+    return Response(
+        content=content,
+        media_type="text/csv; charset=utf-8-sig",
+        headers={
+            "Content-Disposition": (
+                f'attachment; filename="publicity-records-{filename_date}.csv"'
+            ),
+        },
+    )
 
 
 @admin_router.get("/api-keys", response_model=list[APIKeyOut], summary="列出 API Key")

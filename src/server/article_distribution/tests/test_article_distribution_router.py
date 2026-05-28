@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+import csv
+from io import StringIO
 import socket
 
 import pytest
@@ -874,6 +876,249 @@ def test_missing_traffic_report_lists_published_articles_without_today_stats(
             "recorded_from": "2026-05-29T00:00:00+00:00",
             "recorded_to": "2026-05-28T00:00:00+00:00",
         },
+    )
+    assert invalid_range_resp.status_code == 400
+
+
+def test_admin_can_export_publicity_records_csv(test_client, test_db_session: Session):
+    owner = _create_user(test_db_session, username="publicity_owner", name="Owner Name")
+    viewer = _create_user(test_db_session, username="publicity_viewer")
+    admin = _create_user(
+        test_db_session, username="publicity_admin", role=UserRole.ADMIN
+    )
+
+    active_account_resp = test_client.post(
+        "/api/article-distribution/accounts",
+        headers=_headers(admin),
+        json={
+            "user_id": owner.id,
+            "account_name": "公众号",
+            "platform": "wechat",
+            "publication_type": "article",
+        },
+    )
+    inactive_account_resp = test_client.post(
+        "/api/article-distribution/accounts",
+        headers=_headers(admin),
+        json={
+            "user_id": owner.id,
+            "account_name": "旧号",
+            "platform": "wechat",
+            "publication_type": "article",
+        },
+    )
+    other_account_resp = test_client.post(
+        "/api/article-distribution/accounts",
+        headers=_headers(admin),
+        json={
+            "user_id": owner.id,
+            "account_name": "知乎号",
+            "platform": "zhihu",
+            "publication_type": "article",
+        },
+    )
+    assert active_account_resp.status_code == 201
+    assert inactive_account_resp.status_code == 201
+    assert other_account_resp.status_code == 201
+    active_account_id = active_account_resp.json()["id"]
+    inactive_account_id = inactive_account_resp.json()["id"]
+    other_account_id = other_account_resp.json()["id"]
+
+    upload_resp = test_client.post(
+        "/api/admin/article-distribution/articles",
+        headers=_headers(admin),
+        json={
+            "account_id": active_account_id,
+            "articles": [
+                {
+                    "title": "Published A",
+                    "markdown_content": "body",
+                    "scheduled_date": "2026-05-27",
+                },
+                {
+                    "title": "Unpublished",
+                    "markdown_content": "body",
+                    "scheduled_date": "2026-05-27",
+                },
+                {
+                    "title": "Invalid",
+                    "markdown_content": "body",
+                    "scheduled_date": "2026-05-27",
+                },
+                {
+                    "title": "No URL",
+                    "markdown_content": "body",
+                    "scheduled_date": "2026-05-27",
+                },
+                {
+                    "title": "Future",
+                    "markdown_content": "body",
+                    "scheduled_date": "2099-01-01",
+                },
+            ],
+        },
+    )
+    inactive_upload_resp = test_client.post(
+        "/api/admin/article-distribution/articles",
+        headers=_headers(admin),
+        json={
+            "account_id": inactive_account_id,
+            "articles": [
+                {
+                    "title": "Inactive published",
+                    "markdown_content": "body",
+                    "scheduled_date": "2026-05-26",
+                }
+            ],
+        },
+    )
+    other_upload_resp = test_client.post(
+        "/api/admin/article-distribution/articles",
+        headers=_headers(admin),
+        json={
+            "account_id": other_account_id,
+            "articles": [
+                {
+                    "title": "Zhihu published",
+                    "markdown_content": "body",
+                    "scheduled_date": "2026-05-27",
+                }
+            ],
+        },
+    )
+    assert upload_resp.status_code == 201
+    assert inactive_upload_resp.status_code == 201
+    assert other_upload_resp.status_code == 201
+
+    articles = upload_resp.json()
+    published_id = articles[0]["id"]
+    invalid_id = articles[2]["id"]
+    no_url_id = articles[3]["id"]
+    future_id = articles[4]["id"]
+    inactive_id = inactive_upload_resp.json()[0]["id"]
+    other_id = other_upload_resp.json()[0]["id"]
+    for article_id in [published_id, future_id, inactive_id, other_id]:
+        publish_resp = test_client.patch(
+            f"/api/article-distribution/articles/{article_id}/status",
+            headers=_headers(owner),
+            json={
+                "publish_status": "published",
+                "published_url": f"https://example.com/articles/{article_id}",
+            },
+        )
+        assert publish_resp.status_code == 200
+
+    invalid_resp = test_client.patch(
+        f"/api/article-distribution/articles/{invalid_id}/status",
+        headers=_headers(owner),
+        json={"publish_status": "invalid"},
+    )
+    assert invalid_resp.status_code == 200
+
+    no_url_article = (
+        test_db_session.query(ArticleDistributionArticle)
+        .filter(ArticleDistributionArticle.id == no_url_id)
+        .one()
+    )
+    no_url_article.publish_status = "published"
+    no_url_article.published_url = None
+    test_db_session.commit()
+
+    first_stat_resp = test_client.post(
+        f"/api/article-distribution/articles/{published_id}/traffic-stats",
+        headers=_headers(owner),
+        json={
+            "read_count": 10,
+            "like_count": 1,
+            "recorded_at": "2026-05-27T10:00:00+00:00",
+        },
+    )
+    latest_stat_resp = test_client.post(
+        f"/api/article-distribution/articles/{published_id}/traffic-stats",
+        headers=_headers(owner),
+        json={
+            "read_count": 20,
+            "like_count": 2,
+            "favorite_count": 3,
+            "share_count": 4,
+            "recorded_at": "2026-05-28T10:00:00+00:00",
+        },
+    )
+    assert first_stat_resp.status_code == 201
+    assert latest_stat_resp.status_code == 201
+
+    deactivate_resp = test_client.patch(
+        f"/api/article-distribution/accounts/{inactive_account_id}",
+        headers=_headers(owner),
+        json={"is_active": False},
+    )
+    assert deactivate_resp.status_code == 200
+
+    denied_resp = test_client.get(
+        "/api/admin/article-distribution/publicity-records.csv",
+        headers=_headers(viewer),
+    )
+    assert denied_resp.status_code == 403
+
+    export_resp = test_client.get(
+        "/api/admin/article-distribution/publicity-records.csv",
+        headers=_headers(admin),
+    )
+    assert export_resp.status_code == 200, export_resp.text
+    assert export_resp.headers["content-type"].startswith("text/csv")
+    assert "publicity-records-" in export_resp.headers["content-disposition"]
+    rows = list(csv.DictReader(StringIO(export_resp.content.decode("utf-8-sig"))))
+
+    assert [row["标题"] for row in rows] == [
+        "Published A",
+        "Zhihu published",
+        "Inactive published",
+    ]
+    published_row = rows[0]
+    assert published_row["负责人"] == "Owner Name"
+    assert published_row["平台"] == "wechat"
+    assert published_row["发布账号"] == "公众号"
+    assert published_row["发布类型"] == "文章"
+    assert published_row["账号状态"] == "启用"
+    assert published_row["链接"] == f"https://example.com/articles/{published_id}"
+    assert published_row["最近阅读量"] == "20"
+    assert published_row["最近点赞量"] == "2"
+    assert published_row["最近收藏量"] == "3"
+    assert published_row["最近转发量"] == "4"
+    assert published_row["最近统计时间"].startswith("2026-05-28T10:00:00")
+
+    active_filtered_resp = test_client.get(
+        "/api/admin/article-distribution/publicity-records.csv",
+        headers=_headers(admin),
+        params={
+            "scheduled_from": "2026-05-27",
+            "scheduled_to": "2026-05-27",
+            "platform": "wechat",
+            "publication_type": "article",
+            "account_status": "active",
+        },
+    )
+    assert active_filtered_resp.status_code == 200
+    filtered_rows = list(
+        csv.DictReader(StringIO(active_filtered_resp.content.decode("utf-8-sig")))
+    )
+    assert [row["标题"] for row in filtered_rows] == ["Published A"]
+
+    inactive_filtered_resp = test_client.get(
+        "/api/admin/article-distribution/publicity-records.csv",
+        headers=_headers(admin),
+        params={"account_status": "inactive", "scheduled_to": "2026-05-28"},
+    )
+    assert inactive_filtered_resp.status_code == 200
+    inactive_rows = list(
+        csv.DictReader(StringIO(inactive_filtered_resp.content.decode("utf-8-sig")))
+    )
+    assert [row["标题"] for row in inactive_rows] == ["Inactive published"]
+
+    invalid_range_resp = test_client.get(
+        "/api/admin/article-distribution/publicity-records.csv",
+        headers=_headers(admin),
+        params={"scheduled_from": "2026-05-29", "scheduled_to": "2026-05-28"},
     )
     assert invalid_range_resp.status_code == 400
 

@@ -3,10 +3,14 @@
 
 from __future__ import annotations
 
+import csv
 from datetime import date, datetime, timedelta, timezone
+from io import StringIO
 
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
+
+from src.server.auth.models import User
 
 from ..dao import ArticleDistributionDAO
 from ..schemas import (
@@ -26,6 +30,7 @@ from ..schemas import (
     ArticleTrafficStatOut,
 )
 from .helpers import (
+    assert_admin,
     normalize_optional,
     normalize_publication_type,
     normalize_publish_status,
@@ -522,3 +527,91 @@ def list_public_dashboard(
         page=page,
         page_size=page_size,
     )
+
+
+PUBLICITY_RECORD_CSV_HEADERS = [
+    "文章ID",
+    "发布日期",
+    "负责人ID",
+    "负责人",
+    "用户名",
+    "邮箱",
+    "平台",
+    "发布账号",
+    "发布类型",
+    "账号状态",
+    "标题",
+    "链接",
+    "最近阅读量",
+    "最近点赞量",
+    "最近收藏量",
+    "最近转发量",
+    "最近统计时间",
+]
+
+PUBLICATION_TYPE_LABELS = {
+    "video": "视频",
+    "article": "文章",
+    "image_text": "图文",
+}
+
+
+def build_publicity_records_csv(
+    db: Session,
+    *,
+    current_user: User,
+    scheduled_from: date | None = None,
+    scheduled_to: date | None = None,
+    platform: str | None = None,
+    publication_type: str | None = None,
+    account_status: AccountStatusFilter = "all",
+) -> str:
+    assert_admin(current_user)
+    effective_scheduled_to = scheduled_to or date.today()
+    if scheduled_from is not None and scheduled_from > effective_scheduled_to:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="计划日期范围无效",
+        )
+
+    dao = ArticleDistributionDAO(db)
+    rows = dao.list_publicity_record_rows(
+        scheduled_from=scheduled_from,
+        scheduled_to=effective_scheduled_to,
+        platform=normalize_optional(platform),
+        publication_type=publication_type,
+        account_status=account_status,
+    )
+    latest_traffic_stats = dao.latest_traffic_stats_by_article_ids(
+        [article.id for article, _, _ in rows]
+    )
+
+    output = StringIO(newline="")
+    writer = csv.writer(output)
+    writer.writerow(PUBLICITY_RECORD_CSV_HEADERS)
+    for article, account, owner in rows:
+        latest_stat = latest_traffic_stats.get(article.id)
+        writer.writerow(
+            [
+                article.id,
+                article.scheduled_date.isoformat(),
+                owner.id,
+                owner.name or owner.username,
+                owner.username,
+                owner.email,
+                account.platform,
+                account.account_name,
+                PUBLICATION_TYPE_LABELS.get(
+                    account.publication_type, account.publication_type
+                ),
+                "启用" if account.is_active else "停用",
+                article.title,
+                article.published_url or "",
+                latest_stat.read_count if latest_stat is not None else "",
+                latest_stat.like_count if latest_stat is not None else "",
+                latest_stat.favorite_count if latest_stat is not None else "",
+                latest_stat.share_count if latest_stat is not None else "",
+                latest_stat.recorded_at.isoformat() if latest_stat is not None else "",
+            ]
+        )
+    return "\ufeff" + output.getvalue()
