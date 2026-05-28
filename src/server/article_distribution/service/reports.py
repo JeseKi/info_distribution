@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime, timezone
 
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
@@ -11,6 +11,8 @@ from sqlalchemy.orm import Session
 from ..dao import ArticleDistributionDAO
 from ..schemas import (
     AccountStatusFilter,
+    ArticleDistributionMissingTrafficArticleOut,
+    ArticleDistributionMissingTrafficPageOut,
     ArticleDistributionPendingArticleOut,
     ArticleDistributionPendingUserOut,
     ArticleDistributionPlatformSummaryOut,
@@ -115,6 +117,72 @@ def get_unpublished_report_user_detail(
     return users[0]
 
 
+def list_missing_traffic_articles(
+    db: Session,
+    *,
+    recorded_from: datetime,
+    recorded_to: datetime,
+    scheduled_from: date | None = None,
+    scheduled_to: date | None = None,
+    platform: str | None = None,
+    publication_type: str | None = None,
+    account_status: AccountStatusFilter = "active",
+    page: int = 1,
+    page_size: int = 10,
+) -> ArticleDistributionMissingTrafficPageOut:
+    normalized_recorded_from = _normalize_datetime(recorded_from)
+    normalized_recorded_to = _normalize_datetime(recorded_to)
+    if normalized_recorded_from >= normalized_recorded_to:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="流量统计时间范围无效",
+        )
+
+    dao = ArticleDistributionDAO(db)
+    rows, total = dao.list_missing_traffic_article_rows_page(
+        recorded_from=normalized_recorded_from,
+        recorded_to=normalized_recorded_to,
+        scheduled_from=scheduled_from,
+        scheduled_to=scheduled_to,
+        platform=normalize_optional(platform),
+        publication_type=publication_type,
+        account_status=account_status,
+        page=page,
+        page_size=page_size,
+    )
+    latest_traffic_stats = dao.latest_traffic_stats_by_article_ids(
+        [article.id for article, _, _ in rows]
+    )
+    return ArticleDistributionMissingTrafficPageOut(
+        items=[
+            ArticleDistributionMissingTrafficArticleOut(
+                id=article.id,
+                title=article.title,
+                scheduled_date=article.scheduled_date,
+                user_id=owner.id,
+                username=owner.username,
+                name=owner.name,
+                email=owner.email,
+                account_id=account.id,
+                account_name=account.account_name,
+                platform=account.platform,
+                publication_type=normalize_publication_type(account.publication_type),
+                account_is_active=account.is_active,
+                published_url=article.published_url or "",
+                latest_traffic_stat=(
+                    ArticleTrafficStatOut.model_validate(latest_traffic_stats[article.id])
+                    if article.id in latest_traffic_stats
+                    else None
+                ),
+            )
+            for article, account, owner in rows
+        ],
+        total=total,
+        page=page,
+        page_size=page_size,
+    )
+
+
 def _build_user_reports_from_rows(
     db: Session,
     rows: list[tuple],
@@ -203,6 +271,12 @@ def _build_user_reports_from_rows(
             )
         )
     return list(grouped.values())
+
+
+def _normalize_datetime(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value
 
 
 def list_public_dashboard(

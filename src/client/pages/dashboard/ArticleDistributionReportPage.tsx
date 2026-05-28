@@ -9,11 +9,13 @@ import {
   Flex,
   Form,
   Input,
+  Pagination,
   Popover,
   Select,
   Space,
   Statistic,
   Table,
+  Tabs,
   Tag,
   Typography,
 } from 'antd'
@@ -23,6 +25,8 @@ import dayjs from 'dayjs'
 import * as articleApi from '../../lib/articleDistribution'
 import type {
   ArticleDistributionAccountStatusFilter,
+  ArticleDistributionMissingTrafficArticle,
+  ArticleDistributionMissingTrafficFilters,
   ArticleDistributionPendingArticle,
   ArticleDistributionPendingReportFilters,
   ArticleDistributionPendingUser,
@@ -86,7 +90,36 @@ interface FilterValues {
   date_range?: [dayjs.Dayjs, dayjs.Dayjs]
 }
 
+interface MissingTrafficFilterValues {
+  traffic_date?: dayjs.Dayjs
+  platform?: string
+  publication_type?: ArticlePublicationType
+  account_status?: ArticleDistributionAccountStatusFilter
+  date_range?: [dayjs.Dayjs, dayjs.Dayjs]
+}
+
+const defaultMissingTrafficPageSize = 10
+
 export default function ArticleDistributionReportPage() {
+  return (
+    <Tabs
+      items={[
+        {
+          key: 'progress',
+          label: '分发进度',
+          children: <DistributionProgressReportContent />,
+        },
+        {
+          key: 'missing-traffic',
+          label: '未填新增流量',
+          children: <MissingTrafficReportContent />,
+        },
+      ]}
+    />
+  )
+}
+
+function DistributionProgressReportContent() {
   const { message } = App.useApp()
   const [form] = Form.useForm<FilterValues>()
   const [loading, setLoading] = useState(false)
@@ -95,6 +128,18 @@ export default function ArticleDistributionReportPage() {
   const [userDetails, setUserDetails] = useState<Record<number, ArticleDistributionPendingUser>>({})
   const [detailLoadingUserIds, setDetailLoadingUserIds] = useState<Set<number>>(() => new Set())
   const [expandedRowKeys, setExpandedRowKeys] = useState<number[]>([])
+
+  const buildFilters = useCallback((): ArticleDistributionPendingReportFilters => {
+    const values = form.getFieldsValue()
+    const range = values.date_range
+    return {
+      platform: values.platform?.trim() || undefined,
+      publication_type: values.publication_type,
+      account_status: values.account_status ?? 'active',
+      scheduled_from: range?.[0]?.format('YYYY-MM-DD'),
+      scheduled_to: range?.[1]?.format('YYYY-MM-DD'),
+    }
+  }, [form])
 
   const loadReport = useCallback(async (filters?: ArticleDistributionPendingReportFilters) => {
     setLoading(true)
@@ -125,23 +170,11 @@ export default function ArticleDistributionReportPage() {
         return next
       })
     }
-  }, [message])
+  }, [buildFilters, message])
 
   useEffect(() => {
     void loadReport()
   }, [loadReport])
-
-  const buildFilters = (): ArticleDistributionPendingReportFilters => {
-    const values = form.getFieldsValue()
-    const range = values.date_range
-    return {
-      platform: values.platform?.trim() || undefined,
-      publication_type: values.publication_type,
-      account_status: values.account_status ?? 'active',
-      scheduled_from: range?.[0]?.format('YYYY-MM-DD'),
-      scheduled_to: range?.[1]?.format('YYYY-MM-DD'),
-    }
-  }
 
   const keyword = Form.useWatch('keyword', form)
   const filteredRows = useMemo(() => {
@@ -589,6 +622,257 @@ export default function ArticleDistributionReportPage() {
         tableLayout="fixed"
         scroll={{ x: 840 }}
       />
+    </Flex>
+  )
+}
+
+function MissingTrafficReportContent() {
+  const { message } = App.useApp()
+  const [form] = Form.useForm<MissingTrafficFilterValues>()
+  const [loading, setLoading] = useState(false)
+  const [items, setItems] = useState<ArticleDistributionMissingTrafficArticle[]>([])
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(defaultMissingTrafficPageSize)
+  const [total, setTotal] = useState(0)
+
+  const buildFilters = useCallback((): ArticleDistributionMissingTrafficFilters => {
+    const values = form.getFieldsValue()
+    const trafficDate = values.traffic_date ?? dayjs()
+    const range = values.date_range
+    return {
+      recorded_from: trafficDate.startOf('day').toISOString(),
+      recorded_to: trafficDate.add(1, 'day').startOf('day').toISOString(),
+      platform: values.platform?.trim() || undefined,
+      publication_type: values.publication_type,
+      account_status: values.account_status ?? 'active',
+      scheduled_from: range?.[0]?.format('YYYY-MM-DD'),
+      scheduled_to: range?.[1]?.format('YYYY-MM-DD'),
+    }
+  }, [form])
+
+  const loadData = useCallback(async (
+    filters?: ArticleDistributionMissingTrafficFilters,
+    pagination: { page: number; pageSize: number } = {
+      page: 1,
+      pageSize: defaultMissingTrafficPageSize,
+    },
+  ) => {
+    setLoading(true)
+    try {
+      const nextPage = await articleApi.listMissingTrafficArticles({
+        ...(filters ?? buildFilters()),
+        page: pagination.page,
+        page_size: pagination.pageSize,
+      })
+      setItems(nextPage.items)
+      setTotal(nextPage.total)
+      setPage(nextPage.page)
+      setPageSize(nextPage.page_size)
+    } catch (error) {
+      message.error(resolveApiErrorMessage(error, '未填流量文章加载失败'))
+    } finally {
+      setLoading(false)
+    }
+  }, [buildFilters, message])
+
+  useEffect(() => {
+    void loadData()
+  }, [loadData])
+
+  const columns: TableColumnsType<ArticleDistributionMissingTrafficArticle> = [
+    {
+      title: '文章',
+      dataIndex: 'title',
+      key: 'title',
+      width: 320,
+      ellipsis: true,
+      render: (value: string) => <Typography.Text strong ellipsis>{value}</Typography.Text>,
+    },
+    {
+      title: '用户',
+      key: 'user',
+      width: 240,
+      render: (_, record) => (
+        <Space direction="vertical" size={0}>
+          <Typography.Text>{record.name || record.username}</Typography.Text>
+          <Typography.Text type="secondary" ellipsis>
+            {record.username} · {record.email}
+          </Typography.Text>
+        </Space>
+      ),
+    },
+    {
+      title: '计划日期',
+      dataIndex: 'scheduled_date',
+      key: 'scheduled_date',
+      width: 130,
+      sorter: (a, b) => a.scheduled_date.localeCompare(b.scheduled_date),
+    },
+    {
+      title: '目标平台',
+      dataIndex: 'platform',
+      key: 'platform',
+      width: 130,
+      render: (value: string) => <Tag>{value}</Tag>,
+    },
+    {
+      title: '目标账号',
+      dataIndex: 'account_name',
+      key: 'account_name',
+      width: 150,
+      ellipsis: true,
+      render: (value: string, record) => (
+        <Space size={4}>
+          <Typography.Text ellipsis>{value}</Typography.Text>
+          {inactiveAccountTag(record.account_is_active)}
+        </Space>
+      ),
+    },
+    {
+      title: '类型',
+      dataIndex: 'publication_type',
+      key: 'publication_type',
+      width: 90,
+      render: (value: ArticlePublicationType) => publicationTypeText[value],
+    },
+    {
+      title: '上次阅读',
+      key: 'read_count',
+      width: 100,
+      sorter: (a, b) => (a.latest_traffic_stat?.read_count ?? 0) - (b.latest_traffic_stat?.read_count ?? 0),
+      render: (_, record) => renderTrafficValue(record.latest_traffic_stat?.read_count),
+    },
+    {
+      title: '上次点赞',
+      key: 'like_count',
+      width: 100,
+      render: (_, record) => renderTrafficValue(record.latest_traffic_stat?.like_count),
+    },
+    {
+      title: '上次收藏',
+      key: 'favorite_count',
+      width: 100,
+      render: (_, record) => renderTrafficValue(record.latest_traffic_stat?.favorite_count),
+    },
+    {
+      title: '上次转发',
+      key: 'share_count',
+      width: 100,
+      render: (_, record) => renderTrafficValue(record.latest_traffic_stat?.share_count),
+    },
+    {
+      title: '上次统计时间',
+      key: 'traffic_recorded_at',
+      width: 150,
+      render: (_, record) => record.latest_traffic_stat
+        ? dayjs(record.latest_traffic_stat.recorded_at).format('YYYY-MM-DD HH:mm')
+        : '-',
+    },
+    {
+      title: '发布链接',
+      dataIndex: 'published_url',
+      key: 'published_url',
+      fixed: 'right',
+      width: 110,
+      render: (value: string) => (
+        <Typography.Link href={value} target="_blank" rel="noreferrer">
+          检查
+        </Typography.Link>
+      ),
+    },
+  ]
+
+  return (
+    <Flex vertical gap={18}>
+      <Flex align="center" justify="space-between" gap={16} wrap="wrap">
+        <div>
+          <Typography.Title level={2} style={{ margin: 0 }}>
+            未填新增流量
+          </Typography.Title>
+          <Typography.Text type="secondary">
+            查看已发布文章中，所选日期未填写流量记录的条目。
+          </Typography.Text>
+        </div>
+        <Button
+          icon={<ReloadOutlined />}
+          loading={loading}
+          onClick={() => void loadData(buildFilters(), { page, pageSize })}
+        >
+          刷新
+        </Button>
+      </Flex>
+
+      <Card>
+        <Flex gap={24} wrap="wrap">
+          <Statistic title="未填文章数" value={total} />
+          <Statistic title="当前页" value={items.length} suffix="篇" />
+        </Flex>
+        <Form
+          form={form}
+          layout="vertical"
+          initialValues={{ traffic_date: dayjs(), account_status: 'active' }}
+          style={{ marginTop: 18 }}
+        >
+          <Flex gap={16} wrap="wrap" align="end">
+            <Form.Item label="流量日期" name="traffic_date" style={{ minWidth: 180 }}>
+              <DatePicker allowClear={false} style={{ width: '100%' }} />
+            </Form.Item>
+            <Form.Item label="平台" name="platform" style={{ minWidth: 180 }}>
+              <Input allowClear placeholder="wechat、zhihu..." />
+            </Form.Item>
+            <Form.Item label="发布类型" name="publication_type" style={{ minWidth: 160 }}>
+              <Select allowClear options={publicationTypeOptions} placeholder="全部类型" />
+            </Form.Item>
+            <Form.Item label="账号类型" name="account_status" style={{ minWidth: 140 }}>
+              <Select options={accountStatusOptions} />
+            </Form.Item>
+            <Form.Item label="计划日期" name="date_range" style={{ minWidth: 260 }}>
+              <DatePicker.RangePicker style={{ width: '100%' }} />
+            </Form.Item>
+            <Form.Item>
+              <Space>
+                <Button type="primary" onClick={() => void loadData(buildFilters(), { page: 1, pageSize })}>
+                  筛选
+                </Button>
+                <Button
+                  onClick={() => {
+                    form.resetFields()
+                    void loadData(undefined, { page: 1, pageSize })
+                  }}
+                >
+                  重置
+                </Button>
+              </Space>
+            </Form.Item>
+          </Flex>
+        </Form>
+      </Card>
+
+      <Card>
+        <Table
+          rowKey="id"
+          loading={loading}
+          columns={columns}
+          dataSource={items}
+          pagination={false}
+          tableLayout="fixed"
+          scroll={{ x: 1720 }}
+          locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无未填流量文章" /> }}
+        />
+        {total > 0 && (
+          <Pagination
+            current={page}
+            pageSize={pageSize}
+            total={total}
+            showSizeChanger
+            pageSizeOptions={[10, 20, 50]}
+            style={{ marginTop: 16, textAlign: 'right' }}
+            onChange={(nextPage, nextPageSize) => (
+              void loadData(buildFilters(), { page: nextPage, pageSize: nextPageSize })
+            )}
+          />
+        )}
+      </Card>
     </Flex>
   )
 }

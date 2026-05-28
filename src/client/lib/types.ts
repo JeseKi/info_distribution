@@ -457,6 +457,30 @@ export interface ArticleDistributionPendingArticle {
   latest_traffic_stat: ArticleDistributionTrafficStat | null
 }
 
+export interface ArticleDistributionMissingTrafficArticle {
+  id: number
+  title: string
+  scheduled_date: string
+  user_id: number
+  username: string
+  name: string | null
+  email: string
+  account_id: number
+  account_name: string
+  platform: string
+  publication_type: ArticlePublicationType
+  account_is_active: boolean
+  published_url: string
+  latest_traffic_stat: ArticleDistributionTrafficStat | null
+}
+
+export interface ArticleDistributionMissingTrafficPage {
+  items: ArticleDistributionMissingTrafficArticle[]
+  total: number
+  page: number
+  page_size: number
+}
+
 export interface ArticleDistributionPlatformSummary {
   account_id: number
   account_name: string
@@ -529,6 +553,13 @@ export interface ArticleDistributionPendingReportFilters {
   platform?: string
   publication_type?: ArticlePublicationType
   account_status?: ArticleDistributionAccountStatusFilter
+}
+
+export interface ArticleDistributionMissingTrafficFilters extends ArticleDistributionPendingReportFilters {
+  recorded_from: string
+  recorded_to: string
+  page?: number
+  page_size?: number
 }
 
 export interface ArticleDistributionApiKey {

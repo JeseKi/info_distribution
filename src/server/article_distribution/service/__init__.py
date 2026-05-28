@@ -26,6 +26,7 @@ from .articles import (
 )
 from .reports import (
     get_unpublished_report_user_detail,
+    list_missing_traffic_articles,
     list_public_dashboard,
     list_unpublished_report,
 )
@@ -53,6 +54,7 @@ __all__ = [
     "list_article_traffic_stats",
     "list_article_traffic_summaries",
     "list_api_keys",
+    "list_missing_traffic_articles",
     "list_public_dashboard",
     "list_articles",
     "list_articles_page",

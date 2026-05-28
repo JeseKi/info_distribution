@@ -420,6 +420,63 @@ class ArticleDistributionDAO(BaseDAO):
         )
         return [(article, account) for article, account in rows], total
 
+    def list_missing_traffic_article_rows_page(
+        self,
+        *,
+        recorded_from: datetime,
+        recorded_to: datetime,
+        scheduled_from: date | None = None,
+        scheduled_to: date | None = None,
+        platform: str | None = None,
+        publication_type: str | None = None,
+        account_status: str = "active",
+        page: int = 1,
+        page_size: int = 10,
+    ) -> tuple[
+        list[tuple[ArticleDistributionArticle, ArticleDistributionAccount, User]], int
+    ]:
+        recorded_in_range = (
+            self.db_session.query(ArticleDistributionTrafficStat.id)
+            .filter(
+                ArticleDistributionTrafficStat.article_id
+                == ArticleDistributionArticle.id,
+                ArticleDistributionTrafficStat.recorded_at >= recorded_from,
+                ArticleDistributionTrafficStat.recorded_at < recorded_to,
+            )
+            .exists()
+        )
+        query = (
+            self._report_query(
+                scheduled_from=scheduled_from,
+                scheduled_to=scheduled_to,
+                platform=platform,
+                publication_type=publication_type,
+                account_status=account_status,
+            )
+            .filter(
+                ArticleDistributionArticle.publish_status == "published",
+                ArticleDistributionArticle.published_url.isnot(None),
+                ~recorded_in_range,
+            )
+            .with_entities(
+                ArticleDistributionArticle,
+                ArticleDistributionAccount,
+                User,
+            )
+        )
+        total = query.count()
+        rows = (
+            query.order_by(
+                ArticleDistributionArticle.scheduled_date.desc(),
+                User.id.asc(),
+                ArticleDistributionArticle.id.desc(),
+            )
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+            .all()
+        )
+        return [(article, account, owner) for article, account, owner in rows], total
+
     def _report_query(
         self,
         *,

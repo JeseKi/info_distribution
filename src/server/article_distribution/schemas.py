@@ -167,6 +167,30 @@ class ArticleDistributionPendingArticleOut(BaseModel):
     latest_traffic_stat: ArticleTrafficStatOut | None = None
 
 
+class ArticleDistributionMissingTrafficArticleOut(BaseModel):
+    id: int
+    title: str
+    scheduled_date: date
+    user_id: int
+    username: str
+    name: str | None
+    email: str
+    account_id: int
+    account_name: str
+    platform: str
+    publication_type: PublicationType
+    account_is_active: bool
+    published_url: str
+    latest_traffic_stat: ArticleTrafficStatOut | None = None
+
+
+class ArticleDistributionMissingTrafficPageOut(BaseModel):
+    items: list[ArticleDistributionMissingTrafficArticleOut]
+    total: int
+    page: int
+    page_size: int
+
+
 class ArticleDistributionPlatformSummaryOut(BaseModel):
     account_id: int
     account_name: str

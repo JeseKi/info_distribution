@@ -10,7 +10,10 @@ from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from src.server.article_distribution import router as article_distribution_router
-from src.server.article_distribution.models import ArticleDistributionAPIKey
+from src.server.article_distribution.models import (
+    ArticleDistributionAPIKey,
+    ArticleDistributionArticle,
+)
 from src.server.auth.models import User
 from src.server.auth.schemas import UserRole
 from src.server.auth import service as auth_service
@@ -625,6 +628,229 @@ def test_user_cannot_manage_other_users_traffic_stats(
         headers=_headers(other),
     )
     assert denied_delete_resp.status_code == 403
+
+
+def test_missing_traffic_report_lists_published_articles_without_today_stats(
+    test_client, test_db_session: Session
+):
+    owner = _create_user(test_db_session, username="missing_traffic_owner")
+    viewer = _create_user(test_db_session, username="missing_traffic_viewer")
+    admin = _create_user(
+        test_db_session, username="missing_traffic_admin", role=UserRole.ADMIN
+    )
+
+    active_account_resp = test_client.post(
+        "/api/article-distribution/accounts",
+        headers=_headers(admin),
+        json={
+            "user_id": owner.id,
+            "account_name": "公众号",
+            "platform": "wechat",
+            "publication_type": "article",
+        },
+    )
+    inactive_account_resp = test_client.post(
+        "/api/article-distribution/accounts",
+        headers=_headers(admin),
+        json={
+            "user_id": owner.id,
+            "account_name": "停用号",
+            "platform": "wechat",
+            "publication_type": "article",
+        },
+    )
+    assert active_account_resp.status_code == 201
+    assert inactive_account_resp.status_code == 201
+    active_account_id = active_account_resp.json()["id"]
+    inactive_account_id = inactive_account_resp.json()["id"]
+
+    upload_resp = test_client.post(
+        "/api/admin/article-distribution/articles",
+        headers=_headers(admin),
+        json={
+            "account_id": active_account_id,
+            "articles": [
+                {
+                    "title": "No stat today",
+                    "markdown_content": "body",
+                    "scheduled_date": "2026-05-20",
+                },
+                {
+                    "title": "Has stat today",
+                    "markdown_content": "body",
+                    "scheduled_date": "2026-05-21",
+                },
+                {
+                    "title": "Only yesterday stat",
+                    "markdown_content": "body",
+                    "scheduled_date": "2026-05-22",
+                },
+                {
+                    "title": "Unpublished",
+                    "markdown_content": "body",
+                    "scheduled_date": "2026-05-23",
+                },
+                {
+                    "title": "Invalid",
+                    "markdown_content": "body",
+                    "scheduled_date": "2026-05-24",
+                },
+                {
+                    "title": "Published without url",
+                    "markdown_content": "body",
+                    "scheduled_date": "2026-05-25",
+                },
+            ],
+        },
+    )
+    inactive_upload_resp = test_client.post(
+        "/api/admin/article-distribution/articles",
+        headers=_headers(admin),
+        json={
+            "account_id": inactive_account_id,
+            "articles": [
+                {
+                    "title": "Inactive no stat today",
+                    "markdown_content": "body",
+                    "scheduled_date": "2026-05-26",
+                }
+            ],
+        },
+    )
+    assert upload_resp.status_code == 201
+    assert inactive_upload_resp.status_code == 201
+    articles = upload_resp.json()
+    inactive_article_id = inactive_upload_resp.json()[0]["id"]
+
+    published_ids = [item["id"] for item in articles[:3]]
+    invalid_id = articles[4]["id"]
+    no_url_id = articles[5]["id"]
+    for article_id in [*published_ids, inactive_article_id]:
+        publish_resp = test_client.patch(
+            f"/api/article-distribution/articles/{article_id}/status",
+            headers=_headers(owner),
+            json={
+                "publish_status": "published",
+                "published_url": f"https://example.com/articles/{article_id}",
+            },
+        )
+        assert publish_resp.status_code == 200
+
+    invalid_resp = test_client.patch(
+        f"/api/article-distribution/articles/{invalid_id}/status",
+        headers=_headers(owner),
+        json={"publish_status": "invalid"},
+    )
+    assert invalid_resp.status_code == 200
+
+    no_url_article = (
+        test_db_session.query(ArticleDistributionArticle)
+        .filter(ArticleDistributionArticle.id == no_url_id)
+        .one()
+    )
+    no_url_article.publish_status = "published"
+    no_url_article.published_url = None
+    test_db_session.commit()
+
+    today_stat_resp = test_client.post(
+        f"/api/article-distribution/articles/{published_ids[1]}/traffic-stats",
+        headers=_headers(owner),
+        json={
+            "read_count": 100,
+            "like_count": 10,
+            "recorded_at": "2026-05-28T10:00:00+00:00",
+        },
+    )
+    yesterday_stat_resp = test_client.post(
+        f"/api/article-distribution/articles/{published_ids[2]}/traffic-stats",
+        headers=_headers(owner),
+        json={
+            "read_count": 50,
+            "like_count": 5,
+            "recorded_at": "2026-05-27T23:00:00+00:00",
+        },
+    )
+    assert today_stat_resp.status_code == 201
+    assert yesterday_stat_resp.status_code == 201
+
+    deactivate_resp = test_client.patch(
+        f"/api/article-distribution/accounts/{inactive_account_id}",
+        headers=_headers(owner),
+        json={"is_active": False},
+    )
+    assert deactivate_resp.status_code == 200
+
+    params = {
+        "recorded_from": "2026-05-28T00:00:00+00:00",
+        "recorded_to": "2026-05-29T00:00:00+00:00",
+        "page": 1,
+        "page_size": 10,
+    }
+    denied_resp = test_client.get(
+        "/api/article-distribution/reports/missing-traffic",
+        headers=_headers(viewer),
+        params=params,
+    )
+    assert denied_resp.status_code == 403
+
+    viewer.scope_overrides = auth_service.serialize_scopes(
+        [
+            *auth_service.get_role_scopes(UserRole.USER),
+            auth_service.SCOPE_ARTICLE_DISTRIBUTION_REPORT_READ,
+        ]
+    )
+    test_db_session.commit()
+    test_db_session.refresh(viewer)
+
+    report_resp = test_client.get(
+        "/api/article-distribution/reports/missing-traffic",
+        headers=_headers(viewer),
+        params=params,
+    )
+    assert report_resp.status_code == 200, report_resp.text
+    report = report_resp.json()
+    assert report["total"] == 2
+    assert [item["title"] for item in report["items"]] == [
+        "Only yesterday stat",
+        "No stat today",
+    ]
+    assert report["items"][0]["latest_traffic_stat"]["read_count"] == 50
+    assert report["items"][1]["latest_traffic_stat"] is None
+    assert all(item["published_url"] for item in report["items"])
+
+    all_accounts_resp = test_client.get(
+        "/api/article-distribution/reports/missing-traffic",
+        headers=_headers(admin),
+        params={**params, "account_status": "all"},
+    )
+    assert all_accounts_resp.status_code == 200
+    assert all_accounts_resp.json()["total"] == 3
+    assert all_accounts_resp.json()["items"][0]["title"] == "Inactive no stat today"
+
+    filtered_resp = test_client.get(
+        "/api/article-distribution/reports/missing-traffic",
+        headers=_headers(admin),
+        params={
+            **params,
+            "scheduled_from": "2026-05-22",
+            "scheduled_to": "2026-05-22",
+            "platform": "wechat",
+            "publication_type": "article",
+        },
+    )
+    assert filtered_resp.status_code == 200
+    assert filtered_resp.json()["total"] == 1
+    assert filtered_resp.json()["items"][0]["title"] == "Only yesterday stat"
+
+    invalid_range_resp = test_client.get(
+        "/api/article-distribution/reports/missing-traffic",
+        headers=_headers(admin),
+        params={
+            "recorded_from": "2026-05-29T00:00:00+00:00",
+            "recorded_to": "2026-05-28T00:00:00+00:00",
+        },
+    )
+    assert invalid_range_resp.status_code == 400
 
 
 def test_admin_can_list_update_and_delete_all_articles(
