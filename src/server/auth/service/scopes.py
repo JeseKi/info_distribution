@@ -39,6 +39,9 @@ SCOPE_ADMIN_USERS_WRITE = "admin:users:write"
 SCOPE_ARTICLE_DISTRIBUTION_READ = "article_distribution:read"
 SCOPE_ARTICLE_DISTRIBUTION_WRITE = "article_distribution:write"
 SCOPE_ARTICLE_DISTRIBUTION_REPORT_READ = "article_distribution:report:read"
+SCOPE_ARTICLE_DISTRIBUTION_METADATA_DASHBOARD_READ = (
+    "article_distribution:metadata_dashboard:read"
+)
 SCOPE_ADMIN_ARTICLE_DISTRIBUTION_WRITE = "admin:article_distribution:write"
 
 SCOPE_DEFINITIONS: tuple[ScopeDefinition, ...] = (
@@ -88,6 +91,11 @@ SCOPE_DEFINITIONS: tuple[ScopeDefinition, ...] = (
         description="查看所有用户未发布文章数量、文章标题、计划日期和对应账号。",
     ),
     ScopeDefinition(
+        scope=SCOPE_ARTICLE_DISTRIBUTION_METADATA_DASHBOARD_READ,
+        title="查看选题元数据看板",
+        description="查看文章元数据中的选题、素材、摘要、账号和流量看板。",
+    ),
+    ScopeDefinition(
         scope=SCOPE_ADMIN_ARTICLE_DISTRIBUTION_WRITE,
         title="管理全量文章分发",
         description="为任意账号上传文章，并管理文章分发 API Key。",
@@ -125,6 +133,7 @@ ROLE_SCOPES: dict[UserRole, tuple[str, ...]] = {
         SCOPE_ARTICLE_DISTRIBUTION_READ,
         SCOPE_ARTICLE_DISTRIBUTION_WRITE,
         SCOPE_ARTICLE_DISTRIBUTION_REPORT_READ,
+        SCOPE_ARTICLE_DISTRIBUTION_METADATA_DASHBOARD_READ,
         SCOPE_ADMIN_ARTICLE_DISTRIBUTION_WRITE,
     ),
 }
@@ -133,6 +142,7 @@ ROLE_ASSIGNABLE_SCOPES: dict[UserRole, tuple[str, ...]] = {
     UserRole.USER: (
         *ROLE_SCOPES[UserRole.USER],
         SCOPE_ARTICLE_DISTRIBUTION_REPORT_READ,
+        SCOPE_ARTICLE_DISTRIBUTION_METADATA_DASHBOARD_READ,
     ),
     UserRole.ADMIN: ROLE_SCOPES[UserRole.ADMIN],
 }

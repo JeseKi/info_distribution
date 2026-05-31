@@ -12,7 +12,12 @@ from src.server.dao.dao_base import run_in_thread
 from src.server.database import get_db
 
 from .. import service
-from ..schemas import ArticleBatchCreate, ArticleOut, UserAccountDirectoryOut
+from ..schemas import (
+    ArticleBatchCreate,
+    ArticleOut,
+    ArticleV1Update,
+    UserAccountDirectoryOut,
+)
 from .shared import v1_router
 
 
@@ -50,3 +55,23 @@ async def create_articles_v1(
         )
 
     return await run_in_thread(_create)
+
+
+@v1_router.patch(
+    "/articles/{article_id}",
+    response_model=ArticleOut,
+    summary="使用 API Key 更新文章",
+)
+async def update_article_v1(
+    article_id: int,
+    payload: ArticleV1Update,
+    x_api_key: Annotated[str | None, Header(alias="X-API-Key")] = None,
+    db: Session = Depends(get_db),
+):
+    def _update():
+        api_key = service.authenticate_api_key(db, x_api_key)
+        return service.update_article_with_api_key(
+            db, article_id=article_id, payload=payload, api_key=api_key
+        )
+
+    return await run_in_thread(_update)

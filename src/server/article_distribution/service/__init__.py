@@ -22,6 +22,7 @@ from .articles import (
     list_articles,
     list_articles_page,
     update_article_as_admin,
+    update_article_with_api_key,
     update_article_status,
 )
 from .reports import (
@@ -31,6 +32,7 @@ from .reports import (
     list_missing_traffic_articles,
     list_missing_traffic_report,
     list_public_dashboard,
+    list_metadata_dashboard,
     list_unpublished_report,
 )
 from .traffic import (
@@ -62,11 +64,13 @@ __all__ = [
     "list_missing_traffic_articles",
     "list_missing_traffic_report",
     "list_public_dashboard",
+    "list_metadata_dashboard",
     "list_articles",
     "list_articles_page",
     "list_unpublished_report",
     "revoke_api_key",
     "update_account",
     "update_article_as_admin",
+    "update_article_with_api_key",
     "update_article_status",
 ]

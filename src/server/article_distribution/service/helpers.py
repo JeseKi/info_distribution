@@ -93,7 +93,13 @@ def articles_to_out(
 
 def article_to_out(db: Session, article: ArticleDistributionArticle) -> ArticleOut:
     account = ArticleDistributionDAO(db).get_account(article.account_id)
-    return ArticleOut.model_validate({**article.__dict__, "account": account})
+    return ArticleOut.model_validate(
+        {
+            **article.__dict__,
+            "metadata": article.article_metadata,
+            "account": account,
+        }
+    )
 
 
 def normalize_required(value: str, error_message: str) -> str:

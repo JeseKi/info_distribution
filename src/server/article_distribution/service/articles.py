@@ -22,6 +22,7 @@ from ..schemas import (
     ArticlePageOut,
     ArticleStatusCountsOut,
     ArticleUpdate,
+    ArticleV1Update,
     ArticleUploadItem,
 )
 from .helpers import (
@@ -157,6 +158,8 @@ def update_article_as_admin(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="文章不存在")
 
     fields = payload.model_dump(exclude_unset=True)
+    if "metadata" in fields:
+        fields["article_metadata"] = fields.pop("metadata")
     if "account_id" in fields and fields["account_id"] is not None:
         account = get_active_account_or_404(db, int(fields["account_id"]))
         fields["account_id"] = account.id
@@ -176,6 +179,27 @@ def update_article_as_admin(
         published_url = fields.pop("published_url")
         if article.publish_status == "published":
             fields["published_url"] = normalize_published_url(published_url)
+
+    updated = dao.update_article(article, **fields)
+    return article_to_out(db, updated)
+
+
+def update_article_with_api_key(
+    db: Session,
+    *,
+    article_id: int,
+    payload: ArticleV1Update,
+    api_key: ArticleDistributionAPIKey,
+) -> ArticleOut:
+    _ = api_key
+    dao = ArticleDistributionDAO(db)
+    article = dao.get_article(article_id)
+    if article is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="文章不存在")
+
+    fields = _v1_update_fields(db, article=article, payload=payload)
+    if not fields:
+        return article_to_out(db, article)
 
     updated = dao.update_article(article, **fields)
     return article_to_out(db, updated)
@@ -238,6 +262,7 @@ def _build_articles(
             account_id=account.id,
             title=normalize_required(item.title, "标题不能为空"),
             markdown_content=normalize_required(item.markdown_content, "正文不能为空"),
+            article_metadata=item.metadata,
             scheduled_date=item.scheduled_date,
             publish_status="unpublished",
             source=source,
@@ -246,3 +271,54 @@ def _build_articles(
         )
         for item in items
     ]
+
+
+def _v1_update_fields(
+    db: Session,
+    *,
+    article: ArticleDistributionArticle,
+    payload: ArticleV1Update,
+) -> dict[str, object]:
+    raw_fields = payload.model_dump(exclude_unset=True)
+    fields: dict[str, object] = {}
+
+    account_id = raw_fields.get("account_id")
+    if account_id is not None:
+        account = get_active_account_or_404(db, int(account_id))
+        fields["account_id"] = account.id
+        fields["user_id"] = account.user_id
+
+    title = _non_empty_string(raw_fields.get("title"))
+    if title is not None:
+        fields["title"] = title
+
+    markdown_content = _non_empty_string(raw_fields.get("markdown_content"))
+    if markdown_content is not None:
+        fields["markdown_content"] = markdown_content
+
+    if raw_fields.get("scheduled_date") is not None:
+        fields["scheduled_date"] = raw_fields["scheduled_date"]
+
+    metadata = raw_fields.get("metadata")
+    if isinstance(metadata, dict) and metadata:
+        fields["article_metadata"] = metadata
+
+    if "publish_status" in raw_fields and raw_fields["publish_status"] is not None:
+        publish_status = str(raw_fields["publish_status"])
+        published_url = _non_empty_string(raw_fields.get("published_url"))
+        if publish_status == "published" and published_url is None:
+            published_url = article.published_url
+        fields.update(status_update_fields(publish_status, published_url))
+    else:
+        published_url = _non_empty_string(raw_fields.get("published_url"))
+        if published_url is not None and article.publish_status == "published":
+            fields["published_url"] = normalize_published_url(published_url)
+
+    return fields
+
+
+def _non_empty_string(value: object) -> str | None:
+    if not isinstance(value, str):
+        return None
+    normalized = value.strip()
+    return normalized or None

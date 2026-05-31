@@ -20,6 +20,10 @@ from ..schemas import (
     ArticleDistributionMissingTrafficReportOut,
     ArticleDistributionMissingTrafficSummaryOut,
     ArticleDistributionMissingTrafficUserOut,
+    ArticleDistributionMetadataDashboardArticleOut,
+    ArticleDistributionMetadataDashboardOut,
+    ArticleDistributionMetadataDashboardSummaryOut,
+    ArticleDistributionMetadataDashboardTopicOut,
     ArticleDistributionPendingArticleOut,
     ArticleDistributionPendingUserOut,
     ArticleDistributionPlatformSummaryOut,
@@ -98,6 +102,114 @@ def list_unpublished_report(
             share_count=sum(user.share_count for user in users),
         ),
         users=users,
+    )
+
+
+def list_metadata_dashboard(
+    db: Session,
+    *,
+    scheduled_from: date | None = None,
+    scheduled_to: date | None = None,
+    platform: str | None = None,
+    publication_type: str | None = None,
+    account_status: AccountStatusFilter = "active",
+    publish_status: str | None = None,
+) -> ArticleDistributionMetadataDashboardOut:
+    dao = ArticleDistributionDAO(db)
+    rows = dao.list_metadata_dashboard_article_rows(
+        scheduled_from=scheduled_from,
+        scheduled_to=scheduled_to,
+        platform=normalize_optional(platform),
+        publication_type=publication_type,
+        account_status=account_status,
+        publish_status=publish_status,
+    )
+    latest_traffic_stats = dao.latest_traffic_stats_by_article_ids(
+        [article.id for article, _ in rows]
+    )
+
+    grouped: dict[str, ArticleDistributionMetadataDashboardTopicOut] = {}
+    material_set: set[str] = set()
+    for article, account in rows:
+        metadata = (
+            article.article_metadata
+            if isinstance(article.article_metadata, dict)
+            else None
+        )
+        group_key = _metadata_output_id(metadata) or f"article:{article.id}"
+        topic = (
+            _metadata_topic(metadata)
+            or _metadata_output_id(metadata)
+            or "未设置选题"
+        )
+        latest_stat = latest_traffic_stats.get(article.id)
+        materials = _metadata_material_titles(metadata)
+        material_set.update(materials)
+
+        if group_key not in grouped:
+            grouped[group_key] = ArticleDistributionMetadataDashboardTopicOut(
+                key=group_key,
+                output_id=_metadata_output_id(metadata),
+                topic=topic,
+                materials=[],
+                article_count=0,
+                read_count=0,
+                like_count=0,
+                favorite_count=0,
+                share_count=0,
+                articles=[],
+            )
+
+        topic_row = grouped[group_key]
+        metadata_topic = _metadata_topic(metadata)
+        if metadata_topic is not None:
+            topic_row.topic = metadata_topic
+        elif topic_row.topic == "未设置选题" and topic != "未设置选题":
+            topic_row.topic = topic
+        topic_row.materials = _merge_unique(topic_row.materials, materials)
+        topic_row.article_count += 1
+        if latest_stat is not None:
+            topic_row.read_count += latest_stat.read_count
+            topic_row.like_count += latest_stat.like_count
+            topic_row.favorite_count += latest_stat.favorite_count
+            topic_row.share_count += latest_stat.share_count
+        topic_row.articles.append(
+            ArticleDistributionMetadataDashboardArticleOut(
+                id=article.id,
+                title=article.title,
+                scheduled_date=article.scheduled_date,
+                publish_status=normalize_publish_status(article.publish_status),
+                published_url=article.published_url,
+                account_id=account.id,
+                account_name=account.account_name,
+                platform=account.platform,
+                publication_type=normalize_publication_type(account.publication_type),
+                account_is_active=account.is_active,
+                article_role=_metadata_article_string(metadata, "role"),
+                angle_label=_metadata_string(metadata, "angle_label"),
+                audience_label=_metadata_string(metadata, "audience_label"),
+                summary=_metadata_article_string(metadata, "summary"),
+                metadata=metadata,
+                latest_traffic_stat=(
+                    ArticleTrafficStatOut.model_validate(latest_stat)
+                    if latest_stat is not None
+                    else None
+                ),
+            )
+        )
+
+    topics = list(grouped.values())
+    return ArticleDistributionMetadataDashboardOut(
+        summary=ArticleDistributionMetadataDashboardSummaryOut(
+            topic_count=len(topics),
+            article_count=sum(topic.article_count for topic in topics),
+            material_count=len(material_set),
+            read_count=sum(topic.read_count for topic in topics),
+            like_count=sum(topic.like_count for topic in topics),
+            favorite_count=sum(topic.favorite_count for topic in topics),
+            share_count=sum(topic.share_count for topic in topics),
+        ),
+        topics=topics,
     )
 
 
@@ -357,6 +469,71 @@ def _missing_traffic_article_out(
             else None
         ),
     )
+
+
+def _metadata_output_id(metadata: dict | None) -> str | None:
+    return _metadata_string(metadata, "output_id")
+
+
+def _metadata_topic(metadata: dict | None) -> str | None:
+    return _metadata_string(metadata, "topic")
+
+
+def _metadata_string(metadata: dict | None, key: str) -> str | None:
+    if not metadata:
+        return None
+    value = metadata.get(key)
+    if not isinstance(value, str):
+        return None
+    normalized = value.strip()
+    return normalized or None
+
+
+def _metadata_article_string(metadata: dict | None, key: str) -> str | None:
+    if not metadata:
+        return None
+    article = metadata.get("article")
+    if not isinstance(article, dict):
+        return None
+    value = article.get(key)
+    if not isinstance(value, str):
+        return None
+    normalized = value.strip()
+    return normalized or None
+
+
+def _metadata_material_titles(metadata: dict | None) -> list[str]:
+    if not metadata:
+        return []
+    article = metadata.get("article")
+    if not isinstance(article, dict):
+        return []
+    materials = article.get("materials_used")
+    if not isinstance(materials, list):
+        return []
+
+    titles: list[str] = []
+    for material in materials:
+        if not isinstance(material, dict):
+            continue
+        title = material.get("title")
+        if not isinstance(title, str):
+            continue
+        normalized = title.strip()
+        if normalized:
+            titles.append(normalized)
+    return _merge_unique([], titles)
+
+
+def _merge_unique(current: list[str], additions: list[str]) -> list[str]:
+    seen = set(current)
+    merged = list(current)
+    for item in additions:
+        if item in seen:
+            continue
+        seen.add(item)
+        merged.append(item)
+    return merged
 
 
 def _build_user_reports_from_rows(

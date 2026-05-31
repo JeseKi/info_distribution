@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
+  Alert,
   App,
   Button,
   Card,
@@ -22,8 +23,12 @@ import type { TableColumnsType, TablePaginationConfig } from 'antd'
 import { ReloadOutlined, SearchOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import * as articleApi from '../../lib/articleDistribution'
+import { useAuth } from '../../hooks/useAuth'
 import type {
   ArticleDistributionAccountStatusFilter,
+  ArticleDistributionMetadataDashboardArticle,
+  ArticleDistributionMetadataDashboardSummary,
+  ArticleDistributionMetadataDashboardTopic,
   ArticleDistributionMissingTrafficArticle,
   ArticleDistributionMissingTrafficFilters,
   ArticleDistributionMissingTrafficSummary,
@@ -48,6 +53,12 @@ const accountStatusOptions = [
   { label: '启用', value: 'active' },
   { label: '停用', value: 'inactive' },
   { label: '全部', value: 'all' },
+]
+
+const publishStatusOptions = [
+  { label: '未发布', value: 'unpublished' },
+  { label: '已发布', value: 'published' },
+  { label: '文档失效', value: 'invalid' },
 ]
 
 const publicationTypeText: Record<ArticlePublicationType, string> = {
@@ -95,6 +106,14 @@ interface MissingTrafficFilterValues {
   date_range?: [dayjs.Dayjs, dayjs.Dayjs]
 }
 
+interface MetadataDashboardFilterValues {
+  platform?: string
+  publication_type?: ArticlePublicationType
+  account_status?: ArticleDistributionAccountStatusFilter
+  publish_status?: ArticlePublishStatus
+  date_range?: [dayjs.Dayjs, dayjs.Dayjs]
+}
+
 const emptyMissingTrafficSummary: ArticleDistributionMissingTrafficSummary = {
   total_users: 0,
   missing_articles: 0,
@@ -104,7 +123,22 @@ const emptyMissingTrafficSummary: ArticleDistributionMissingTrafficSummary = {
   share_count: 0,
 }
 
+const emptyMetadataDashboardSummary: ArticleDistributionMetadataDashboardSummary = {
+  topic_count: 0,
+  article_count: 0,
+  material_count: 0,
+  read_count: 0,
+  like_count: 0,
+  favorite_count: 0,
+  share_count: 0,
+}
+
 export default function ArticleDistributionReportPage() {
+  const { user } = useAuth()
+  const canViewMetadataDashboard = Boolean(
+    user?.effective_scopes.includes('article_distribution:metadata_dashboard:read'),
+  )
+
   return (
     <Tabs
       items={[
@@ -117,6 +151,20 @@ export default function ArticleDistributionReportPage() {
           key: 'missing-traffic',
           label: '未填新增流量',
           children: <MissingTrafficReportContent />,
+        },
+        {
+          key: 'metadata-dashboard',
+          label: '选题看板',
+          children: canViewMetadataDashboard
+            ? <MetadataDashboardContent />
+            : (
+                <Alert
+                  type="warning"
+                  showIcon
+                  message="缺少选题看板权限"
+                  description="需要 article_distribution:metadata_dashboard:read scope。"
+                />
+              ),
         },
       ]}
     />
@@ -604,6 +652,300 @@ function DistributionProgressReportContent() {
         scroll={{ x: 840 }}
       />
     </Flex>
+  )
+}
+
+function MetadataDashboardContent() {
+  const { message } = App.useApp()
+  const [form] = Form.useForm<MetadataDashboardFilterValues>()
+  const [loading, setLoading] = useState(false)
+  const [topics, setTopics] = useState<ArticleDistributionMetadataDashboardTopic[]>([])
+  const [summary, setSummary] = useState<ArticleDistributionMetadataDashboardSummary>(
+    emptyMetadataDashboardSummary,
+  )
+
+  const buildFilters = useCallback((): ArticleDistributionPendingReportFilters => {
+    const values = form.getFieldsValue()
+    const range = values.date_range
+    return {
+      platform: values.platform?.trim() || undefined,
+      publication_type: values.publication_type,
+      account_status: values.account_status ?? 'active',
+      publish_status: values.publish_status,
+      scheduled_from: range?.[0]?.format('YYYY-MM-DD'),
+      scheduled_to: range?.[1]?.format('YYYY-MM-DD'),
+    }
+  }, [form])
+
+  const loadDashboard = useCallback(async (filters?: ArticleDistributionPendingReportFilters) => {
+    setLoading(true)
+    try {
+      const dashboard = await articleApi.listArticleMetadataDashboard(filters)
+      setTopics(dashboard.topics)
+      setSummary(dashboard.summary)
+    } catch (error) {
+      message.error(resolveApiErrorMessage(error, '选题看板加载失败'))
+    } finally {
+      setLoading(false)
+    }
+  }, [message])
+
+  useEffect(() => {
+    void loadDashboard()
+  }, [loadDashboard])
+
+  const topicColumns: TableColumnsType<ArticleDistributionMetadataDashboardTopic> = [
+    {
+      title: '选题',
+      key: 'topic',
+      width: 360,
+      render: (_, record) => (
+        <Space direction="vertical" size={2}>
+          <Typography.Text strong>{record.topic}</Typography.Text>
+          <Typography.Text type="secondary">{record.output_id ?? '无 output_id'}</Typography.Text>
+        </Space>
+      ),
+    },
+    {
+      title: '文章',
+      dataIndex: 'article_count',
+      key: 'article_count',
+      width: 100,
+      sorter: (a, b) => a.article_count - b.article_count,
+      render: (value: number) => <Tag>{value} 篇</Tag>,
+    },
+    {
+      title: '素材',
+      key: 'materials',
+      width: 300,
+      render: (_, record) => renderMaterials(record.materials),
+    },
+    {
+      title: '阅读量',
+      dataIndex: 'read_count',
+      key: 'read_count',
+      width: 110,
+      sorter: (a, b) => a.read_count - b.read_count,
+    },
+    {
+      title: '点赞量',
+      dataIndex: 'like_count',
+      key: 'like_count',
+      width: 110,
+      sorter: (a, b) => a.like_count - b.like_count,
+    },
+    {
+      title: '收藏量',
+      dataIndex: 'favorite_count',
+      key: 'favorite_count',
+      width: 110,
+      sorter: (a, b) => a.favorite_count - b.favorite_count,
+    },
+    {
+      title: '转发量',
+      dataIndex: 'share_count',
+      key: 'share_count',
+      width: 110,
+      sorter: (a, b) => a.share_count - b.share_count,
+    },
+  ]
+
+  const articleColumns: TableColumnsType<ArticleDistributionMetadataDashboardArticle> = [
+    {
+      title: '文章',
+      key: 'article',
+      width: 320,
+      render: (_, record) => (
+        <Space direction="vertical" size={2}>
+          <Typography.Text strong ellipsis style={{ maxWidth: 300 }}>
+            {record.title}
+          </Typography.Text>
+          <Typography.Text type="secondary">
+            {record.article_role ?? '-'} · {record.angle_label ?? record.audience_label ?? '-'}
+          </Typography.Text>
+        </Space>
+      ),
+    },
+    {
+      title: '痛点解决方案',
+      dataIndex: 'summary',
+      key: 'summary',
+      width: 360,
+      render: (value: string | null) => (
+        <Typography.Paragraph ellipsis={{ rows: 2 }} style={{ margin: 0 }}>
+          {value || '-'}
+        </Typography.Paragraph>
+      ),
+    },
+    {
+      title: '账号',
+      key: 'account',
+      width: 220,
+      render: (_, record) => (
+        <Space>
+          <Tag>{record.platform}</Tag>
+          <Typography.Text type="secondary">{record.account_name}</Typography.Text>
+        </Space>
+      ),
+    },
+    {
+      title: '状态',
+      dataIndex: 'publish_status',
+      key: 'publish_status',
+      width: 110,
+      render: (value: ArticlePublishStatus) => publishStatusTag(value),
+    },
+    {
+      title: '计划日期',
+      dataIndex: 'scheduled_date',
+      key: 'scheduled_date',
+      width: 130,
+      sorter: (a, b) => a.scheduled_date.localeCompare(b.scheduled_date),
+    },
+    {
+      title: '阅读量',
+      key: 'read_count',
+      width: 100,
+      sorter: (a, b) => (
+        (a.latest_traffic_stat?.read_count ?? 0) - (b.latest_traffic_stat?.read_count ?? 0)
+      ),
+      render: (_, record) => renderTrafficValue(record.latest_traffic_stat?.read_count),
+    },
+    {
+      title: '点赞量',
+      key: 'like_count',
+      width: 100,
+      render: (_, record) => renderTrafficValue(record.latest_traffic_stat?.like_count),
+    },
+    {
+      title: '收藏量',
+      key: 'favorite_count',
+      width: 100,
+      render: (_, record) => renderTrafficValue(record.latest_traffic_stat?.favorite_count),
+    },
+    {
+      title: '转发量',
+      key: 'share_count',
+      width: 100,
+      render: (_, record) => renderTrafficValue(record.latest_traffic_stat?.share_count),
+    },
+    {
+      title: '发布链接',
+      dataIndex: 'published_url',
+      key: 'published_url',
+      fixed: 'right',
+      width: 110,
+      render: (value: string | null) => value ? (
+        <Typography.Link href={value} target="_blank" rel="noreferrer">
+          检查
+        </Typography.Link>
+      ) : '-',
+    },
+  ]
+
+  return (
+    <Flex vertical gap={18}>
+      <Flex align="center" justify="space-between" gap={16} wrap="wrap">
+        <div>
+          <Typography.Title level={2} style={{ margin: 0 }}>
+            选题看板
+          </Typography.Title>
+          <Typography.Text type="secondary">
+            从文章元数据汇总选题、素材、摘要、账号和最新流量。
+          </Typography.Text>
+        </div>
+        <Button icon={<ReloadOutlined />} loading={loading} onClick={() => void loadDashboard(buildFilters())}>
+          刷新
+        </Button>
+      </Flex>
+
+      <Card>
+        <Flex gap={24} wrap="wrap">
+          <Statistic title="选题数" value={summary.topic_count} />
+          <Statistic title="文章数" value={summary.article_count} />
+          <Statistic title="素材数" value={summary.material_count} />
+          <Statistic title="阅读量" value={summary.read_count} />
+          <Statistic title="点赞量" value={summary.like_count} />
+          <Statistic title="收藏量" value={summary.favorite_count} />
+          <Statistic title="转发量" value={summary.share_count} />
+        </Flex>
+        <Form form={form} layout="vertical" initialValues={{ account_status: 'active' }} style={{ marginTop: 18 }}>
+          <Flex gap={16} wrap="wrap" align="end">
+            <Form.Item label="平台" name="platform" style={{ minWidth: 180 }}>
+              <Input allowClear placeholder="wechat、zhihu..." />
+            </Form.Item>
+            <Form.Item label="发布类型" name="publication_type" style={{ minWidth: 160 }}>
+              <Select allowClear options={publicationTypeOptions} placeholder="全部类型" />
+            </Form.Item>
+            <Form.Item label="发布状态" name="publish_status" style={{ minWidth: 160 }}>
+              <Select allowClear options={publishStatusOptions} placeholder="全部状态" />
+            </Form.Item>
+            <Form.Item label="账号类型" name="account_status" style={{ minWidth: 140 }}>
+              <Select options={accountStatusOptions} />
+            </Form.Item>
+            <Form.Item label="计划日期" name="date_range" style={{ minWidth: 260 }}>
+              <DatePicker.RangePicker style={{ width: '100%' }} />
+            </Form.Item>
+            <Form.Item>
+              <Space>
+                <Button type="primary" onClick={() => void loadDashboard(buildFilters())}>
+                  筛选
+                </Button>
+                <Button
+                  onClick={() => {
+                    form.resetFields()
+                    void loadDashboard()
+                  }}
+                >
+                  重置
+                </Button>
+              </Space>
+            </Form.Item>
+          </Flex>
+        </Form>
+      </Card>
+
+      <Table
+        rowKey="key"
+        loading={loading}
+        columns={topicColumns}
+        dataSource={topics}
+        expandable={{
+          expandedRowRender: (record) => (
+            <Table
+              rowKey="id"
+              size="small"
+              columns={articleColumns}
+              dataSource={record.articles}
+              pagination={false}
+              tableLayout="fixed"
+              scroll={{ x: 1530 }}
+            />
+          ),
+        }}
+        locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无元数据" /> }}
+        pagination={{ pageSize: 10, showSizeChanger: true }}
+        tableLayout="fixed"
+        scroll={{ x: 1200 }}
+      />
+    </Flex>
+  )
+}
+
+function renderMaterials(materials: string[]) {
+  if (!materials.length) return '-'
+  const visible = materials.slice(0, 2)
+  return (
+    <Space direction="vertical" size={2}>
+      {visible.map((material) => (
+        <Typography.Text key={material} ellipsis style={{ maxWidth: 280 }}>
+          {material}
+        </Typography.Text>
+      ))}
+      {materials.length > visible.length && (
+        <Typography.Text type="secondary">另 {materials.length - visible.length} 条</Typography.Text>
+      )}
+    </Space>
   )
 }
 

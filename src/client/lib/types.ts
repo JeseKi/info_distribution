@@ -346,6 +346,7 @@ export interface ArticleDistributionArticle {
   account_id: number
   title: string
   markdown_content: string
+  metadata: Record<string, unknown> | null
   scheduled_date: string
   publish_status: ArticlePublishStatus
   published_url: string | null
@@ -361,6 +362,7 @@ export interface ArticleDistributionArticleUploadItem {
   title: string
   markdown_content: string
   scheduled_date: string
+  metadata?: Record<string, unknown> | null
 }
 
 export interface ArticleDistributionArticleBatchPayload {
@@ -439,6 +441,7 @@ export interface ArticleDistributionArticleUpdatePayload {
   scheduled_date?: string
   publish_status?: ArticlePublishStatus
   published_url?: string | null
+  metadata?: Record<string, unknown> | null
 }
 
 export interface ArticleDistributionPendingArticle {
@@ -580,6 +583,54 @@ export interface ArticleDistributionPendingReportFilters {
   platform?: string
   publication_type?: ArticlePublicationType
   account_status?: ArticleDistributionAccountStatusFilter
+  publish_status?: ArticlePublishStatus
+}
+
+export interface ArticleDistributionMetadataDashboardArticle {
+  id: number
+  title: string
+  scheduled_date: string
+  publish_status: ArticlePublishStatus
+  published_url: string | null
+  account_id: number
+  account_name: string
+  platform: string
+  publication_type: ArticlePublicationType
+  account_is_active: boolean
+  article_role: string | null
+  angle_label: string | null
+  audience_label: string | null
+  summary: string | null
+  metadata: Record<string, unknown> | null
+  latest_traffic_stat: ArticleDistributionTrafficStat | null
+}
+
+export interface ArticleDistributionMetadataDashboardTopic {
+  key: string
+  output_id: string | null
+  topic: string
+  materials: string[]
+  article_count: number
+  read_count: number
+  like_count: number
+  favorite_count: number
+  share_count: number
+  articles: ArticleDistributionMetadataDashboardArticle[]
+}
+
+export interface ArticleDistributionMetadataDashboardSummary {
+  topic_count: number
+  article_count: number
+  material_count: number
+  read_count: number
+  like_count: number
+  favorite_count: number
+  share_count: number
+}
+
+export interface ArticleDistributionMetadataDashboard {
+  summary: ArticleDistributionMetadataDashboardSummary
+  topics: ArticleDistributionMetadataDashboardTopic[]
 }
 
 export type ArticleDistributionPublicityRecordExportParams = ArticleDistributionPendingReportFilters

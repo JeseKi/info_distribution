@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -60,6 +60,7 @@ class ArticleUploadItem(BaseModel):
     title: str = Field(..., min_length=1, max_length=200)
     markdown_content: str = Field(..., min_length=1)
     scheduled_date: date
+    metadata: dict[str, Any] | None = None
 
 
 class ArticleBatchCreate(BaseModel):
@@ -79,6 +80,17 @@ class ArticleUpdate(BaseModel):
     scheduled_date: date | None = None
     publish_status: PublishStatus | None = None
     published_url: str | None = Field(default=None, max_length=2048)
+    metadata: dict[str, Any] | None = None
+
+
+class ArticleV1Update(BaseModel):
+    account_id: int | None = Field(default=None, ge=1)
+    title: str | None = Field(default=None, max_length=200)
+    markdown_content: str | None = None
+    scheduled_date: date | None = None
+    publish_status: PublishStatus | None = None
+    published_url: str | None = Field(default=None, max_length=2048)
+    metadata: dict[str, Any] | None = None
 
 
 class ArticleOut(BaseModel):
@@ -87,6 +99,7 @@ class ArticleOut(BaseModel):
     account_id: int
     title: str
     markdown_content: str
+    metadata: dict[str, Any] | None = None
     scheduled_date: date
     publish_status: PublishStatus
     published_url: str | None
@@ -282,6 +295,53 @@ class ArticleDistributionPublicDashboardOut(BaseModel):
     total: int
     page: int
     page_size: int
+
+
+class ArticleDistributionMetadataDashboardArticleOut(BaseModel):
+    id: int
+    title: str
+    scheduled_date: date
+    publish_status: PublishStatus
+    published_url: str | None
+    account_id: int
+    account_name: str
+    platform: str
+    publication_type: PublicationType
+    account_is_active: bool
+    article_role: str | None = None
+    angle_label: str | None = None
+    audience_label: str | None = None
+    summary: str | None = None
+    metadata: dict[str, Any] | None = None
+    latest_traffic_stat: ArticleTrafficStatOut | None = None
+
+
+class ArticleDistributionMetadataDashboardTopicOut(BaseModel):
+    key: str
+    output_id: str | None = None
+    topic: str
+    materials: list[str]
+    article_count: int
+    read_count: int = 0
+    like_count: int = 0
+    favorite_count: int = 0
+    share_count: int = 0
+    articles: list[ArticleDistributionMetadataDashboardArticleOut]
+
+
+class ArticleDistributionMetadataDashboardSummaryOut(BaseModel):
+    topic_count: int
+    article_count: int
+    material_count: int
+    read_count: int = 0
+    like_count: int = 0
+    favorite_count: int = 0
+    share_count: int = 0
+
+
+class ArticleDistributionMetadataDashboardOut(BaseModel):
+    summary: ArticleDistributionMetadataDashboardSummaryOut
+    topics: list[ArticleDistributionMetadataDashboardTopicOut]
 
 
 class APIKeyCreate(BaseModel):

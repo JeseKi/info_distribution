@@ -460,6 +460,40 @@ class ArticleDistributionDAO(BaseDAO):
         )
         return [(article, account, owner) for article, account, owner in rows]
 
+    def list_metadata_dashboard_article_rows(
+        self,
+        *,
+        scheduled_from: date | None = None,
+        scheduled_to: date | None = None,
+        platform: str | None = None,
+        publication_type: str | None = None,
+        account_status: str = "active",
+        publish_status: str | None = None,
+    ) -> list[tuple[ArticleDistributionArticle, ArticleDistributionAccount]]:
+        query = self._report_query(
+            scheduled_from=scheduled_from,
+            scheduled_to=scheduled_to,
+            platform=platform,
+            publication_type=publication_type,
+            account_status=account_status,
+        )
+        if publish_status:
+            query = query.filter(
+                ArticleDistributionArticle.publish_status == publish_status
+            )
+        rows = (
+            query.with_entities(
+                ArticleDistributionArticle,
+                ArticleDistributionAccount,
+            )
+            .order_by(
+                ArticleDistributionArticle.scheduled_date.desc(),
+                ArticleDistributionArticle.id.desc(),
+            )
+            .all()
+        )
+        return [(article, account) for article, account in rows]
+
     def list_missing_traffic_article_rows_page(
         self,
         *,

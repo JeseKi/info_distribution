@@ -326,6 +326,93 @@ def test_admin_and_api_key_can_upload_articles(
     assert stored_key.last_used_at is not None
 
 
+def test_v1_api_key_can_update_article_fields_without_empty_overwrites(
+    test_client, test_db_session: Session
+):
+    owner = _create_user(test_db_session, username="v1_update_owner")
+    admin = _create_user(test_db_session, username="v1_update_admin", role=UserRole.ADMIN)
+
+    account_resp = test_client.post(
+        "/api/article-distribution/accounts",
+        headers=_headers(admin),
+        json={
+            "user_id": owner.id,
+            "account_name": "公众号",
+            "platform": "wechat",
+            "publication_type": "article",
+        },
+    )
+    account_id = account_resp.json()["id"]
+
+    key_resp = test_client.post(
+        "/api/admin/article-distribution/api-keys",
+        headers=_headers(admin),
+        json={"name": "updater"},
+    )
+    raw_key = key_resp.json()["api_key"]
+
+    upload_resp = test_client.post(
+        "/api/v1/article-distribution/articles",
+        headers={"X-API-Key": raw_key},
+        json={
+            "account_id": account_id,
+            "articles": [
+                {
+                    "title": "Original",
+                    "markdown_content": "body",
+                    "scheduled_date": "2026-05-30",
+                    "metadata": {"output_id": "260530_1"},
+                }
+            ],
+        },
+    )
+    assert upload_resp.status_code == 201, upload_resp.text
+    article_id = upload_resp.json()[0]["id"]
+    assert upload_resp.json()[0]["metadata"] == {"output_id": "260530_1"}
+
+    update_resp = test_client.patch(
+        f"/api/v1/article-distribution/articles/{article_id}",
+        headers={"X-API-Key": raw_key},
+        json={
+            "title": " ",
+            "markdown_content": None,
+            "scheduled_date": "2026-05-31",
+            "publish_status": "published",
+            "published_url": "https://example.com/articles/v1",
+            "metadata": {
+                "output_id": "260530_1",
+                "topic": "测试选题",
+                "article": {"summary": "问题和解决方案"},
+            },
+        },
+    )
+    assert update_resp.status_code == 200, update_resp.text
+    updated = update_resp.json()
+    assert updated["title"] == "Original"
+    assert updated["markdown_content"] == "body"
+    assert updated["scheduled_date"] == "2026-05-31"
+    assert updated["publish_status"] == "published"
+    assert updated["published_url"] == "https://example.com/articles/v1"
+    assert updated["metadata"]["topic"] == "测试选题"
+
+    empty_update_resp = test_client.patch(
+        f"/api/v1/article-distribution/articles/{article_id}",
+        headers={"X-API-Key": raw_key},
+        json={"title": "", "metadata": {}, "published_url": ""},
+    )
+    assert empty_update_resp.status_code == 200
+    unchanged = empty_update_resp.json()
+    assert unchanged["title"] == "Original"
+    assert unchanged["published_url"] == "https://example.com/articles/v1"
+    assert unchanged["metadata"]["topic"] == "测试选题"
+
+    missing_key_resp = test_client.patch(
+        f"/api/v1/article-distribution/articles/{article_id}",
+        json={"title": "Denied"},
+    )
+    assert missing_key_resp.status_code == 401
+
+
 def test_inactive_accounts_are_hidden_from_directory_and_reject_uploads(
     test_client, test_db_session: Session
 ):
@@ -567,6 +654,114 @@ def test_owner_can_add_multiple_traffic_stats_for_article(
     assert report_article["id"] == article_id
     assert report_article["latest_traffic_stat"]["read_count"] == 180
     assert report_article["latest_traffic_stat"]["like_count"] == 18
+
+
+def test_metadata_dashboard_groups_articles_by_output_id_and_requires_scope(
+    test_client, test_db_session: Session
+):
+    owner = _create_user(test_db_session, username="metadata_owner")
+    viewer = _create_user(test_db_session, username="metadata_viewer")
+    admin = _create_user(test_db_session, username="metadata_admin", role=UserRole.ADMIN)
+
+    account_resp = test_client.post(
+        "/api/article-distribution/accounts",
+        headers=_headers(admin),
+        json={
+            "user_id": owner.id,
+            "account_name": "公众号",
+            "platform": "wechat",
+            "publication_type": "article",
+        },
+    )
+    account_id = account_resp.json()["id"]
+
+    upload_resp = test_client.post(
+        "/api/admin/article-distribution/articles",
+        headers=_headers(admin),
+        json={
+            "account_id": account_id,
+            "articles": [
+                {
+                    "title": "Main",
+                    "markdown_content": "body",
+                    "scheduled_date": "2026-05-30",
+                    "metadata": {
+                        "output_id": "260530_5",
+                        "topic": "AIFC Douju算力预算控制",
+                        "article": {
+                            "role": "main",
+                            "summary": "拆解算力预算痛点并给出积分控制方案",
+                            "materials_used": [
+                                {"title": "首届 Douju 全球 AI 互动影视创作大赛细则"},
+                                {"title": "AI短剧风口下：凌晨五点，抢算力的人"},
+                            ],
+                        },
+                    },
+                },
+                {
+                    "title": "Variant",
+                    "markdown_content": "body",
+                    "scheduled_date": "2026-05-31",
+                    "metadata": {
+                        "output_id": "260530_5",
+                        "angle_label": "案例复盘型",
+                        "audience_label": "案例复盘型",
+                        "article": {
+                            "role": "variant",
+                            "summary": "用案例复盘承接预算方案",
+                            "based_on_output_id": "260530_5",
+                        },
+                    },
+                },
+            ],
+        },
+    )
+    assert upload_resp.status_code == 201, upload_resp.text
+    main_id = upload_resp.json()[0]["id"]
+    variant_id = upload_resp.json()[1]["id"]
+
+    traffic_resp = test_client.post(
+        f"/api/article-distribution/articles/{main_id}/traffic-stats",
+        headers=_headers(owner),
+        json={"read_count": 300, "like_count": 30, "favorite_count": 12},
+    )
+    assert traffic_resp.status_code == 201
+
+    denied_resp = test_client.get(
+        "/api/article-distribution/reports/metadata-dashboard",
+        headers=_headers(viewer),
+    )
+    assert denied_resp.status_code == 403
+
+    dashboard_resp = test_client.get(
+        "/api/article-distribution/reports/metadata-dashboard",
+        headers=_headers(admin),
+        params={
+            "scheduled_from": "2026-05-30",
+            "scheduled_to": "2026-05-31",
+            "platform": "wechat",
+            "publication_type": "article",
+        },
+    )
+    assert dashboard_resp.status_code == 200, dashboard_resp.text
+    dashboard = dashboard_resp.json()
+    assert dashboard["summary"]["topic_count"] == 1
+    assert dashboard["summary"]["article_count"] == 2
+    assert dashboard["summary"]["material_count"] == 2
+    assert dashboard["summary"]["read_count"] == 300
+
+    topic = dashboard["topics"][0]
+    assert topic["output_id"] == "260530_5"
+    assert topic["topic"] == "AIFC Douju算力预算控制"
+    assert topic["materials"] == [
+        "首届 Douju 全球 AI 互动影视创作大赛细则",
+        "AI短剧风口下：凌晨五点，抢算力的人",
+    ]
+    assert [article["id"] for article in topic["articles"]] == [variant_id, main_id]
+    assert topic["articles"][0]["article_role"] == "variant"
+    assert topic["articles"][0]["angle_label"] == "案例复盘型"
+    assert topic["articles"][1]["summary"] == "拆解算力预算痛点并给出积分控制方案"
+    assert topic["articles"][1]["latest_traffic_stat"]["read_count"] == 300
 
 
 def test_user_cannot_manage_other_users_traffic_stats(
