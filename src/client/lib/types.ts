@@ -584,11 +584,14 @@ export interface ArticleDistributionPendingReportFilters {
   publication_type?: ArticlePublicationType
   account_status?: ArticleDistributionAccountStatusFilter
   publish_status?: ArticlePublishStatus
+  page?: number
+  page_size?: number
 }
 
 export interface ArticleDistributionMetadataDashboardArticle {
   id: number
   title: string
+  markdown_content: string
   scheduled_date: string
   publish_status: ArticlePublishStatus
   published_url: string | null
@@ -631,6 +634,9 @@ export interface ArticleDistributionMetadataDashboardSummary {
 export interface ArticleDistributionMetadataDashboard {
   summary: ArticleDistributionMetadataDashboardSummary
   topics: ArticleDistributionMetadataDashboardTopic[]
+  total: number
+  page: number
+  page_size: number
 }
 
 export type ArticleDistributionPublicityRecordExportParams = ArticleDistributionPendingReportFilters

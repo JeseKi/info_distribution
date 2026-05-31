@@ -300,6 +300,7 @@ class ArticleDistributionPublicDashboardOut(BaseModel):
 class ArticleDistributionMetadataDashboardArticleOut(BaseModel):
     id: int
     title: str
+    markdown_content: str
     scheduled_date: date
     publish_status: PublishStatus
     published_url: str | None
@@ -342,6 +343,9 @@ class ArticleDistributionMetadataDashboardSummaryOut(BaseModel):
 class ArticleDistributionMetadataDashboardOut(BaseModel):
     summary: ArticleDistributionMetadataDashboardSummaryOut
     topics: list[ArticleDistributionMetadataDashboardTopicOut]
+    total: int
+    page: int
+    page_size: int
 
 
 class APIKeyCreate(BaseModel):

@@ -45,6 +45,8 @@ async def list_metadata_dashboard(
     publication_type: PublicationType | None = Query(default=None),
     account_status: AccountStatusFilter = Query(default="active"),
     publish_status: PublishStatus | None = Query(default=None),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
     db: Session = Depends(get_db),
     _: User = Security(
         get_current_user,
@@ -60,6 +62,8 @@ async def list_metadata_dashboard(
             publication_type=publication_type,
             account_status=account_status,
             publish_status=publish_status,
+            page=page,
+            page_size=page_size,
         )
 
     return await run_in_thread(_list)

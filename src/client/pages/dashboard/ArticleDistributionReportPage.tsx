@@ -10,6 +10,7 @@ import {
   Flex,
   Form,
   Input,
+  Modal,
   Popover,
   Select,
   Space,
@@ -24,6 +25,7 @@ import { ReloadOutlined, SearchOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import * as articleApi from '../../lib/articleDistribution'
 import { useAuth } from '../../hooks/useAuth'
+import MarkdownArticleViewer from '../../components/article/MarkdownArticleViewer'
 import type {
   ArticleDistributionAccountStatusFilter,
   ArticleDistributionMetadataDashboardArticle,
@@ -663,6 +665,10 @@ function MetadataDashboardContent() {
   const [summary, setSummary] = useState<ArticleDistributionMetadataDashboardSummary>(
     emptyMetadataDashboardSummary,
   )
+  const [selectedArticle, setSelectedArticle] = useState<ArticleDistributionMetadataDashboardArticle | null>(null)
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(20)
+  const [total, setTotal] = useState(0)
 
   const buildFilters = useCallback((): ArticleDistributionPendingReportFilters => {
     const values = form.getFieldsValue()
@@ -677,12 +683,23 @@ function MetadataDashboardContent() {
     }
   }, [form])
 
-  const loadDashboard = useCallback(async (filters?: ArticleDistributionPendingReportFilters) => {
+  const loadDashboard = useCallback(async (
+    filters?: ArticleDistributionPendingReportFilters,
+    pagination: { page: number; pageSize: number } = { page: 1, pageSize: 20 },
+  ) => {
     setLoading(true)
     try {
-      const dashboard = await articleApi.listArticleMetadataDashboard(filters)
+      const dashboard = await articleApi.listArticleMetadataDashboard({
+        ...filters,
+        page: pagination.page,
+        page_size: pagination.pageSize,
+      })
       setTopics(dashboard.topics)
       setSummary(dashboard.summary)
+      setPage(dashboard.page)
+      setPageSize(dashboard.page_size)
+      setTotal(dashboard.total)
+      setSelectedArticle(null)
     } catch (error) {
       message.error(resolveApiErrorMessage(error, '选题看板加载失败'))
     } finally {
@@ -833,13 +850,28 @@ function MetadataDashboardContent() {
       title: '发布链接',
       dataIndex: 'published_url',
       key: 'published_url',
-      fixed: 'right',
       width: 110,
       render: (value: string | null) => value ? (
         <Typography.Link href={value} target="_blank" rel="noreferrer">
           检查
         </Typography.Link>
       ) : '-',
+    },
+    {
+      title: '操作',
+      key: 'actions',
+      fixed: 'right',
+      width: 100,
+      render: (_, record) => {
+        return (
+          <Button
+            size="small"
+            onClick={() => setSelectedArticle(record)}
+          >
+            详情
+          </Button>
+        )
+      },
     },
   ]
 
@@ -854,7 +886,7 @@ function MetadataDashboardContent() {
             从文章元数据汇总选题、素材、摘要、账号和最新流量。
           </Typography.Text>
         </div>
-        <Button icon={<ReloadOutlined />} loading={loading} onClick={() => void loadDashboard(buildFilters())}>
+        <Button icon={<ReloadOutlined />} loading={loading} onClick={() => void loadDashboard(buildFilters(), { page, pageSize })}>
           刷新
         </Button>
       </Flex>
@@ -888,13 +920,13 @@ function MetadataDashboardContent() {
             </Form.Item>
             <Form.Item>
               <Space>
-                <Button type="primary" onClick={() => void loadDashboard(buildFilters())}>
+                <Button type="primary" onClick={() => void loadDashboard(buildFilters(), { page: 1, pageSize })}>
                   筛选
                 </Button>
                 <Button
                   onClick={() => {
                     form.resetFields()
-                    void loadDashboard()
+                    void loadDashboard(undefined, { page: 1, pageSize })
                   }}
                 >
                   重置
@@ -924,11 +956,126 @@ function MetadataDashboardContent() {
           ),
         }}
         locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无元数据" /> }}
-        pagination={{ pageSize: 10, showSizeChanger: true }}
+        pagination={{
+          current: page,
+          pageSize,
+          total,
+          showSizeChanger: true,
+          pageSizeOptions: [20, 50, 100],
+          showTotal: (_, range) => `第 ${range[0]}-${range[1]} 篇，共 ${total} 篇`,
+          onChange: (nextPage, nextPageSize) => {
+            void loadDashboard(buildFilters(), { page: nextPage, pageSize: nextPageSize })
+          },
+        }}
         tableLayout="fixed"
         scroll={{ x: 1200 }}
       />
+      <MetadataArticleDetailModal
+        article={selectedArticle}
+        onClose={() => setSelectedArticle(null)}
+      />
     </Flex>
+  )
+}
+
+function MetadataArticleDetailModal({
+  article,
+  onClose,
+}: {
+  article: ArticleDistributionMetadataDashboardArticle | null
+  onClose: () => void
+}) {
+  if (!article) {
+    return null
+  }
+
+  return (
+    <Modal
+      open
+      width="min(96vw, 1180px)"
+      title={article.title}
+      footer={null}
+      onCancel={onClose}
+      destroyOnClose
+    >
+      <Flex vertical gap={14}>
+        <Descriptions size="small" column={{ xs: 1, sm: 2, md: 4 }}>
+          <Descriptions.Item label="文章 ID">{article.id}</Descriptions.Item>
+          <Descriptions.Item label="账号">{article.platform} / {article.account_name}</Descriptions.Item>
+          <Descriptions.Item label="发布类型">{publicationTypeText[article.publication_type]}</Descriptions.Item>
+          <Descriptions.Item label="计划日期">{article.scheduled_date}</Descriptions.Item>
+          <Descriptions.Item label="文章角色">{article.article_role ?? '-'}</Descriptions.Item>
+          <Descriptions.Item label="角度">{article.angle_label ?? '-'}</Descriptions.Item>
+          <Descriptions.Item label="受众">{article.audience_label ?? '-'}</Descriptions.Item>
+          <Descriptions.Item label="状态">{publishStatusTag(article.publish_status)}</Descriptions.Item>
+          <Descriptions.Item label="阅读量">{renderTrafficValue(article.latest_traffic_stat?.read_count)}</Descriptions.Item>
+          <Descriptions.Item label="点赞量">{renderTrafficValue(article.latest_traffic_stat?.like_count)}</Descriptions.Item>
+          <Descriptions.Item label="收藏量">{renderTrafficValue(article.latest_traffic_stat?.favorite_count)}</Descriptions.Item>
+          <Descriptions.Item label="转发量">{renderTrafficValue(article.latest_traffic_stat?.share_count)}</Descriptions.Item>
+          <Descriptions.Item label="发布链接">
+            {article.published_url ? (
+              <Typography.Link href={article.published_url} target="_blank" rel="noreferrer">
+                检查
+              </Typography.Link>
+            ) : '-'}
+          </Descriptions.Item>
+        </Descriptions>
+        <div>
+          <Typography.Text strong>痛点解决方案</Typography.Text>
+          <Typography.Paragraph style={{ margin: '6px 0 0' }}>
+            {article.summary || '-'}
+          </Typography.Paragraph>
+        </div>
+        <Tabs
+          items={[
+            {
+              key: 'preview',
+              label: '正文预览',
+              children: (
+                <div style={{ maxHeight: '60vh', overflow: 'auto', paddingRight: 8 }}>
+                  <MarkdownArticleViewer markdown={article.markdown_content} />
+                </div>
+              ),
+            },
+            {
+              key: 'source',
+              label: '正文源码',
+              children: (
+                <PreBlock content={article.markdown_content} maxHeight="60vh" />
+              ),
+            },
+            {
+              key: 'metadata',
+              label: '元数据',
+              children: (
+                <PreBlock content={JSON.stringify(article.metadata ?? {}, null, 2)} maxHeight="60vh" />
+              ),
+            },
+          ]}
+        />
+      </Flex>
+    </Modal>
+  )
+}
+
+function PreBlock({ content, maxHeight }: { content: string; maxHeight: string }) {
+  return (
+    <pre
+      style={{
+        margin: 0,
+        boxSizing: 'border-box',
+        maxWidth: '100%',
+        maxHeight,
+        overflow: 'auto',
+        whiteSpace: 'pre-wrap',
+        wordBreak: 'break-word',
+        padding: 12,
+        borderRadius: 6,
+        background: 'var(--ant-color-fill-quaternary)',
+      }}
+    >
+      {content}
+    </pre>
   )
 }
 

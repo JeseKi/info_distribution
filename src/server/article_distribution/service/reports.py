@@ -114,15 +114,19 @@ def list_metadata_dashboard(
     publication_type: str | None = None,
     account_status: AccountStatusFilter = "active",
     publish_status: str | None = None,
+    page: int = 1,
+    page_size: int = 20,
 ) -> ArticleDistributionMetadataDashboardOut:
     dao = ArticleDistributionDAO(db)
-    rows = dao.list_metadata_dashboard_article_rows(
+    rows, total = dao.list_metadata_dashboard_article_rows_page(
         scheduled_from=scheduled_from,
         scheduled_to=scheduled_to,
         platform=normalize_optional(platform),
         publication_type=publication_type,
         account_status=account_status,
         publish_status=publish_status,
+        page=page,
+        page_size=page_size,
     )
     latest_traffic_stats = dao.latest_traffic_stats_by_article_ids(
         [article.id for article, _ in rows]
@@ -177,6 +181,7 @@ def list_metadata_dashboard(
             ArticleDistributionMetadataDashboardArticleOut(
                 id=article.id,
                 title=article.title,
+                markdown_content=article.markdown_content,
                 scheduled_date=article.scheduled_date,
                 publish_status=normalize_publish_status(article.publish_status),
                 published_url=article.published_url,
@@ -210,6 +215,9 @@ def list_metadata_dashboard(
             share_count=sum(topic.share_count for topic in topics),
         ),
         topics=topics,
+        total=total,
+        page=page,
+        page_size=page_size,
     )
 
 
