@@ -713,6 +713,11 @@ def test_metadata_dashboard_groups_articles_by_output_id_and_requires_scope(
                         },
                     },
                 },
+                {
+                    "title": "No metadata",
+                    "markdown_content": "body",
+                    "scheduled_date": "2026-06-01",
+                },
             ],
         },
     )
@@ -749,6 +754,7 @@ def test_metadata_dashboard_groups_articles_by_output_id_and_requires_scope(
     assert dashboard["summary"]["article_count"] == 2
     assert dashboard["summary"]["material_count"] == 2
     assert dashboard["summary"]["read_count"] == 300
+    assert dashboard["total"] == 2
 
     topic = dashboard["topics"][0]
     assert topic["output_id"] == "260530_5"
@@ -762,6 +768,42 @@ def test_metadata_dashboard_groups_articles_by_output_id_and_requires_scope(
     assert topic["articles"][0]["angle_label"] == "案例复盘型"
     assert topic["articles"][1]["summary"] == "拆解算力预算痛点并给出积分控制方案"
     assert topic["articles"][1]["latest_traffic_stat"]["read_count"] == 300
+
+    fallback_account_resp = test_client.post(
+        "/api/article-distribution/accounts",
+        headers=_headers(admin),
+        json={
+            "user_id": owner.id,
+            "account_name": "备用号",
+            "platform": "fallback",
+            "publication_type": "article",
+        },
+    )
+    fallback_upload_resp = test_client.post(
+        "/api/admin/article-distribution/articles",
+        headers=_headers(admin),
+        json={
+            "account_id": fallback_account_resp.json()["id"],
+            "articles": [
+                {
+                    "title": "Fallback only",
+                    "markdown_content": "body",
+                    "scheduled_date": "2026-06-02",
+                }
+            ],
+        },
+    )
+    assert fallback_upload_resp.status_code == 201
+    fallback_resp = test_client.get(
+        "/api/article-distribution/reports/metadata-dashboard",
+        headers=_headers(admin),
+        params={"platform": "fallback"},
+    )
+    assert fallback_resp.status_code == 200
+    fallback_dashboard = fallback_resp.json()
+    assert fallback_dashboard["total"] == 1
+    assert fallback_dashboard["topics"][0]["topic"] == "未设置选题"
+    assert fallback_dashboard["topics"][0]["articles"][0]["title"] == "Fallback only"
 
 
 def test_user_cannot_manage_other_users_traffic_stats(

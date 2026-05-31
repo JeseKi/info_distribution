@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from datetime import date, datetime
 
-from sqlalchemy import case, func
+from sqlalchemy import case, func, or_
 from sqlalchemy.orm import Query
 from sqlalchemy.orm import Session
 
@@ -483,7 +483,13 @@ class ArticleDistributionDAO(BaseDAO):
             query = query.filter(
                 ArticleDistributionArticle.publish_status == publish_status
             )
-        total = query.count()
+        identity_filter = self._metadata_dashboard_identity_filter()
+        identity_total = query.filter(identity_filter).count()
+        if identity_total > 0:
+            query = query.filter(identity_filter)
+            total = identity_total
+        else:
+            total = query.count()
         rows = (
             query.with_entities(
                 ArticleDistributionArticle,
@@ -495,6 +501,14 @@ class ArticleDistributionDAO(BaseDAO):
             .all()
         )
         return [(article, account) for article, account in rows], total
+
+    def _metadata_dashboard_identity_filter(self):
+        output_id = ArticleDistributionArticle.article_metadata["output_id"].as_string()
+        topic = ArticleDistributionArticle.article_metadata["topic"].as_string()
+        return or_(
+            output_id.isnot(None) & (output_id != ""),
+            topic.isnot(None) & (topic != ""),
+        )
 
     def list_missing_traffic_article_rows_page(
         self,
