@@ -17,4 +17,6 @@ pytest-asyncio
 httpx
 httpx[socks]
 types-python-jose
+types-openpyxl
 alembic
+openpyxl

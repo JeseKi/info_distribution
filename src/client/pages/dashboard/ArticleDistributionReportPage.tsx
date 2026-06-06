@@ -23,7 +23,7 @@ import {
   Typography,
 } from 'antd'
 import type { TableColumnsType } from 'antd'
-import { ReloadOutlined, SearchOutlined, SettingOutlined } from '@ant-design/icons'
+import { DownloadOutlined, ReloadOutlined, SearchOutlined, SettingOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import * as articleApi from '../../lib/articleDistribution'
 import { useAuth } from '../../hooks/useAuth'
@@ -39,6 +39,7 @@ import type {
   ArticleDistributionOverviewUser,
   ArticleDistributionOverviewView,
   ArticleDistributionPlatformSummary,
+  ArticleDistributionReportExportFormat,
   ArticlePublicationType,
   ArticlePublishStatus,
 } from '../../lib/types'
@@ -282,6 +283,8 @@ export default function ArticleDistributionReportPage() {
   const [form] = Form.useForm<FilterValues>()
   const [view, setView] = useState<ArticleDistributionOverviewView>('users')
   const [loading, setLoading] = useState(false)
+  const [exporting, setExporting] = useState(false)
+  const [exportFormat, setExportFormat] = useState<ArticleDistributionReportExportFormat>('xlsx')
   const [overview, setOverview] = useState<ArticleDistributionOverview>(defaultOverview)
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(20)
@@ -366,6 +369,22 @@ export default function ArticleDistributionReportPage() {
   const handleViewChange = (nextView: ArticleDistributionOverviewView) => {
     setView(nextView)
     setPage(1)
+  }
+
+  const handleExport = async () => {
+    if (view === 'topics' && !canViewTopics) {
+      message.error('缺少选题汇总导出权限')
+      return
+    }
+    setExporting(true)
+    try {
+      await articleApi.downloadReportOverviewExport(buildParams(1, pageSize), exportFormat)
+      message.success('文件已开始下载')
+    } catch (error) {
+      message.error(resolveApiErrorMessage(error, '统一报表导出失败'))
+    } finally {
+      setExporting(false)
+    }
   }
 
   const summary = overview.summary
@@ -514,6 +533,22 @@ export default function ArticleDistributionReportPage() {
             visibleKeys={visibleColumns[view]}
             onChange={setVisibleKeys}
           />
+          <Select<ArticleDistributionReportExportFormat>
+            value={exportFormat}
+            options={[
+              { label: 'Excel', value: 'xlsx' },
+              { label: 'CSV', value: 'csv' },
+            ]}
+            style={{ width: 96 }}
+            onChange={setExportFormat}
+          />
+          <Button
+            icon={<DownloadOutlined />}
+            loading={exporting}
+            onClick={() => void handleExport()}
+          >
+            导出
+          </Button>
           <Button
             icon={<ReloadOutlined />}
             loading={loading}

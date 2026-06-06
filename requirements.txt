@@ -22,6 +22,8 @@ ecdsa==0.19.1
     # via python-jose
 email-validator==2.3.0
     # via pydantic
+et-xmlfile==2.0.0
+    # via openpyxl
 fastapi==0.115.0
     # via -r requirements.in
 greenlet==3.2.4
@@ -51,6 +53,8 @@ mypy==1.18.1
     # via -r requirements.in
 mypy-extensions==1.1.0
     # via mypy
+openpyxl==3.1.5
+    # via -r requirements.in
 packaging==25.0
     # via pytest
 pathspec==0.12.1
@@ -99,6 +103,8 @@ sqlalchemy==2.0.35
 starlette==0.38.6
     # via fastapi
 ty==0.0.1a20
+    # via -r requirements.in
+types-openpyxl==3.1.5.20260518
     # via -r requirements.in
 types-pyasn1==0.6.0.20250914
     # via types-python-jose

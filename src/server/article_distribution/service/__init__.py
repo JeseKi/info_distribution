@@ -24,6 +24,9 @@ from .article_mutations import (
 )
 from .article_queries import get_article, list_articles, list_articles_page
 from .reports import (
+    EXPORT_FILE_EXTENSIONS,
+    EXPORT_MEDIA_TYPES,
+    build_report_overview_export,
     build_publicity_records_csv,
     get_missing_traffic_report_user_detail,
     get_unpublished_report_user_detail,
@@ -42,7 +45,10 @@ from .traffic import (
 )
 
 __all__ = [
+    "EXPORT_FILE_EXTENSIONS",
+    "EXPORT_MEDIA_TYPES",
     "authenticate_api_key",
+    "build_report_overview_export",
     "build_publicity_records_csv",
     "create_account",
     "create_api_key",

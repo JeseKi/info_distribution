@@ -21,6 +21,7 @@ import type {
   ArticleDistributionOverviewParams,
   ArticleDistributionPendingReportFilters,
   ArticleDistributionPublicityRecordExportParams,
+  ArticleDistributionReportExportFormat,
   ArticleDistributionTrafficStat,
   ArticleDistributionTrafficStatPayload,
   ArticleDistributionTrafficSummaryPage,
@@ -142,6 +143,24 @@ export async function listReportOverview(
   return data
 }
 
+export async function downloadReportOverviewExport(
+  params: ArticleDistributionOverviewParams,
+  format: ArticleDistributionReportExportFormat = 'xlsx',
+): Promise<void> {
+  const exportParams = { ...params }
+  delete exportParams.page
+  delete exportParams.page_size
+  const response = await api.get<Blob>('/article-distribution/reports/overview/export', {
+    params: { ...exportParams, format },
+    responseType: 'blob',
+  })
+  downloadBlobResponse(
+    response.data,
+    response.headers['content-disposition'],
+    `overview-${exportParams.view ?? 'users'}-${new Date().toISOString().slice(0, 10)}.${format}`,
+  )
+}
+
 export async function listArticleMetadataDashboard(
   params?: ArticleDistributionPendingReportFilters,
 ): Promise<ArticleDistributionMetadataDashboard> {
@@ -221,11 +240,16 @@ export async function downloadPublicityRecordsCsv(
     params,
     responseType: 'blob',
   })
-  const filename = resolveDownloadFilename(
+  downloadBlobResponse(
+    response.data,
     response.headers['content-disposition'],
     `publicity-records-${new Date().toISOString().slice(0, 10)}.csv`,
   )
-  const objectUrl = URL.createObjectURL(response.data)
+}
+
+function downloadBlobResponse(blob: Blob, contentDisposition: unknown, fallback: string): void {
+  const filename = resolveDownloadFilename(contentDisposition, fallback)
+  const objectUrl = URL.createObjectURL(blob)
   const link = document.createElement('a')
   link.href = objectUrl
   link.download = filename

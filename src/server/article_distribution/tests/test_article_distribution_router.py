@@ -4,9 +4,10 @@
 from __future__ import annotations
 
 import csv
-from io import StringIO
+from io import BytesIO, StringIO
 import socket
 
+from openpyxl import load_workbook
 import pytest
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
@@ -1243,6 +1244,164 @@ def test_report_overview_supports_views_filters_and_topic_permission(
     topic_report = topic_resp.json()
     assert topic_report["items"][0]["item_type"] == "topic"
     assert any(item["topic"] == "统一报表" for item in topic_report["items"])
+
+
+def test_report_overview_export_supports_csv_xlsx_and_permissions(
+    test_client, test_db_session: Session
+):
+    owner = _create_user(test_db_session, username="overview_export_owner")
+    viewer = _create_user(test_db_session, username="overview_export_viewer")
+    admin = _create_user(
+        test_db_session, username="overview_export_admin", role=UserRole.ADMIN
+    )
+
+    account_resp = test_client.post(
+        "/api/article-distribution/accounts",
+        headers=_headers(admin),
+        json={
+            "user_id": owner.id,
+            "account_name": "导出公众号",
+            "platform": "wechat",
+            "publication_type": "article",
+        },
+    )
+    assert account_resp.status_code == 201
+
+    upload_resp = test_client.post(
+        "/api/admin/article-distribution/articles",
+        headers=_headers(admin),
+        json={
+            "account_id": account_resp.json()["id"],
+            "articles": [
+                {
+                    "title": "Export published",
+                    "markdown_content": "body",
+                    "scheduled_date": "2026-05-20",
+                    "metadata": {
+                        "output_id": "export_topic",
+                        "topic": "导出选题",
+                        "article": {"role": "main"},
+                    },
+                },
+                {
+                    "title": "Export unpublished",
+                    "markdown_content": "body",
+                    "scheduled_date": "2026-05-21",
+                },
+            ],
+        },
+    )
+    assert upload_resp.status_code == 201
+    published_id = upload_resp.json()[0]["id"]
+
+    publish_resp = test_client.patch(
+        f"/api/article-distribution/articles/{published_id}/status",
+        headers=_headers(owner),
+        json={
+            "publish_status": "published",
+            "published_url": "https://example.com/export",
+        },
+    )
+    assert publish_resp.status_code == 200
+
+    stat_resp = test_client.post(
+        f"/api/article-distribution/articles/{published_id}/traffic-stats",
+        headers=_headers(owner),
+        json={
+            "read_count": 88,
+            "like_count": 8,
+            "favorite_count": 6,
+            "share_count": 4,
+            "recorded_at": "2026-05-27T10:00:00+00:00",
+        },
+    )
+    assert stat_resp.status_code == 201
+
+    denied_resp = test_client.get(
+        "/api/article-distribution/reports/overview/export",
+        headers=_headers(viewer),
+    )
+    assert denied_resp.status_code == 403
+
+    viewer.scope_overrides = auth_service.serialize_scopes(
+        [
+            *auth_service.get_role_scopes(UserRole.USER),
+            auth_service.SCOPE_ARTICLE_DISTRIBUTION_REPORT_READ,
+        ]
+    )
+    test_db_session.commit()
+    test_db_session.refresh(viewer)
+
+    csv_resp = test_client.get(
+        "/api/article-distribution/reports/overview/export",
+        headers=_headers(viewer),
+        params={
+            "view": "articles",
+            "format": "csv",
+            "keyword": "Export",
+            "scheduled_from": "2026-05-20",
+            "scheduled_to": "2026-05-21",
+        },
+    )
+    assert csv_resp.status_code == 200, csv_resp.text
+    assert csv_resp.headers["content-type"].startswith("text/csv")
+    assert "overview-articles-2026-05-21.csv" in csv_resp.headers[
+        "content-disposition"
+    ]
+    csv_rows = list(csv.DictReader(StringIO(csv_resp.content.decode("utf-8-sig"))))
+    assert [row["标题"] for row in csv_rows] == [
+        "Export unpublished",
+        "Export published",
+    ]
+    published_row = csv_rows[1]
+    assert published_row["发布账号"] == "导出公众号"
+    assert published_row["发布状态"] == "已发布"
+    assert published_row["发布链接"] == "https://example.com/export"
+    assert published_row["阅读量"] == "88"
+    assert published_row["点赞量"] == "8"
+    assert published_row["选题"] == "导出选题"
+
+    xlsx_resp = test_client.get(
+        "/api/article-distribution/reports/overview/export",
+        headers=_headers(viewer),
+        params={"view": "users", "format": "xlsx", "keyword": "Export"},
+    )
+    assert xlsx_resp.status_code == 200, xlsx_resp.text
+    assert xlsx_resp.headers["content-type"].startswith(
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+    workbook = load_workbook(BytesIO(xlsx_resp.content), read_only=True)
+    worksheet = workbook["用户汇总"]
+    rows = list(worksheet.iter_rows(values_only=True))
+    assert rows[0][:5] == ("用户ID", "负责人", "用户名", "邮箱", "剩余未发布")
+    assert rows[1][0] == owner.id
+    assert rows[1][5] == 1
+    assert rows[1][9] == 88
+    workbook.close()
+
+    topic_denied_resp = test_client.get(
+        "/api/article-distribution/reports/overview/export",
+        headers=_headers(viewer),
+        params={"view": "topics"},
+    )
+    assert topic_denied_resp.status_code == 403
+
+    topic_resp = test_client.get(
+        "/api/article-distribution/reports/overview/export",
+        headers=_headers(admin),
+        params={"view": "topics", "format": "csv"},
+    )
+    assert topic_resp.status_code == 200, topic_resp.text
+    topic_rows = list(csv.DictReader(StringIO(topic_resp.content.decode("utf-8-sig"))))
+    topic_row = next(row for row in topic_rows if row["Output ID"] == "export_topic")
+    assert topic_row["选题"] == "导出选题"
+
+    invalid_missing_resp = test_client.get(
+        "/api/article-distribution/reports/overview/export",
+        headers=_headers(viewer),
+        params={"view": "articles", "missing_traffic_only": True},
+    )
+    assert invalid_missing_resp.status_code == 400
 
 
 def test_admin_can_export_publicity_records_csv(test_client, test_db_session: Session):

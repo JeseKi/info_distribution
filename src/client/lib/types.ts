@@ -647,6 +647,8 @@ export interface ArticleDistributionMetadataDashboard {
 
 export type ArticleDistributionOverviewView = 'users' | 'articles' | 'topics'
 
+export type ArticleDistributionReportExportFormat = 'xlsx' | 'csv'
+
 export interface ArticleDistributionOverviewSummary {
   total_users: number
   total_articles: number
