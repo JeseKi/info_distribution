@@ -16,7 +16,13 @@ from src.server.dao.dao_base import run_in_thread
 from src.server.database import get_db
 
 from .. import service
-from ..schemas import AccountCreate, AccountOut, AccountUpdate, PublicationType
+from ..schemas import (
+    AccountCreate,
+    AccountOut,
+    AccountPageOut,
+    AccountUpdate,
+    PublicationType,
+)
 from .shared import router
 
 
@@ -42,6 +48,40 @@ async def list_accounts(
         )
 
     return await run_in_thread(_list)
+
+
+@router.get(
+    "/accounts/page",
+    response_model=AccountPageOut,
+    summary="分页列出账号",
+)
+async def list_accounts_page(
+    user_id: int | None = Query(default=None, ge=1),
+    platform: str | None = Query(default=None),
+    publication_type: PublicationType | None = Query(default=None),
+    is_active: bool | None = Query(default=None),
+    keyword: str | None = Query(default=None),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=10, ge=1, le=100),
+    db: Session = Depends(get_db),
+    current_user: User = Security(
+        get_current_user, scopes=[SCOPE_ARTICLE_DISTRIBUTION_READ]
+    ),
+):
+    def _list_page():
+        return service.list_accounts_page(
+            db,
+            current_user=current_user,
+            user_id=user_id,
+            platform=platform,
+            publication_type=publication_type,
+            is_active=is_active,
+            keyword=keyword,
+            page=page,
+            page_size=page_size,
+        )
+
+    return await run_in_thread(_list_page)
 
 
 @router.post(

@@ -25,6 +25,7 @@ import {
   FileTextOutlined,
   BarChartOutlined,
   LineChartOutlined,
+  TeamOutlined,
 } from '@ant-design/icons'
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth'
@@ -94,6 +95,9 @@ export default function MainLayout() {
     if (location.pathname === '/article-distribution/report') {
       return ['article-distribution-report']
     }
+    if (location.pathname === '/article-distribution/accounts') {
+      return ['article-distribution-accounts']
+    }
     if (location.pathname === '/article-distribution/traffic') {
       return ['article-distribution-traffic']
     }
@@ -125,6 +129,11 @@ export default function MainLayout() {
             key: 'article-distribution',
             icon: <FileTextOutlined />,
             label: <Link to="/article-distribution">文章分发</Link>,
+          },
+          {
+            key: 'article-distribution-accounts',
+            icon: <TeamOutlined />,
+            label: <Link to="/article-distribution/accounts">分发账户</Link>,
           },
           {
             key: 'article-distribution-traffic',

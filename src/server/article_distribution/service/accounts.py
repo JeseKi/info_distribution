@@ -15,6 +15,8 @@ from ..models import ArticleDistributionAccount
 from ..schemas import (
     AccountCreate,
     AccountDirectoryOut,
+    AccountOut,
+    AccountPageOut,
     AccountUpdate,
     UserAccountDirectoryOut,
 )
@@ -43,6 +45,36 @@ def list_accounts(
         platform=normalize_optional(platform),
         publication_type=publication_type,
         is_active=is_active,
+    )
+
+
+def list_accounts_page(
+    db: Session,
+    *,
+    current_user: User,
+    user_id: int | None = None,
+    platform: str | None = None,
+    publication_type: str | None = None,
+    is_active: bool | None = None,
+    keyword: str | None = None,
+    page: int = 1,
+    page_size: int = 10,
+) -> AccountPageOut:
+    target_user_id = resolve_optional_target_user_id(current_user, user_id)
+    items, total = ArticleDistributionDAO(db).list_accounts_page(
+        user_id=target_user_id,
+        platform=normalize_optional(platform),
+        publication_type=publication_type,
+        is_active=is_active,
+        keyword=normalize_optional(keyword),
+        page=page,
+        page_size=page_size,
+    )
+    return AccountPageOut(
+        items=[AccountOut.model_validate(item) for item in items],
+        total=total,
+        page=page,
+        page_size=page_size,
     )
 
 

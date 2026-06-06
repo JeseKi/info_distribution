@@ -38,6 +38,13 @@ class AccountOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class AccountPageOut(BaseModel):
+    items: list[AccountOut]
+    total: int
+    page: int
+    page_size: int
+
+
 class AccountDirectoryOut(BaseModel):
     id: int
     platform: str

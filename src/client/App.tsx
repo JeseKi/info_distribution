@@ -2,6 +2,7 @@ import { BrowserRouter as Router, Navigate, Route, Routes } from 'react-router-d
 import MainLayout from './components/layout/MainLayout'
 import DashboardPage from './pages/dashboard/DashboardPage'
 import ArticleDistributionPage from './pages/dashboard/ArticleDistributionPage'
+import ArticleDistributionAccountsPage from './pages/dashboard/ArticleDistributionAccountsPage'
 import ArticleDistributionReportPage from './pages/dashboard/ArticleDistributionReportPage'
 import ArticleTrafficStatsPage from './pages/dashboard/ArticleTrafficStatsPage'
 import ProfilePage from './pages/profile/ProfilePage'
@@ -57,6 +58,7 @@ export default function App() {
             >
               <Route path="/dashboard" element={<DashboardPage />} />
               <Route path="/article-distribution" element={<ArticleDistributionPage />} />
+              <Route path="/article-distribution/accounts" element={<ArticleDistributionAccountsPage />} />
               <Route path="/article-distribution/traffic" element={<ArticleTrafficStatsPage />} />
               <Route
                 path="/article-distribution/report"

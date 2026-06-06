@@ -1,6 +1,8 @@
 import api from './api'
 import type {
   ArticleDistributionAccount,
+  ArticleDistributionAccountPage,
+  ArticleDistributionAccountPageParams,
   ArticleDistributionAccountPayload,
   ArticleDistributionApiKey,
   ArticleDistributionApiKeyCreatePayload,
@@ -38,6 +40,13 @@ export async function listArticleAccounts(params?: {
   is_active?: boolean
 }): Promise<ArticleDistributionAccount[]> {
   const { data } = await api.get<ArticleDistributionAccount[]>('/article-distribution/accounts', { params })
+  return data
+}
+
+export async function listArticleAccountsPage(
+  params?: ArticleDistributionAccountPageParams,
+): Promise<ArticleDistributionAccountPage> {
+  const { data } = await api.get<ArticleDistributionAccountPage>('/article-distribution/accounts/page', { params })
   return data
 }
 

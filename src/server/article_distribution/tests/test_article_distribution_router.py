@@ -228,6 +228,136 @@ def test_user_can_manage_own_accounts(test_client, test_db_session: Session):
     assert [item["id"] for item in list_resp.json()] == [account["id"]]
 
 
+def test_user_account_page_is_scoped_to_current_user(
+    test_client, test_db_session: Session
+):
+    owner = _create_user(test_db_session, username="account_page_owner")
+    other = _create_user(test_db_session, username="account_page_other")
+    admin = _create_user(test_db_session, username="account_page_admin", role=UserRole.ADMIN)
+
+    owner_accounts = []
+    for platform, account_name, publication_type, is_active in [
+        ("知乎", "主号", "article", True),
+        ("公众号", "备用号", "image_text", False),
+    ]:
+        create_resp = test_client.post(
+            "/api/article-distribution/accounts",
+            headers=_headers(owner),
+            json={
+                "account_name": account_name,
+                "platform": platform,
+                "publication_type": publication_type,
+                "is_active": is_active,
+            },
+        )
+        assert create_resp.status_code == 201
+        owner_accounts.append(create_resp.json())
+
+    other_resp = test_client.post(
+        "/api/article-distribution/accounts",
+        headers=_headers(admin),
+        json={
+            "user_id": other.id,
+            "account_name": "主号",
+            "platform": "知乎",
+            "publication_type": "article",
+        },
+    )
+    assert other_resp.status_code == 201
+
+    page_resp = test_client.get(
+        "/api/article-distribution/accounts/page",
+        headers=_headers(owner),
+        params={"page": 1, "page_size": 10},
+    )
+
+    assert page_resp.status_code == 200
+    page_data = page_resp.json()
+    assert page_data["total"] == 2
+    assert page_data["page"] == 1
+    assert page_data["page_size"] == 10
+    assert {item["id"] for item in page_data["items"]} == {
+        account["id"] for account in owner_accounts
+    }
+
+    keyword_resp = test_client.get(
+        "/api/article-distribution/accounts/page",
+        headers=_headers(owner),
+        params={"keyword": "备用", "is_active": False},
+    )
+    assert keyword_resp.status_code == 200
+    assert [item["account_name"] for item in keyword_resp.json()["items"]] == ["备用号"]
+
+    denied_resp = test_client.get(
+        "/api/article-distribution/accounts/page",
+        headers=_headers(owner),
+        params={"user_id": other.id},
+    )
+    assert denied_resp.status_code == 403
+
+
+def test_admin_account_page_filters_accounts(
+    test_client, test_db_session: Session
+):
+    owner_a = _create_user(test_db_session, username="account_filter_owner_a")
+    owner_b = _create_user(test_db_session, username="account_filter_owner_b")
+    admin = _create_user(test_db_session, username="account_filter_admin", role=UserRole.ADMIN)
+
+    for user_id, platform, account_name, publication_type, is_active in [
+        (owner_a.id, "知乎", "主号", "article", True),
+        (owner_a.id, "公众号", "图文号", "image_text", True),
+        (owner_b.id, "B站", "视频号", "video", False),
+        (owner_b.id, "知乎", "矩阵号", "article", True),
+    ]:
+        create_resp = test_client.post(
+            "/api/article-distribution/accounts",
+            headers=_headers(admin),
+            json={
+                "user_id": user_id,
+                "account_name": account_name,
+                "platform": platform,
+                "publication_type": publication_type,
+                "is_active": is_active,
+            },
+        )
+        assert create_resp.status_code == 201
+
+    all_resp = test_client.get(
+        "/api/article-distribution/accounts/page",
+        headers=_headers(admin),
+        params={"page": 1, "page_size": 2},
+    )
+    assert all_resp.status_code == 200
+    all_data = all_resp.json()
+    assert all_data["total"] == 4
+    assert len(all_data["items"]) == 2
+
+    user_resp = test_client.get(
+        "/api/article-distribution/accounts/page",
+        headers=_headers(admin),
+        params={"user_id": owner_a.id},
+    )
+    assert user_resp.status_code == 200
+    assert user_resp.json()["total"] == 2
+    assert {item["user_id"] for item in user_resp.json()["items"]} == {owner_a.id}
+
+    filtered_resp = test_client.get(
+        "/api/article-distribution/accounts/page",
+        headers=_headers(admin),
+        params={
+            "platform": "知乎",
+            "publication_type": "article",
+            "is_active": True,
+            "keyword": "矩阵",
+        },
+    )
+    assert filtered_resp.status_code == 200
+    filtered_data = filtered_resp.json()
+    assert filtered_data["total"] == 1
+    assert filtered_data["items"][0]["account_name"] == "矩阵号"
+    assert filtered_data["items"][0]["user_id"] == owner_b.id
+
+
 def test_user_cannot_access_other_users_articles(
     test_client, test_db_session: Session
 ):

@@ -3,7 +3,14 @@
 
 from __future__ import annotations
 
-from .accounts import AccountCreate, AccountDirectoryOut, AccountOut, AccountUpdate, UserAccountDirectoryOut
+from .accounts import (
+    AccountCreate,
+    AccountDirectoryOut,
+    AccountOut,
+    AccountPageOut,
+    AccountUpdate,
+    UserAccountDirectoryOut,
+)
 from .api_keys import APIKeyCreate, APIKeyCreateOut, APIKeyOut
 from .articles import (
     ArticleBatchCreate,
@@ -66,6 +73,7 @@ __all__ = [
     "AccountCreate",
     "AccountDirectoryOut",
     "AccountOut",
+    "AccountPageOut",
     "AccountStatusFilter",
     "AccountUpdate",
     "ArticleBatchCreate",

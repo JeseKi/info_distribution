@@ -346,6 +346,23 @@ export interface ArticleDistributionAccountPayload {
   user_id?: number | null
 }
 
+export interface ArticleDistributionAccountPage {
+  items: ArticleDistributionAccount[]
+  total: number
+  page: number
+  page_size: number
+}
+
+export interface ArticleDistributionAccountPageParams {
+  user_id?: number
+  platform?: string
+  publication_type?: ArticlePublicationType
+  is_active?: boolean
+  keyword?: string
+  page?: number
+  page_size?: number
+}
+
 export interface ArticleDistributionArticle {
   id: number
   user_id: number
