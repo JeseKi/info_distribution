@@ -4,6 +4,7 @@ import {
   App,
   Button,
   Card,
+  Checkbox,
   DatePicker,
   Descriptions,
   Empty,
@@ -12,6 +13,7 @@ import {
   Input,
   Modal,
   Popover,
+  Segmented,
   Select,
   Space,
   Statistic,
@@ -20,30 +22,29 @@ import {
   Tag,
   Typography,
 } from 'antd'
-import type { TableColumnsType, TablePaginationConfig } from 'antd'
-import { ReloadOutlined, SearchOutlined } from '@ant-design/icons'
+import type { TableColumnsType } from 'antd'
+import { ReloadOutlined, SearchOutlined, SettingOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import * as articleApi from '../../lib/articleDistribution'
 import { useAuth } from '../../hooks/useAuth'
 import MarkdownArticleViewer from '../../components/article/MarkdownArticleViewer'
 import type {
   ArticleDistributionAccountStatusFilter,
-  ArticleDistributionMetadataDashboardArticle,
-  ArticleDistributionMetadataDashboardSummary,
-  ArticleDistributionMetadataDashboardTopic,
-  ArticleDistributionMissingTrafficArticle,
-  ArticleDistributionMissingTrafficFilters,
-  ArticleDistributionMissingTrafficSummary,
-  ArticleDistributionMissingTrafficUser,
-  ArticleDistributionPendingArticle,
-  ArticleDistributionPendingReportFilters,
-  ArticleDistributionPendingUser,
+  ArticleDistributionOverview,
+  ArticleDistributionOverviewArticle,
+  ArticleDistributionOverviewItem,
+  ArticleDistributionOverviewParams,
+  ArticleDistributionOverviewSummary,
+  ArticleDistributionOverviewTopic,
+  ArticleDistributionOverviewUser,
+  ArticleDistributionOverviewView,
   ArticleDistributionPlatformSummary,
-  ArticleDistributionReportSummary,
   ArticlePublicationType,
   ArticlePublishStatus,
 } from '../../lib/types'
 import { resolveApiErrorMessage } from '../../lib/error'
+
+const metadataScope = 'article_distribution:metadata_dashboard:read'
 
 const publicationTypeOptions = [
   { label: '视频', value: 'video' },
@@ -63,10 +64,129 @@ const publishStatusOptions = [
   { label: '文档失效', value: 'invalid' },
 ]
 
+const viewOptions: { label: string; value: ArticleDistributionOverviewView }[] = [
+  { label: '用户汇总', value: 'users' },
+  { label: '文章明细', value: 'articles' },
+  { label: '选题汇总', value: 'topics' },
+]
+
 const publicationTypeText: Record<ArticlePublicationType, string> = {
   video: '视频',
   article: '文章',
   image_text: '图文',
+}
+
+const defaultSummary: ArticleDistributionOverviewSummary = {
+  total_users: 0,
+  total_articles: 0,
+  published_articles: 0,
+  unpublished_articles: 0,
+  invalid_articles: 0,
+  inactive_account_articles: 0,
+  missing_articles: 0,
+  topic_count: 0,
+  material_count: 0,
+  read_count: 0,
+  like_count: 0,
+  favorite_count: 0,
+  share_count: 0,
+}
+
+const defaultOverview: ArticleDistributionOverview = {
+  view: 'users',
+  summary: defaultSummary,
+  items: [],
+  total: 0,
+  page: 1,
+  page_size: 20,
+}
+
+const defaultVisibleColumns: Record<ArticleDistributionOverviewView, string[]> = {
+  users: [
+    'user',
+    'remaining_count',
+    'published_count',
+    'invalid_count',
+    'missing_count',
+    'read_count',
+    'like_count',
+    'favorite_count',
+    'share_count',
+  ],
+  articles: [
+    'article',
+    'user',
+    'account',
+    'publish_status',
+    'scheduled_date',
+    'missing_traffic',
+    'read_count',
+    'like_count',
+    'favorite_count',
+    'share_count',
+    'published_url',
+    'actions',
+  ],
+  topics: [
+    'topic',
+    'article_count',
+    'materials',
+    'read_count',
+    'like_count',
+    'favorite_count',
+    'share_count',
+  ],
+}
+
+const columnLabels: Record<ArticleDistributionOverviewView, Record<string, string>> = {
+  users: {
+    user: '用户',
+    remaining_count: '剩余未发布',
+    published_count: '已发布',
+    invalid_count: '失效',
+    missing_count: '未填流量',
+    read_count: '阅读量',
+    like_count: '点赞量',
+    favorite_count: '收藏量',
+    share_count: '转发量',
+  },
+  articles: {
+    article: '文章',
+    user: '用户',
+    account: '账号',
+    publish_status: '状态',
+    scheduled_date: '计划日期',
+    missing_traffic: '未填流量',
+    topic: '选题',
+    article_role: '角色',
+    read_count: '阅读量',
+    like_count: '点赞量',
+    favorite_count: '收藏量',
+    share_count: '转发量',
+    traffic_recorded_at: '统计时间',
+    published_url: '发布链接',
+    actions: '操作',
+  },
+  topics: {
+    topic: '选题',
+    article_count: '文章',
+    materials: '素材',
+    read_count: '阅读量',
+    like_count: '点赞量',
+    favorite_count: '收藏量',
+    share_count: '转发量',
+  },
+}
+
+interface FilterValues {
+  keyword?: string
+  platform?: string
+  publication_type?: ArticlePublicationType
+  publish_status?: ArticlePublishStatus
+  account_status?: ArticleDistributionAccountStatusFilter
+  date_range?: [dayjs.Dayjs, dayjs.Dayjs]
+  missing_traffic_only?: boolean
+  traffic_date?: dayjs.Dayjs
 }
 
 function publishStatusTag(status: ArticlePublishStatus) {
@@ -79,206 +199,185 @@ function renderTrafficValue(value: number | undefined) {
   return typeof value === 'number' ? value : '-'
 }
 
-const emptySummary: ArticleDistributionReportSummary = {
-  total_users: 0,
-  unpublished_users: 0,
-  published_articles: 0,
-  unpublished_articles: 0,
-  invalid_articles: 0,
-  inactive_account_articles: 0,
-  read_count: 0,
-  like_count: 0,
-  favorite_count: 0,
-  share_count: 0,
+function isUserItem(item: ArticleDistributionOverviewItem): item is ArticleDistributionOverviewUser {
+  return item.item_type === 'user'
 }
 
-interface FilterValues {
-  keyword?: string
-  platform?: string
-  publication_type?: ArticlePublicationType
-  account_status?: ArticleDistributionAccountStatusFilter
-  date_range?: [dayjs.Dayjs, dayjs.Dayjs]
+function isArticleItem(item: ArticleDistributionOverviewItem): item is ArticleDistributionOverviewArticle {
+  return item.item_type === 'article'
 }
 
-interface MissingTrafficFilterValues {
-  traffic_date?: dayjs.Dayjs
-  platform?: string
-  publication_type?: ArticlePublicationType
-  account_status?: ArticleDistributionAccountStatusFilter
-  date_range?: [dayjs.Dayjs, dayjs.Dayjs]
+function isTopicItem(item: ArticleDistributionOverviewItem): item is ArticleDistributionOverviewTopic {
+  return item.item_type === 'topic'
 }
 
-interface MetadataDashboardFilterValues {
-  platform?: string
-  publication_type?: ArticlePublicationType
-  account_status?: ArticleDistributionAccountStatusFilter
-  publish_status?: ArticlePublishStatus
-  date_range?: [dayjs.Dayjs, dayjs.Dayjs]
+function localStorageKey(view: ArticleDistributionOverviewView) {
+  return `article-distribution-report-columns:${view}`
 }
 
-const emptyMissingTrafficSummary: ArticleDistributionMissingTrafficSummary = {
-  total_users: 0,
-  missing_articles: 0,
-  read_count: 0,
-  like_count: 0,
-  favorite_count: 0,
-  share_count: 0,
+function readVisibleColumns(view: ArticleDistributionOverviewView) {
+  try {
+    const raw = window.localStorage.getItem(localStorageKey(view))
+    if (!raw) return defaultVisibleColumns[view]
+    const parsed = JSON.parse(raw)
+    if (!Array.isArray(parsed)) return defaultVisibleColumns[view]
+    const allowed = new Set(Object.keys(columnLabels[view]))
+    const selected = parsed.filter((value): value is string => (
+      typeof value === 'string' && allowed.has(value)
+    ))
+    return selected.length ? selected : defaultVisibleColumns[view]
+  } catch {
+    return defaultVisibleColumns[view]
+  }
 }
 
-const emptyMetadataDashboardSummary: ArticleDistributionMetadataDashboardSummary = {
-  topic_count: 0,
-  article_count: 0,
-  material_count: 0,
-  read_count: 0,
-  like_count: 0,
-  favorite_count: 0,
-  share_count: 0,
+function filterColumns<T extends object>(
+  columns: TableColumnsType<T>,
+  visibleKeys: string[],
+): TableColumnsType<T> {
+  return columns.filter((column) => {
+    const key = typeof column.key === 'string' ? column.key : undefined
+    return !key || visibleKeys.includes(key)
+  })
+}
+
+function tableScroll<T extends object>(columns: TableColumnsType<T>) {
+  const width = columns.reduce((total, column) => (
+    total + (typeof column.width === 'number' ? column.width : 0)
+  ), 0)
+  return width > 0 ? { x: width } : undefined
+}
+
+function ColumnSelector({
+  view,
+  visibleKeys,
+  onChange,
+}: {
+  view: ArticleDistributionOverviewView
+  visibleKeys: string[]
+  onChange: (keys: string[]) => void
+}) {
+  const labels = columnLabels[view]
+  return (
+    <Popover
+      trigger="click"
+      placement="bottomRight"
+      content={(
+        <Checkbox.Group
+          value={visibleKeys}
+          options={Object.entries(labels).map(([value, label]) => ({ value, label }))}
+          onChange={(values) => onChange(values.map(String))}
+          style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(110px, 1fr))', gap: 8 }}
+        />
+      )}
+    >
+      <Button icon={<SettingOutlined />}>显示字段</Button>
+    </Popover>
+  )
 }
 
 export default function ArticleDistributionReportPage() {
-  const { user } = useAuth()
-  const canViewMetadataDashboard = Boolean(
-    user?.effective_scopes.includes('article_distribution:metadata_dashboard:read'),
-  )
-
-  return (
-    <Tabs
-      items={[
-        {
-          key: 'progress',
-          label: '分发进度',
-          children: <DistributionProgressReportContent />,
-        },
-        {
-          key: 'missing-traffic',
-          label: '未填新增流量',
-          children: <MissingTrafficReportContent />,
-        },
-        {
-          key: 'metadata-dashboard',
-          label: '选题看板',
-          children: canViewMetadataDashboard
-            ? <MetadataDashboardContent />
-            : (
-                <Alert
-                  type="warning"
-                  showIcon
-                  message="缺少选题看板权限"
-                  description="需要 article_distribution:metadata_dashboard:read scope。"
-                />
-              ),
-        },
-      ]}
-    />
-  )
-}
-
-function DistributionProgressReportContent() {
   const { message } = App.useApp()
+  const { user } = useAuth()
   const [form] = Form.useForm<FilterValues>()
+  const [view, setView] = useState<ArticleDistributionOverviewView>('users')
   const [loading, setLoading] = useState(false)
-  const [rows, setRows] = useState<ArticleDistributionPendingUser[]>([])
-  const [summary, setSummary] = useState<ArticleDistributionReportSummary>(emptySummary)
-  const [userDetails, setUserDetails] = useState<Record<number, ArticleDistributionPendingUser>>({})
-  const [detailLoadingUserIds, setDetailLoadingUserIds] = useState<Set<number>>(() => new Set())
-  const [expandedRowKeys, setExpandedRowKeys] = useState<number[]>([])
+  const [overview, setOverview] = useState<ArticleDistributionOverview>(defaultOverview)
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(20)
+  const [selectedArticle, setSelectedArticle] = useState<ArticleDistributionOverviewArticle | null>(null)
+  const [visibleColumns, setVisibleColumns] = useState<Record<ArticleDistributionOverviewView, string[]>>(() => ({
+    users: readVisibleColumns('users'),
+    articles: readVisibleColumns('articles'),
+    topics: readVisibleColumns('topics'),
+  }))
 
-  const buildFilters = useCallback((): ArticleDistributionPendingReportFilters => {
+  const canViewTopics = Boolean(user?.effective_scopes.includes(metadataScope))
+  const missingTrafficOnly = Form.useWatch('missing_traffic_only', form)
+
+  const buildParams = useCallback((
+    nextPage: number,
+    nextPageSize: number,
+  ): ArticleDistributionOverviewParams => {
     const values = form.getFieldsValue()
-    const range = values.date_range
-    return {
+    const scheduledRange = values.date_range
+    const params: ArticleDistributionOverviewParams = {
+      view,
+      page: nextPage,
+      page_size: nextPageSize,
+      keyword: values.keyword?.trim() || undefined,
       platform: values.platform?.trim() || undefined,
       publication_type: values.publication_type,
+      publish_status: values.publish_status,
       account_status: values.account_status ?? 'active',
-      scheduled_from: range?.[0]?.format('YYYY-MM-DD'),
-      scheduled_to: range?.[1]?.format('YYYY-MM-DD'),
+      scheduled_from: scheduledRange?.[0]?.format('YYYY-MM-DD'),
+      scheduled_to: scheduledRange?.[1]?.format('YYYY-MM-DD'),
+      missing_traffic_only: Boolean(values.missing_traffic_only),
     }
-  }, [form])
+    if (values.missing_traffic_only) {
+      const trafficDate = values.traffic_date ?? dayjs()
+      params.recorded_from = trafficDate.startOf('day').toISOString()
+      params.recorded_to = trafficDate.add(1, 'day').startOf('day').toISOString()
+    }
+    return params
+  }, [form, view])
 
-  const loadReport = useCallback(async (filters?: ArticleDistributionPendingReportFilters) => {
+  const loadOverview = useCallback(async (nextPage = page, nextPageSize = pageSize) => {
+    if (view === 'topics' && !canViewTopics) {
+      setOverview({ ...defaultOverview, view: 'topics' })
+      return
+    }
     setLoading(true)
     try {
-      const report = await articleApi.listUnpublishedArticleReport(filters)
-      setRows(report.users)
-      setSummary(report.summary)
-      setUserDetails({})
-      setExpandedRowKeys([])
+      const report = await articleApi.listReportOverview(buildParams(nextPage, nextPageSize))
+      setOverview(report)
+      setPage(report.page)
+      setPageSize(report.page_size)
     } catch (error) {
-      message.error(resolveApiErrorMessage(error, '分发进度加载失败'))
+      message.error(resolveApiErrorMessage(error, '统一报表加载失败'))
     } finally {
       setLoading(false)
     }
-  }, [message])
-
-  const loadUserDetail = useCallback(async (userId: number) => {
-    setDetailLoadingUserIds((current) => new Set(current).add(userId))
-    try {
-      const detail = await articleApi.getUnpublishedArticleReportUser(userId, buildFilters())
-      setUserDetails((current) => ({ ...current, [userId]: detail }))
-    } catch (error) {
-      message.error(resolveApiErrorMessage(error, '用户分发明细加载失败'))
-    } finally {
-      setDetailLoadingUserIds((current) => {
-        const next = new Set(current)
-        next.delete(userId)
-        return next
-      })
-    }
-  }, [buildFilters, message])
+  }, [buildParams, canViewTopics, message, page, pageSize, view])
 
   useEffect(() => {
-    void loadReport()
-  }, [loadReport])
+    void loadOverview(page, pageSize)
+  }, [loadOverview, page, pageSize])
 
-  const keyword = Form.useWatch('keyword', form)
-  const filteredRows = useMemo(() => {
-    const normalized = keyword?.trim().toLowerCase()
-    if (!normalized) {
-      return rows
-    }
-    return rows.filter((row) =>
-      [
-        row.username,
-        row.name ?? '',
-        row.email,
-      ].join(' ').toLowerCase().includes(normalized),
-    )
-  }, [keyword, rows])
+  const setVisibleKeys = useCallback((keys: string[]) => {
+    setVisibleColumns((current) => {
+      const next = { ...current, [view]: keys }
+      window.localStorage.setItem(localStorageKey(view), JSON.stringify(keys))
+      return next
+    })
+  }, [view])
 
-  const filteredSummary = useMemo<ArticleDistributionReportSummary>(() => {
-    if (filteredRows.length === rows.length) return summary
-    return {
-      total_users: filteredRows.length,
-      unpublished_users: filteredRows.filter((row) => row.remaining_count > 0).length,
-      published_articles: filteredRows.reduce((total, row) => total + row.published_count, 0),
-      unpublished_articles: filteredRows.reduce((total, row) => total + row.remaining_count, 0),
-      invalid_articles: filteredRows.reduce((total, row) => total + row.invalid_count, 0),
-      inactive_account_articles: filteredRows.reduce(
-        (total, row) => total + row.inactive_account_articles,
-        0,
-      ),
-      read_count: filteredRows.reduce((total, row) => total + row.read_count, 0),
-      like_count: filteredRows.reduce((total, row) => total + row.like_count, 0),
-      favorite_count: filteredRows.reduce((total, row) => total + row.favorite_count, 0),
-      share_count: filteredRows.reduce((total, row) => total + row.share_count, 0),
-    }
-  }, [filteredRows, rows.length, summary])
+  const handleApplyFilters = () => {
+    setPage(1)
+    void loadOverview(1, pageSize)
+  }
 
-  const userPagination = useMemo<TablePaginationConfig>(() => ({
-    pageSize: 10,
-    pageSizeOptions: [10, 20, 50, 100],
-    showSizeChanger: true,
-    hideOnSinglePage: false,
-    responsive: true,
-    showTotal: (_, range) => `第 ${range[0]}-${range[1]} 条`,
-    total: filteredRows.length,
-  }), [filteredRows.length])
+  const handleResetFilters = () => {
+    form.resetFields()
+    setPage(1)
+    void loadOverview(1, pageSize)
+  }
 
-  const userColumns: TableColumnsType<ArticleDistributionPendingUser> = [
+  const handleViewChange = (nextView: ArticleDistributionOverviewView) => {
+    setView(nextView)
+    setPage(1)
+  }
+
+  const summary = overview.summary
+  const users = useMemo(() => overview.items.filter(isUserItem), [overview.items])
+  const articles = useMemo(() => overview.items.filter(isArticleItem), [overview.items])
+  const topics = useMemo(() => overview.items.filter(isTopicItem), [overview.items])
+
+  const userColumns: TableColumnsType<ArticleDistributionOverviewUser> = [
     {
       title: '用户',
       key: 'user',
-      width: 360,
+      width: 320,
       render: (_, record) => (
         <Space direction="vertical" size={0}>
           <Typography.Text strong>{record.name || record.username}</Typography.Text>
@@ -292,7 +391,7 @@ function DistributionProgressReportContent() {
       title: '剩余未发布',
       dataIndex: 'remaining_count',
       key: 'remaining_count',
-      width: 160,
+      width: 140,
       sorter: (a, b) => a.remaining_count - b.remaining_count,
       render: (value: number) => <Tag color={value > 0 ? 'volcano' : 'default'}>{value} 篇</Tag>,
     },
@@ -300,7 +399,7 @@ function DistributionProgressReportContent() {
       title: '已发布',
       dataIndex: 'published_count',
       key: 'published_count',
-      width: 160,
+      width: 120,
       sorter: (a, b) => a.published_count - b.published_count,
       render: (value: number) => <Tag color="green">{value} 篇</Tag>,
     },
@@ -308,410 +407,31 @@ function DistributionProgressReportContent() {
       title: '失效',
       dataIndex: 'invalid_count',
       key: 'invalid_count',
-      width: 160,
+      width: 100,
       sorter: (a, b) => a.invalid_count - b.invalid_count,
       render: (value: number) => <Tag color={value > 0 ? 'red' : 'default'}>{value} 篇</Tag>,
     },
+    {
+      title: '未填流量',
+      dataIndex: 'missing_count',
+      key: 'missing_count',
+      width: 120,
+      sorter: (a, b) => a.missing_count - b.missing_count,
+      render: (value: number) => <Tag color={value > 0 ? 'orange' : 'default'}>{value} 篇</Tag>,
+    },
+    trafficColumn('阅读量', 'read_count'),
+    trafficColumn('点赞量', 'like_count'),
+    trafficColumn('收藏量', 'favorite_count'),
+    trafficColumn('转发量', 'share_count'),
   ]
 
-  const articleColumns: TableColumnsType<ArticleDistributionPendingArticle> = [
-    {
-      title: '文章',
-      dataIndex: 'title',
-      key: 'title',
-      width: 520,
-      ellipsis: true,
-      render: (value: string) => <Typography.Text strong ellipsis>{value}</Typography.Text>,
-    },
-    {
-      title: '状态',
-      dataIndex: 'publish_status',
-      key: 'publish_status',
-      width: 120,
-      render: (value: ArticlePublishStatus) => publishStatusTag(value),
-    },
-    {
-      title: '计划日期',
-      dataIndex: 'scheduled_date',
-      key: 'scheduled_date',
-      width: 150,
-      sorter: (a, b) => a.scheduled_date.localeCompare(b.scheduled_date),
-    },
-    {
-      title: '目标平台',
-      dataIndex: 'platform',
-      key: 'platform',
-      width: 140,
-      render: (value: string) => <Tag>{value}</Tag>,
-    },
-    {
-      title: '类型',
-      dataIndex: 'publication_type',
-      key: 'publication_type',
-      width: 100,
-      render: (value: ArticlePublicationType) => publicationTypeText[value],
-    },
-    {
-      title: '阅读量',
-      key: 'read_count',
-      width: 100,
-      sorter: (a, b) => (a.latest_traffic_stat?.read_count ?? 0) - (b.latest_traffic_stat?.read_count ?? 0),
-      render: (_, record) => renderTrafficValue(record.latest_traffic_stat?.read_count),
-    },
-    {
-      title: '点赞量',
-      key: 'like_count',
-      width: 100,
-      sorter: (a, b) => (a.latest_traffic_stat?.like_count ?? 0) - (b.latest_traffic_stat?.like_count ?? 0),
-      render: (_, record) => renderTrafficValue(record.latest_traffic_stat?.like_count),
-    },
-    {
-      title: '收藏量',
-      key: 'favorite_count',
-      width: 100,
-      sorter: (a, b) => (a.latest_traffic_stat?.favorite_count ?? 0) - (b.latest_traffic_stat?.favorite_count ?? 0),
-      render: (_, record) => renderTrafficValue(record.latest_traffic_stat?.favorite_count),
-    },
-    {
-      title: '转发量',
-      key: 'share_count',
-      width: 100,
-      sorter: (a, b) => (a.latest_traffic_stat?.share_count ?? 0) - (b.latest_traffic_stat?.share_count ?? 0),
-      render: (_, record) => renderTrafficValue(record.latest_traffic_stat?.share_count),
-    },
-    {
-      title: '统计时间',
-      key: 'traffic_recorded_at',
-      width: 150,
-      render: (_, record) => record.latest_traffic_stat
-        ? dayjs(record.latest_traffic_stat.recorded_at).format('YYYY-MM-DD HH:mm')
-        : '-',
-    },
-    {
-      title: '发布链接',
-      dataIndex: 'published_url',
-      key: 'published_url',
-      width: 120,
-      render: (value: string | null) => value ? (
-        <Typography.Link href={value} target="_blank" rel="noreferrer">
-          检查
-        </Typography.Link>
-      ) : '-',
-    },
-  ]
+  const articleColumns = buildArticleColumns({
+    includeUser: true,
+    includeActions: true,
+    onSelectArticle: setSelectedArticle,
+  })
 
-  const buildPlatformColumns = (
-    user: ArticleDistributionPendingUser,
-  ): TableColumnsType<ArticleDistributionPlatformSummary> => [
-      {
-        title: '发布平台',
-        key: 'platform',
-        width: 360,
-        render: (_, record) => (
-          <Space>
-            <Tag>{record.platform}</Tag>
-            <Typography.Text type="secondary">{publicationTypeText[record.publication_type]}</Typography.Text>
-          </Space>
-        ),
-      },
-      {
-        title: '发布数量',
-        dataIndex: 'published_count',
-        key: 'published_count',
-        width: 140,
-        render: (value: number) => <Tag color="green">{value}</Tag>,
-      },
-      {
-        title: '剩余未发布',
-        dataIndex: 'unpublished_count',
-        key: 'unpublished_count',
-        width: 160,
-        render: (value: number) => <Tag color={value > 0 ? 'volcano' : 'default'}>{value}</Tag>,
-      },
-      {
-        title: '失效数量',
-        dataIndex: 'invalid_count',
-        key: 'invalid_count',
-        width: 140,
-        render: (value: number) => <Tag color={value > 0 ? 'red' : 'default'}>{value}</Tag>,
-      },
-      {
-        title: '文章链接',
-        key: 'published_article_links',
-        width: 160,
-        render: (_, record) => renderPublishedArticleLinks(user, record),
-      },
-    ]
-
-  const renderPublishedArticleLinks = (
-    user: ArticleDistributionPendingUser,
-    platformSummary: ArticleDistributionPlatformSummary,
-  ) => {
-    const articles = user.articles.filter(
-      (article): article is ArticleDistributionPendingArticle & { published_url: string } =>
-        article.account_id === platformSummary.account_id &&
-        article.publish_status === 'published' &&
-        Boolean(article.published_url),
-    )
-    if (!articles.length) return '-'
-
-    return (
-      <Popover
-        trigger="click"
-        placement="bottomRight"
-        title="已发布文章链接"
-        content={(
-          <Flex vertical gap={12} style={{ width: 420, maxWidth: '70vw', maxHeight: 360, overflow: 'auto' }}>
-            {articles.map((article) => (
-              <Space key={article.id} direction="vertical" size={0} style={{ minWidth: 0, width: '100%' }}>
-                <Typography.Text strong ellipsis>
-                  {article.title}
-                </Typography.Text>
-                <Typography.Text type="secondary">{article.scheduled_date}</Typography.Text>
-                <Typography.Link href={article.published_url} target="_blank" rel="noreferrer" ellipsis>
-                  {article.published_url}
-                </Typography.Link>
-              </Space>
-            ))}
-          </Flex>
-        )}
-      >
-        <Typography.Link>查看 {articles.length} 篇</Typography.Link>
-      </Popover>
-    )
-  }
-
-  const renderArticleDetail = (article: ArticleDistributionPendingArticle) => (
-    <Flex vertical gap={12} style={{ minWidth: 0, width: '100%', overflow: 'hidden' }}>
-      <Descriptions size="small" column={{ xs: 1, sm: 2, md: 4 }}>
-        <Descriptions.Item label="目标平台">{article.platform}</Descriptions.Item>
-        <Descriptions.Item label="发布类型">
-          {publicationTypeText[article.publication_type]}
-        </Descriptions.Item>
-        <Descriptions.Item label="计划日期">{article.scheduled_date}</Descriptions.Item>
-        <Descriptions.Item label="状态">{publishStatusTag(article.publish_status)}</Descriptions.Item>
-        <Descriptions.Item label="阅读量">{renderTrafficValue(article.latest_traffic_stat?.read_count)}</Descriptions.Item>
-        <Descriptions.Item label="点赞量">{renderTrafficValue(article.latest_traffic_stat?.like_count)}</Descriptions.Item>
-        <Descriptions.Item label="收藏量">{renderTrafficValue(article.latest_traffic_stat?.favorite_count)}</Descriptions.Item>
-        <Descriptions.Item label="转发量">{renderTrafficValue(article.latest_traffic_stat?.share_count)}</Descriptions.Item>
-        <Descriptions.Item label="统计时间">
-          {article.latest_traffic_stat ? dayjs(article.latest_traffic_stat.recorded_at).format('YYYY-MM-DD HH:mm') : '-'}
-        </Descriptions.Item>
-        <Descriptions.Item label="发布链接">
-          {article.published_url ? (
-            <Typography.Link href={article.published_url} target="_blank" rel="noreferrer">
-              检查
-            </Typography.Link>
-          ) : '-'}
-        </Descriptions.Item>
-      </Descriptions>
-      <Typography.Text strong>{article.title}</Typography.Text>
-      <pre
-        style={{
-          margin: 0,
-          boxSizing: 'border-box',
-          maxWidth: '100%',
-          maxHeight: 360,
-          overflow: 'auto',
-          whiteSpace: 'pre-wrap',
-          wordBreak: 'break-word',
-          padding: 12,
-          borderRadius: 6,
-          background: 'var(--ant-color-fill-quaternary)',
-        }}
-      >
-        {article.markdown_content}
-      </pre>
-    </Flex>
-  )
-
-  const expandedArticleTable = (record: ArticleDistributionPendingUser) => {
-    const detail = userDetails[record.user_id]
-    const loadingDetail = detailLoadingUserIds.has(record.user_id)
-
-    if (!detail && !loadingDetail) {
-      return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="展开后加载明细" />
-    }
-
-    return (
-      <Flex vertical gap={12} style={{ minWidth: 0, width: '100%', overflow: 'hidden' }}>
-        <Table
-          rowKey="account_id"
-          columns={buildPlatformColumns(detail ?? record)}
-          dataSource={detail?.platform_summaries ?? []}
-          pagination={false}
-          size="small"
-          tableLayout="fixed"
-          loading={loadingDetail}
-          scroll={{ x: 960 }}
-        />
-        <Table
-          rowKey="id"
-          columns={articleColumns}
-          dataSource={detail?.articles ?? []}
-          pagination={false}
-          size="small"
-          tableLayout="fixed"
-          loading={loadingDetail}
-          scroll={{ x: 1650 }}
-          expandable={{
-            expandedRowRender: renderArticleDetail,
-          }}
-        />
-      </Flex>
-    )
-  }
-
-  return (
-    <Flex vertical gap={18}>
-      <Flex align="center" justify="space-between" gap={16} wrap="wrap">
-        <div>
-          <Typography.Title level={2} style={{ margin: 0 }}>
-            分发进度后台
-          </Typography.Title>
-          <Typography.Text type="secondary">
-            查看所有用户的文章发布进度、失效文档和发布链接核验入口。
-          </Typography.Text>
-        </div>
-        <Button
-          icon={<ReloadOutlined />}
-          loading={loading}
-          onClick={() => void loadReport(buildFilters())}
-        >
-          刷新
-        </Button>
-      </Flex>
-
-      <Card>
-        <Flex gap={24} wrap="wrap">
-          <Statistic title="发布的文章总数" value={filteredSummary.published_articles} />
-          <Statistic title="未发布文章总数" value={filteredSummary.unpublished_articles} />
-          <Statistic title="已停用账号文章总数" value={filteredSummary.inactive_account_articles} />
-          <Statistic title="失效文章总数" value={filteredSummary.invalid_articles} />
-          <Statistic title="阅读量" value={filteredSummary.read_count} />
-          <Statistic title="点赞量" value={filteredSummary.like_count} />
-          <Statistic title="收藏量" value={filteredSummary.favorite_count} />
-          <Statistic title="转发量" value={filteredSummary.share_count} />
-        </Flex>
-        <Form form={form} layout="vertical" initialValues={{ account_status: 'active' }} style={{ marginTop: 18 }}>
-          <Flex gap={16} wrap="wrap" align="end">
-            <Form.Item label="搜索" name="keyword" style={{ minWidth: 240 }}>
-              <Input prefix={<SearchOutlined />} allowClear placeholder="用户或文章" />
-            </Form.Item>
-            <Form.Item label="平台" name="platform" style={{ minWidth: 180 }}>
-              <Input allowClear placeholder="wechat、zhihu..." />
-            </Form.Item>
-            <Form.Item label="发布类型" name="publication_type" style={{ minWidth: 160 }}>
-              <Select allowClear options={publicationTypeOptions} placeholder="全部类型" />
-            </Form.Item>
-            <Form.Item label="账号类型" name="account_status" style={{ minWidth: 140 }}>
-              <Select options={accountStatusOptions} />
-            </Form.Item>
-            <Form.Item label="计划日期" name="date_range" style={{ minWidth: 260 }}>
-              <DatePicker.RangePicker style={{ width: '100%' }} />
-            </Form.Item>
-            <Form.Item>
-              <Space>
-                <Button type="primary" onClick={() => void loadReport(buildFilters())}>
-                  筛选
-                </Button>
-                <Button
-                  onClick={() => {
-                    form.resetFields()
-                    void loadReport()
-                  }}
-                >
-                  重置
-                </Button>
-              </Space>
-            </Form.Item>
-          </Flex>
-        </Form>
-      </Card>
-
-      <Table
-        rowKey="user_id"
-        loading={loading}
-        columns={userColumns}
-        dataSource={filteredRows}
-        expandable={{
-          expandedRowRender: expandedArticleTable,
-          expandedRowKeys,
-          onExpand: (expanded, record) => {
-            setExpandedRowKeys((current) => (
-              expanded
-                ? [...current, record.user_id]
-                : current.filter((key) => key !== record.user_id)
-            ))
-            if (expanded && !userDetails[record.user_id]) {
-              void loadUserDetail(record.user_id)
-            }
-          },
-        }}
-        locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无文章" /> }}
-        pagination={userPagination}
-        tableLayout="fixed"
-        scroll={{ x: 840 }}
-      />
-    </Flex>
-  )
-}
-
-function MetadataDashboardContent() {
-  const { message } = App.useApp()
-  const [form] = Form.useForm<MetadataDashboardFilterValues>()
-  const [loading, setLoading] = useState(false)
-  const [topics, setTopics] = useState<ArticleDistributionMetadataDashboardTopic[]>([])
-  const [summary, setSummary] = useState<ArticleDistributionMetadataDashboardSummary>(
-    emptyMetadataDashboardSummary,
-  )
-  const [selectedArticle, setSelectedArticle] = useState<ArticleDistributionMetadataDashboardArticle | null>(null)
-  const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(20)
-  const [total, setTotal] = useState(0)
-
-  const buildFilters = useCallback((): ArticleDistributionPendingReportFilters => {
-    const values = form.getFieldsValue()
-    const range = values.date_range
-    return {
-      platform: values.platform?.trim() || undefined,
-      publication_type: values.publication_type,
-      account_status: values.account_status ?? 'active',
-      publish_status: values.publish_status,
-      scheduled_from: range?.[0]?.format('YYYY-MM-DD'),
-      scheduled_to: range?.[1]?.format('YYYY-MM-DD'),
-    }
-  }, [form])
-
-  const loadDashboard = useCallback(async (
-    filters?: ArticleDistributionPendingReportFilters,
-    pagination: { page: number; pageSize: number } = { page: 1, pageSize: 20 },
-  ) => {
-    setLoading(true)
-    try {
-      const dashboard = await articleApi.listArticleMetadataDashboard({
-        ...filters,
-        page: pagination.page,
-        page_size: pagination.pageSize,
-      })
-      setTopics(dashboard.topics)
-      setSummary(dashboard.summary)
-      setPage(dashboard.page)
-      setPageSize(dashboard.page_size)
-      setTotal(dashboard.total)
-      setSelectedArticle(null)
-    } catch (error) {
-      message.error(resolveApiErrorMessage(error, '选题看板加载失败'))
-    } finally {
-      setLoading(false)
-    }
-  }, [message])
-
-  useEffect(() => {
-    void loadDashboard()
-  }, [loadDashboard])
-
-  const topicColumns: TableColumnsType<ArticleDistributionMetadataDashboardTopic> = [
+  const topicColumns: TableColumnsType<ArticleDistributionOverviewTopic> = [
     {
       title: '选题',
       key: 'topic',
@@ -737,37 +457,341 @@ function MetadataDashboardContent() {
       width: 300,
       render: (_, record) => renderMaterials(record.materials),
     },
-    {
-      title: '阅读量',
-      dataIndex: 'read_count',
-      key: 'read_count',
-      width: 110,
-      sorter: (a, b) => a.read_count - b.read_count,
-    },
-    {
-      title: '点赞量',
-      dataIndex: 'like_count',
-      key: 'like_count',
-      width: 110,
-      sorter: (a, b) => a.like_count - b.like_count,
-    },
-    {
-      title: '收藏量',
-      dataIndex: 'favorite_count',
-      key: 'favorite_count',
-      width: 110,
-      sorter: (a, b) => a.favorite_count - b.favorite_count,
-    },
-    {
-      title: '转发量',
-      dataIndex: 'share_count',
-      key: 'share_count',
-      width: 110,
-      sorter: (a, b) => a.share_count - b.share_count,
-    },
+    trafficColumn('阅读量', 'read_count'),
+    trafficColumn('点赞量', 'like_count'),
+    trafficColumn('收藏量', 'favorite_count'),
+    trafficColumn('转发量', 'share_count'),
   ]
 
-  const articleColumns: TableColumnsType<ArticleDistributionMetadataDashboardArticle> = [
+  const pagination = {
+    current: page,
+    pageSize,
+    total: overview.total,
+    showSizeChanger: true,
+    pageSizeOptions: [10, 20, 50, 100],
+    showTotal: (_: number, range: [number, number]) => `第 ${range[0]}-${range[1]} 条，共 ${overview.total} 条`,
+    onChange: (nextPage: number, nextPageSize: number) => {
+      setPage(nextPage)
+      setPageSize(nextPageSize)
+    },
+  }
+  const visibleUserColumns = filterColumns(userColumns, visibleColumns.users)
+  const visibleArticleColumns = filterColumns(articleColumns, visibleColumns.articles)
+  const visibleTopicColumns = filterColumns(topicColumns, visibleColumns.topics)
+  const expandedUserArticleColumns = buildArticleColumns({
+    includeUser: false,
+    includeActions: true,
+    onSelectArticle: setSelectedArticle,
+  })
+  const expandedTopicArticleColumns = buildArticleColumns({
+    includeUser: true,
+    includeActions: true,
+    onSelectArticle: setSelectedArticle,
+  })
+
+  return (
+    <Flex vertical gap={18}>
+      <Flex align="center" justify="space-between" gap={16} wrap="wrap">
+        <div>
+          <Typography.Title level={2} style={{ margin: 0 }}>
+            分发后台
+          </Typography.Title>
+          <Typography.Text type="secondary">
+            用统一筛选查看用户进度、文章明细、未填流量和选题汇总。
+          </Typography.Text>
+        </div>
+        <Space wrap>
+          <Segmented
+            value={view}
+            options={viewOptions.map((option) => ({
+              ...option,
+              disabled: option.value === 'topics' && !canViewTopics,
+            }))}
+            onChange={(value) => handleViewChange(value as ArticleDistributionOverviewView)}
+          />
+          <ColumnSelector
+            view={view}
+            visibleKeys={visibleColumns[view]}
+            onChange={setVisibleKeys}
+          />
+          <Button
+            icon={<ReloadOutlined />}
+            loading={loading}
+            onClick={() => void loadOverview(page, pageSize)}
+          >
+            刷新
+          </Button>
+        </Space>
+      </Flex>
+
+      {!canViewTopics && (
+        <Alert
+          type="info"
+          showIcon
+          message="选题汇总需要额外权限"
+          description={`需要 ${metadataScope} scope。`}
+        />
+      )}
+
+      <Card>
+        <Flex gap={24} wrap="wrap">
+          <Statistic title="用户数" value={summary.total_users} />
+          <Statistic title="文章数" value={summary.total_articles} />
+          <Statistic title="已发布" value={summary.published_articles} />
+          <Statistic title="未发布" value={summary.unpublished_articles} />
+          <Statistic title="未填流量" value={summary.missing_articles} />
+          <Statistic title="选题数" value={summary.topic_count} />
+          <Statistic title="素材数" value={summary.material_count} />
+          <Statistic title="阅读量" value={summary.read_count} />
+          <Statistic title="点赞量" value={summary.like_count} />
+          <Statistic title="收藏量" value={summary.favorite_count} />
+          <Statistic title="转发量" value={summary.share_count} />
+        </Flex>
+
+        <Form
+          form={form}
+          layout="vertical"
+          initialValues={{
+            account_status: 'active',
+            missing_traffic_only: false,
+            traffic_date: dayjs(),
+          }}
+          style={{ marginTop: 18 }}
+        >
+          <Flex gap={16} wrap="wrap" align="end">
+            <Form.Item label="搜索" name="keyword" style={{ minWidth: 240 }}>
+              <Input prefix={<SearchOutlined />} allowClear placeholder="用户、文章、账号或链接" />
+            </Form.Item>
+            <Form.Item label="平台" name="platform" style={{ minWidth: 180 }}>
+              <Input allowClear placeholder="wechat、zhihu..." />
+            </Form.Item>
+            <Form.Item label="发布类型" name="publication_type" style={{ minWidth: 150 }}>
+              <Select allowClear options={publicationTypeOptions} placeholder="全部类型" />
+            </Form.Item>
+            <Form.Item label="发布状态" name="publish_status" style={{ minWidth: 150 }}>
+              <Select allowClear options={publishStatusOptions} placeholder="全部状态" />
+            </Form.Item>
+            <Form.Item label="账号状态" name="account_status" style={{ minWidth: 130 }}>
+              <Select options={accountStatusOptions} />
+            </Form.Item>
+            <Form.Item label="计划日期" name="date_range" style={{ minWidth: 260 }}>
+              <DatePicker.RangePicker style={{ width: '100%' }} />
+            </Form.Item>
+            <Form.Item name="missing_traffic_only" valuePropName="checked">
+              <Checkbox>只看未填流量</Checkbox>
+            </Form.Item>
+            {missingTrafficOnly && (
+              <Form.Item label="流量日期" name="traffic_date" style={{ minWidth: 180 }}>
+                <DatePicker allowClear={false} style={{ width: '100%' }} />
+              </Form.Item>
+            )}
+            <Form.Item>
+              <Space>
+                <Button type="primary" onClick={handleApplyFilters}>
+                  筛选
+                </Button>
+                <Button onClick={handleResetFilters}>
+                  重置
+                </Button>
+              </Space>
+            </Form.Item>
+          </Flex>
+        </Form>
+      </Card>
+
+      {view === 'users' && (
+        <Table
+          rowKey="user_id"
+          loading={loading}
+          columns={visibleUserColumns}
+          dataSource={users}
+          expandable={{
+            expandedRowRender: (record) => (
+              <Flex vertical gap={12} style={{ minWidth: 0, width: '100%', overflow: 'hidden' }}>
+                <Table
+                  rowKey="account_id"
+                  columns={buildPlatformColumns(record)}
+                  dataSource={record.platform_summaries}
+                  pagination={false}
+                  size="small"
+                  tableLayout="fixed"
+                  scroll={tableScroll(buildPlatformColumns(record))}
+                />
+                <Table
+                  rowKey="id"
+                  columns={expandedUserArticleColumns}
+                  dataSource={record.articles}
+                  pagination={false}
+                  size="small"
+                  tableLayout="fixed"
+                  scroll={tableScroll(expandedUserArticleColumns)}
+                />
+              </Flex>
+            ),
+          }}
+          locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无用户数据" /> }}
+          pagination={pagination}
+          tableLayout="fixed"
+          scroll={tableScroll(visibleUserColumns)}
+        />
+      )}
+
+      {view === 'articles' && (
+        <Table
+          rowKey="id"
+          loading={loading}
+          columns={visibleArticleColumns}
+          dataSource={articles}
+          locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无文章数据" /> }}
+          pagination={pagination}
+          tableLayout="fixed"
+          scroll={tableScroll(visibleArticleColumns)}
+        />
+      )}
+
+      {view === 'topics' && (
+        <Table
+          rowKey="key"
+          loading={loading}
+          columns={visibleTopicColumns}
+          dataSource={topics}
+          expandable={{
+            expandedRowRender: (record) => (
+              <Table
+                rowKey="id"
+                size="small"
+                columns={expandedTopicArticleColumns}
+                dataSource={record.articles}
+                pagination={false}
+                tableLayout="fixed"
+                scroll={tableScroll(expandedTopicArticleColumns)}
+              />
+            ),
+          }}
+          locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无选题数据" /> }}
+          pagination={pagination}
+          tableLayout="fixed"
+          scroll={tableScroll(visibleTopicColumns)}
+        />
+      )}
+
+      <ArticleDetailModal
+        article={selectedArticle}
+        onClose={() => setSelectedArticle(null)}
+      />
+    </Flex>
+  )
+}
+
+function trafficColumn<T extends object, K extends keyof T & string>(
+  title: string,
+  dataIndex: K,
+) {
+  const valueOf = (record: T) => Number(record[dataIndex] ?? 0)
+  return {
+    title,
+    dataIndex,
+    key: dataIndex,
+    width: 110,
+    sorter: (a: T, b: T) => valueOf(a) - valueOf(b),
+    render: (value: T[K]) => renderTrafficValue(Number(value)),
+  }
+}
+
+function buildPlatformColumns(
+  user: ArticleDistributionOverviewUser,
+): TableColumnsType<ArticleDistributionPlatformSummary> {
+  return [
+    {
+      title: '发布平台',
+      key: 'platform',
+      width: 320,
+      render: (_, record) => (
+        <Space>
+          <Tag>{record.platform}</Tag>
+          <Typography.Text type="secondary">{record.account_name}</Typography.Text>
+          <Typography.Text type="secondary">{publicationTypeText[record.publication_type]}</Typography.Text>
+        </Space>
+      ),
+    },
+    {
+      title: '发布数量',
+      dataIndex: 'published_count',
+      key: 'published_count',
+      width: 120,
+      render: (value: number) => <Tag color="green">{value}</Tag>,
+    },
+    {
+      title: '剩余未发布',
+      dataIndex: 'unpublished_count',
+      key: 'unpublished_count',
+      width: 140,
+      render: (value: number) => <Tag color={value > 0 ? 'volcano' : 'default'}>{value}</Tag>,
+    },
+    {
+      title: '失效数量',
+      dataIndex: 'invalid_count',
+      key: 'invalid_count',
+      width: 120,
+      render: (value: number) => <Tag color={value > 0 ? 'red' : 'default'}>{value}</Tag>,
+    },
+    {
+      title: '文章链接',
+      key: 'published_article_links',
+      width: 140,
+      render: (_, record) => renderPublishedArticleLinks(user, record),
+    },
+  ]
+}
+
+function renderPublishedArticleLinks(
+  user: ArticleDistributionOverviewUser,
+  platformSummary: ArticleDistributionPlatformSummary,
+) {
+  const articles = user.articles.filter(
+    (article): article is ArticleDistributionOverviewArticle & { published_url: string } =>
+      article.account_id === platformSummary.account_id &&
+      article.publish_status === 'published' &&
+      Boolean(article.published_url),
+  )
+  if (!articles.length) return '-'
+
+  return (
+    <Popover
+      trigger="click"
+      placement="bottomRight"
+      title="已发布文章链接"
+      content={(
+        <Flex vertical gap={12} style={{ width: 420, maxWidth: '70vw', maxHeight: 360, overflow: 'auto' }}>
+          {articles.map((article) => (
+            <Space key={article.id} direction="vertical" size={0} style={{ minWidth: 0, width: '100%' }}>
+              <Typography.Text strong ellipsis>
+                {article.title}
+              </Typography.Text>
+              <Typography.Text type="secondary">{article.scheduled_date}</Typography.Text>
+              <Typography.Link href={article.published_url} target="_blank" rel="noreferrer" ellipsis>
+                {article.published_url}
+              </Typography.Link>
+            </Space>
+          ))}
+        </Flex>
+      )}
+    >
+      <Typography.Link>查看 {articles.length} 篇</Typography.Link>
+    </Popover>
+  )
+}
+
+function buildArticleColumns({
+  includeUser,
+  includeActions,
+  onSelectArticle,
+}: {
+  includeUser: boolean
+  includeActions: boolean
+  onSelectArticle: (article: ArticleDistributionOverviewArticle) => void
+}): TableColumnsType<ArticleDistributionOverviewArticle> {
+  const columns: TableColumnsType<ArticleDistributionOverviewArticle> = [
     {
       title: '文章',
       key: 'article',
@@ -783,17 +807,23 @@ function MetadataDashboardContent() {
         </Space>
       ),
     },
-    {
-      title: '痛点解决方案',
-      dataIndex: 'summary',
-      key: 'summary',
-      width: 360,
-      render: (value: string | null) => (
-        <Typography.Paragraph ellipsis={{ rows: 2 }} style={{ margin: 0 }}>
-          {value || '-'}
-        </Typography.Paragraph>
+  ]
+
+  if (includeUser) {
+    columns.push({
+      title: '用户',
+      key: 'user',
+      width: 240,
+      render: (_, record) => (
+        <Space direction="vertical" size={0}>
+          <Typography.Text>{record.name || record.username}</Typography.Text>
+          <Typography.Text type="secondary">{record.email}</Typography.Text>
+        </Space>
       ),
-    },
+    })
+  }
+
+  columns.push(
     {
       title: '账号',
       key: 'account',
@@ -802,6 +832,7 @@ function MetadataDashboardContent() {
         <Space>
           <Tag>{record.platform}</Tag>
           <Typography.Text type="secondary">{record.account_name}</Typography.Text>
+          <Typography.Text type="secondary">{publicationTypeText[record.publication_type]}</Typography.Text>
         </Space>
       ),
     },
@@ -820,12 +851,29 @@ function MetadataDashboardContent() {
       sorter: (a, b) => a.scheduled_date.localeCompare(b.scheduled_date),
     },
     {
+      title: '未填流量',
+      dataIndex: 'missing_traffic',
+      key: 'missing_traffic',
+      width: 110,
+      render: (value: boolean) => <Tag color={value ? 'orange' : 'default'}>{value ? '是' : '否'}</Tag>,
+    },
+    {
+      title: '选题',
+      key: 'topic',
+      width: 220,
+      render: (_, record) => record.topic || record.output_id || '-',
+    },
+    {
+      title: '角色',
+      key: 'article_role',
+      width: 120,
+      render: (_, record) => record.article_role ?? '-',
+    },
+    {
       title: '阅读量',
       key: 'read_count',
       width: 100,
-      sorter: (a, b) => (
-        (a.latest_traffic_stat?.read_count ?? 0) - (b.latest_traffic_stat?.read_count ?? 0)
-      ),
+      sorter: (a, b) => (a.latest_traffic_stat?.read_count ?? 0) - (b.latest_traffic_stat?.read_count ?? 0),
       render: (_, record) => renderTrafficValue(record.latest_traffic_stat?.read_count),
     },
     {
@@ -847,6 +895,14 @@ function MetadataDashboardContent() {
       render: (_, record) => renderTrafficValue(record.latest_traffic_stat?.share_count),
     },
     {
+      title: '统计时间',
+      key: 'traffic_recorded_at',
+      width: 150,
+      render: (_, record) => record.latest_traffic_stat
+        ? dayjs(record.latest_traffic_stat.recorded_at).format('YYYY-MM-DD HH:mm')
+        : '-',
+    },
+    {
       title: '发布链接',
       dataIndex: 'published_url',
       key: 'published_url',
@@ -857,137 +913,32 @@ function MetadataDashboardContent() {
         </Typography.Link>
       ) : '-',
     },
-    {
+  )
+
+  if (includeActions) {
+    columns.push({
       title: '操作',
       key: 'actions',
       fixed: 'right',
-      width: 100,
-      render: (_, record) => {
-        return (
-          <Button
-            size="small"
-            onClick={() => setSelectedArticle(record)}
-          >
-            详情
-          </Button>
-        )
-      },
-    },
-  ]
-
-  return (
-    <Flex vertical gap={18}>
-      <Flex align="center" justify="space-between" gap={16} wrap="wrap">
-        <div>
-          <Typography.Title level={2} style={{ margin: 0 }}>
-            选题看板
-          </Typography.Title>
-          <Typography.Text type="secondary">
-            从文章元数据汇总选题、素材、摘要、账号和最新流量。
-          </Typography.Text>
-        </div>
-        <Button icon={<ReloadOutlined />} loading={loading} onClick={() => void loadDashboard(buildFilters(), { page, pageSize })}>
-          刷新
+      width: 90,
+      render: (_, record) => (
+        <Button size="small" onClick={() => onSelectArticle(record)}>
+          详情
         </Button>
-      </Flex>
-
-      <Card>
-        <Flex gap={24} wrap="wrap">
-          <Statistic title="选题数" value={summary.topic_count} />
-          <Statistic title="文章数" value={summary.article_count} />
-          <Statistic title="素材数" value={summary.material_count} />
-          <Statistic title="阅读量" value={summary.read_count} />
-          <Statistic title="点赞量" value={summary.like_count} />
-          <Statistic title="收藏量" value={summary.favorite_count} />
-          <Statistic title="转发量" value={summary.share_count} />
-        </Flex>
-        <Form form={form} layout="vertical" initialValues={{ account_status: 'active' }} style={{ marginTop: 18 }}>
-          <Flex gap={16} wrap="wrap" align="end">
-            <Form.Item label="平台" name="platform" style={{ minWidth: 180 }}>
-              <Input allowClear placeholder="wechat、zhihu..." />
-            </Form.Item>
-            <Form.Item label="发布类型" name="publication_type" style={{ minWidth: 160 }}>
-              <Select allowClear options={publicationTypeOptions} placeholder="全部类型" />
-            </Form.Item>
-            <Form.Item label="发布状态" name="publish_status" style={{ minWidth: 160 }}>
-              <Select allowClear options={publishStatusOptions} placeholder="全部状态" />
-            </Form.Item>
-            <Form.Item label="账号类型" name="account_status" style={{ minWidth: 140 }}>
-              <Select options={accountStatusOptions} />
-            </Form.Item>
-            <Form.Item label="计划日期" name="date_range" style={{ minWidth: 260 }}>
-              <DatePicker.RangePicker style={{ width: '100%' }} />
-            </Form.Item>
-            <Form.Item>
-              <Space>
-                <Button type="primary" onClick={() => void loadDashboard(buildFilters(), { page: 1, pageSize })}>
-                  筛选
-                </Button>
-                <Button
-                  onClick={() => {
-                    form.resetFields()
-                    void loadDashboard(undefined, { page: 1, pageSize })
-                  }}
-                >
-                  重置
-                </Button>
-              </Space>
-            </Form.Item>
-          </Flex>
-        </Form>
-      </Card>
-
-      <Table
-        rowKey="key"
-        loading={loading}
-        columns={topicColumns}
-        dataSource={topics}
-        expandable={{
-          expandedRowRender: (record) => (
-            <Table
-              rowKey="id"
-              size="small"
-              columns={articleColumns}
-              dataSource={record.articles}
-              pagination={false}
-              tableLayout="fixed"
-              scroll={{ x: 1530 }}
-            />
-          ),
-        }}
-        locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无元数据" /> }}
-        pagination={{
-          current: page,
-          pageSize,
-          total,
-          showSizeChanger: true,
-          pageSizeOptions: [20, 50, 100],
-          showTotal: (_, range) => `第 ${range[0]}-${range[1]} 篇，共 ${total} 篇`,
-          onChange: (nextPage, nextPageSize) => {
-            void loadDashboard(buildFilters(), { page: nextPage, pageSize: nextPageSize })
-          },
-        }}
-        tableLayout="fixed"
-        scroll={{ x: 1200 }}
-      />
-      <MetadataArticleDetailModal
-        article={selectedArticle}
-        onClose={() => setSelectedArticle(null)}
-      />
-    </Flex>
-  )
+      ),
+    })
+  }
+  return columns
 }
 
-function MetadataArticleDetailModal({
+function ArticleDetailModal({
   article,
   onClose,
 }: {
-  article: ArticleDistributionMetadataDashboardArticle | null
+  article: ArticleDistributionOverviewArticle | null
   onClose: () => void
 }) {
-  if (!article) {
-    return null
-  }
+  if (!article) return null
 
   return (
     <Modal
@@ -1001,6 +952,7 @@ function MetadataArticleDetailModal({
       <Flex vertical gap={14}>
         <Descriptions size="small" column={{ xs: 1, sm: 2, md: 4 }}>
           <Descriptions.Item label="文章 ID">{article.id}</Descriptions.Item>
+          <Descriptions.Item label="用户">{article.name || article.username}</Descriptions.Item>
           <Descriptions.Item label="账号">{article.platform} / {article.account_name}</Descriptions.Item>
           <Descriptions.Item label="发布类型">{publicationTypeText[article.publication_type]}</Descriptions.Item>
           <Descriptions.Item label="计划日期">{article.scheduled_date}</Descriptions.Item>
@@ -1008,6 +960,7 @@ function MetadataArticleDetailModal({
           <Descriptions.Item label="角度">{article.angle_label ?? '-'}</Descriptions.Item>
           <Descriptions.Item label="受众">{article.audience_label ?? '-'}</Descriptions.Item>
           <Descriptions.Item label="状态">{publishStatusTag(article.publish_status)}</Descriptions.Item>
+          <Descriptions.Item label="未填流量">{article.missing_traffic ? '是' : '否'}</Descriptions.Item>
           <Descriptions.Item label="阅读量">{renderTrafficValue(article.latest_traffic_stat?.read_count)}</Descriptions.Item>
           <Descriptions.Item label="点赞量">{renderTrafficValue(article.latest_traffic_stat?.like_count)}</Descriptions.Item>
           <Descriptions.Item label="收藏量">{renderTrafficValue(article.latest_traffic_stat?.favorite_count)}</Descriptions.Item>
@@ -1040,16 +993,12 @@ function MetadataArticleDetailModal({
             {
               key: 'source',
               label: '正文源码',
-              children: (
-                <PreBlock content={article.markdown_content} maxHeight="60vh" />
-              ),
+              children: <PreBlock content={article.markdown_content} maxHeight="60vh" />,
             },
             {
               key: 'metadata',
               label: '元数据',
-              children: (
-                <PreBlock content={JSON.stringify(article.metadata ?? {}, null, 2)} maxHeight="60vh" />
-              ),
+              children: <PreBlock content={JSON.stringify(article.metadata ?? {}, null, 2)} maxHeight="60vh" />,
             },
           ]}
         />
@@ -1093,327 +1042,5 @@ function renderMaterials(materials: string[]) {
         <Typography.Text type="secondary">另 {materials.length - visible.length} 条</Typography.Text>
       )}
     </Space>
-  )
-}
-
-function MissingTrafficReportContent() {
-  const { message } = App.useApp()
-  const [form] = Form.useForm<MissingTrafficFilterValues>()
-  const [loading, setLoading] = useState(false)
-  const [rows, setRows] = useState<ArticleDistributionMissingTrafficUser[]>([])
-  const [summary, setSummary] = useState<ArticleDistributionMissingTrafficSummary>(emptyMissingTrafficSummary)
-  const [userDetails, setUserDetails] = useState<Record<number, ArticleDistributionMissingTrafficUser>>({})
-  const [detailLoadingUserIds, setDetailLoadingUserIds] = useState<Set<number>>(() => new Set())
-  const [expandedRowKeys, setExpandedRowKeys] = useState<number[]>([])
-
-  const buildFilters = useCallback((): ArticleDistributionMissingTrafficFilters => {
-    const values = form.getFieldsValue()
-    const trafficDate = values.traffic_date ?? dayjs()
-    const range = values.date_range
-    return {
-      recorded_from: trafficDate.startOf('day').toISOString(),
-      recorded_to: trafficDate.add(1, 'day').startOf('day').toISOString(),
-      platform: values.platform?.trim() || undefined,
-      publication_type: values.publication_type,
-      account_status: values.account_status ?? 'active',
-      scheduled_from: range?.[0]?.format('YYYY-MM-DD'),
-      scheduled_to: range?.[1]?.format('YYYY-MM-DD'),
-    }
-  }, [form])
-
-  const loadReport = useCallback(async (filters?: ArticleDistributionMissingTrafficFilters) => {
-    setLoading(true)
-    try {
-      const report = await articleApi.listMissingTrafficReport(filters ?? buildFilters())
-      setRows(report.users)
-      setSummary(report.summary)
-      setUserDetails({})
-      setExpandedRowKeys([])
-    } catch (error) {
-      message.error(resolveApiErrorMessage(error, '未填流量文章加载失败'))
-    } finally {
-      setLoading(false)
-    }
-  }, [buildFilters, message])
-
-  const loadUserDetail = useCallback(async (userId: number) => {
-    setDetailLoadingUserIds((current) => new Set(current).add(userId))
-    try {
-      const detail = await articleApi.getMissingTrafficReportUser(userId, buildFilters())
-      setUserDetails((current) => ({ ...current, [userId]: detail }))
-    } catch (error) {
-      message.error(resolveApiErrorMessage(error, '用户未填流量明细加载失败'))
-    } finally {
-      setDetailLoadingUserIds((current) => {
-        const next = new Set(current)
-        next.delete(userId)
-        return next
-      })
-    }
-  }, [buildFilters, message])
-
-  useEffect(() => {
-    void loadReport()
-  }, [loadReport])
-
-  const userPagination = useMemo<TablePaginationConfig>(() => ({
-    pageSize: 10,
-    pageSizeOptions: [10, 20, 50, 100],
-    showSizeChanger: true,
-    hideOnSinglePage: false,
-    responsive: true,
-    showTotal: (_, range) => `第 ${range[0]}-${range[1]} 条`,
-    total: rows.length,
-  }), [rows.length])
-
-  const userColumns: TableColumnsType<ArticleDistributionMissingTrafficUser> = [
-    {
-      title: '用户',
-      key: 'user',
-      width: 360,
-      render: (_, record) => (
-        <Space direction="vertical" size={0}>
-          <Typography.Text strong>{record.name || record.username}</Typography.Text>
-          <Typography.Text type="secondary">
-            {record.username} · {record.email}
-          </Typography.Text>
-        </Space>
-      ),
-    },
-    {
-      title: '未填流量',
-      dataIndex: 'missing_count',
-      key: 'missing_count',
-      width: 160,
-      sorter: (a, b) => a.missing_count - b.missing_count,
-      render: (value: number) => <Tag color={value > 0 ? 'volcano' : 'default'}>{value} 篇</Tag>,
-    },
-    {
-      title: '上次阅读量',
-      dataIndex: 'read_count',
-      key: 'read_count',
-      width: 140,
-      sorter: (a, b) => a.read_count - b.read_count,
-      render: (value: number) => renderTrafficValue(value),
-    },
-    {
-      title: '上次点赞量',
-      dataIndex: 'like_count',
-      key: 'like_count',
-      width: 140,
-      sorter: (a, b) => a.like_count - b.like_count,
-      render: (value: number) => renderTrafficValue(value),
-    },
-    {
-      title: '上次收藏量',
-      dataIndex: 'favorite_count',
-      key: 'favorite_count',
-      width: 140,
-      sorter: (a, b) => a.favorite_count - b.favorite_count,
-      render: (value: number) => renderTrafficValue(value),
-    },
-    {
-      title: '上次转发量',
-      dataIndex: 'share_count',
-      key: 'share_count',
-      width: 140,
-      sorter: (a, b) => a.share_count - b.share_count,
-      render: (value: number) => renderTrafficValue(value),
-    },
-  ]
-
-  const articleColumns: TableColumnsType<ArticleDistributionMissingTrafficArticle> = [
-    {
-      title: '文章',
-      dataIndex: 'title',
-      key: 'title',
-      width: 320,
-      ellipsis: true,
-      render: (value: string) => <Typography.Text strong ellipsis>{value}</Typography.Text>,
-    },
-    {
-      title: '计划日期',
-      dataIndex: 'scheduled_date',
-      key: 'scheduled_date',
-      width: 130,
-      sorter: (a, b) => a.scheduled_date.localeCompare(b.scheduled_date),
-    },
-    {
-      title: '目标平台',
-      dataIndex: 'platform',
-      key: 'platform',
-      width: 130,
-      render: (value: string) => <Tag>{value}</Tag>,
-    },
-    {
-      title: '类型',
-      dataIndex: 'publication_type',
-      key: 'publication_type',
-      width: 90,
-      render: (value: ArticlePublicationType) => publicationTypeText[value],
-    },
-    {
-      title: '上次阅读',
-      key: 'read_count',
-      width: 100,
-      sorter: (a, b) => (a.latest_traffic_stat?.read_count ?? 0) - (b.latest_traffic_stat?.read_count ?? 0),
-      render: (_, record) => renderTrafficValue(record.latest_traffic_stat?.read_count),
-    },
-    {
-      title: '上次点赞',
-      key: 'like_count',
-      width: 100,
-      render: (_, record) => renderTrafficValue(record.latest_traffic_stat?.like_count),
-    },
-    {
-      title: '上次收藏',
-      key: 'favorite_count',
-      width: 100,
-      render: (_, record) => renderTrafficValue(record.latest_traffic_stat?.favorite_count),
-    },
-    {
-      title: '上次转发',
-      key: 'share_count',
-      width: 100,
-      render: (_, record) => renderTrafficValue(record.latest_traffic_stat?.share_count),
-    },
-    {
-      title: '上次统计时间',
-      key: 'traffic_recorded_at',
-      width: 150,
-      render: (_, record) => record.latest_traffic_stat
-        ? dayjs(record.latest_traffic_stat.recorded_at).format('YYYY-MM-DD HH:mm')
-        : '-',
-    },
-    {
-      title: '发布链接',
-      dataIndex: 'published_url',
-      key: 'published_url',
-      fixed: 'right',
-      width: 110,
-      render: (value: string) => (
-        <Typography.Link href={value} target="_blank" rel="noreferrer">
-          检查
-        </Typography.Link>
-      ),
-    },
-  ]
-
-  const expandedArticleTable = (record: ArticleDistributionMissingTrafficUser) => {
-    const detail = userDetails[record.user_id]
-    const loadingDetail = detailLoadingUserIds.has(record.user_id)
-
-    if (!detail && !loadingDetail) {
-      return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="展开后加载明细" />
-    }
-
-    return (
-      <Table
-        rowKey="id"
-        columns={articleColumns}
-        dataSource={detail?.articles ?? []}
-        pagination={false}
-        size="small"
-        tableLayout="fixed"
-        loading={loadingDetail}
-        scroll={{ x: 1330 }}
-      />
-    )
-  }
-
-  return (
-    <Flex vertical gap={18}>
-      <Flex align="center" justify="space-between" gap={16} wrap="wrap">
-        <div>
-          <Typography.Title level={2} style={{ margin: 0 }}>
-            未填新增流量
-          </Typography.Title>
-          <Typography.Text type="secondary">
-            查看已发布文章中，所选日期未填写流量记录的条目。
-          </Typography.Text>
-        </div>
-        <Button
-          icon={<ReloadOutlined />}
-          loading={loading}
-          onClick={() => void loadReport(buildFilters())}
-        >
-          刷新
-        </Button>
-      </Flex>
-
-      <Card>
-        <Flex gap={24} wrap="wrap">
-          <Statistic title="未填文章数" value={summary.missing_articles} />
-          <Statistic title="上次阅读量" value={summary.read_count} />
-          <Statistic title="上次点赞量" value={summary.like_count} />
-          <Statistic title="上次收藏量" value={summary.favorite_count} />
-          <Statistic title="上次转发量" value={summary.share_count} />
-        </Flex>
-        <Form
-          form={form}
-          layout="vertical"
-          initialValues={{ traffic_date: dayjs(), account_status: 'active' }}
-          style={{ marginTop: 18 }}
-        >
-          <Flex gap={16} wrap="wrap" align="end">
-            <Form.Item label="流量日期" name="traffic_date" style={{ minWidth: 180 }}>
-              <DatePicker allowClear={false} style={{ width: '100%' }} />
-            </Form.Item>
-            <Form.Item label="平台" name="platform" style={{ minWidth: 180 }}>
-              <Input allowClear placeholder="wechat、zhihu..." />
-            </Form.Item>
-            <Form.Item label="发布类型" name="publication_type" style={{ minWidth: 160 }}>
-              <Select allowClear options={publicationTypeOptions} placeholder="全部类型" />
-            </Form.Item>
-            <Form.Item label="账号类型" name="account_status" style={{ minWidth: 140 }}>
-              <Select options={accountStatusOptions} />
-            </Form.Item>
-            <Form.Item label="计划日期" name="date_range" style={{ minWidth: 260 }}>
-              <DatePicker.RangePicker style={{ width: '100%' }} />
-            </Form.Item>
-            <Form.Item>
-              <Space>
-                <Button type="primary" onClick={() => void loadReport(buildFilters())}>
-                  筛选
-                </Button>
-                <Button
-                  onClick={() => {
-                    form.resetFields()
-                    void loadReport()
-                  }}
-                >
-                  重置
-                </Button>
-              </Space>
-            </Form.Item>
-          </Flex>
-        </Form>
-      </Card>
-
-      <Table
-        rowKey="user_id"
-        loading={loading}
-        columns={userColumns}
-        dataSource={rows}
-        expandable={{
-          expandedRowRender: expandedArticleTable,
-          expandedRowKeys,
-          onExpand: (expanded, record) => {
-            setExpandedRowKeys((current) => (
-              expanded
-                ? [...current, record.user_id]
-                : current.filter((key) => key !== record.user_id)
-            ))
-            if (expanded && !userDetails[record.user_id]) {
-              void loadUserDetail(record.user_id)
-            }
-          },
-        }}
-        locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无未填流量文章" /> }}
-        pagination={userPagination}
-        tableLayout="fixed"
-        scroll={{ x: 1080 }}
-      />
-    </Flex>
   )
 }

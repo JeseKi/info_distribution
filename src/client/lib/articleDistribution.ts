@@ -17,6 +17,8 @@ import type {
   ArticleDistributionMissingTrafficReport,
   ArticleDistributionMissingTrafficUser,
   ArticleDistributionMetadataDashboard,
+  ArticleDistributionOverview,
+  ArticleDistributionOverviewParams,
   ArticleDistributionPendingReportFilters,
   ArticleDistributionPublicityRecordExportParams,
   ArticleDistributionTrafficStat,
@@ -125,6 +127,16 @@ export async function listUnpublishedArticleReport(
 ): Promise<ArticleDistributionReport> {
   const { data } = await api.get<ArticleDistributionReport>(
     '/article-distribution/reports/unpublished',
+    { params },
+  )
+  return data
+}
+
+export async function listReportOverview(
+  params?: ArticleDistributionOverviewParams,
+): Promise<ArticleDistributionOverview> {
+  const { data } = await api.get<ArticleDistributionOverview>(
+    '/article-distribution/reports/overview',
     { params },
   )
   return data

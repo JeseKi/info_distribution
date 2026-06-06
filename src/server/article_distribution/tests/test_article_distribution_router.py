@@ -1117,6 +1117,134 @@ def test_missing_traffic_report_lists_published_articles_without_today_stats(
     assert invalid_range_resp.status_code == 400
 
 
+def test_report_overview_supports_views_filters_and_topic_permission(
+    test_client, test_db_session: Session
+):
+    owner = _create_user(test_db_session, username="overview_owner", name="Overview")
+    viewer = _create_user(test_db_session, username="overview_viewer")
+    admin = _create_user(test_db_session, username="overview_admin", role=UserRole.ADMIN)
+
+    account_resp = test_client.post(
+        "/api/article-distribution/accounts",
+        headers=_headers(admin),
+        json={
+            "user_id": owner.id,
+            "account_name": "公众号",
+            "platform": "wechat",
+            "publication_type": "article",
+        },
+    )
+    assert account_resp.status_code == 201
+
+    upload_resp = test_client.post(
+        "/api/admin/article-distribution/articles",
+        headers=_headers(admin),
+        json={
+            "account_id": account_resp.json()["id"],
+            "articles": [
+                {
+                    "title": "Overview missing stat",
+                    "markdown_content": "body",
+                    "scheduled_date": "2026-05-20",
+                    "metadata": {"output_id": "overview_topic", "topic": "统一报表"},
+                },
+                {
+                    "title": "Overview unpublished",
+                    "markdown_content": "body",
+                    "scheduled_date": "2026-05-21",
+                },
+            ],
+        },
+    )
+    assert upload_resp.status_code == 201
+    published_id = upload_resp.json()[0]["id"]
+
+    publish_resp = test_client.patch(
+        f"/api/article-distribution/articles/{published_id}/status",
+        headers=_headers(owner),
+        json={
+            "publish_status": "published",
+            "published_url": "https://example.com/overview",
+        },
+    )
+    assert publish_resp.status_code == 200
+
+    stat_resp = test_client.post(
+        f"/api/article-distribution/articles/{published_id}/traffic-stats",
+        headers=_headers(owner),
+        json={
+            "read_count": 50,
+            "like_count": 5,
+            "recorded_at": "2026-05-27T23:00:00+00:00",
+        },
+    )
+    assert stat_resp.status_code == 201
+
+    denied_resp = test_client.get(
+        "/api/article-distribution/reports/overview",
+        headers=_headers(viewer),
+    )
+    assert denied_resp.status_code == 403
+
+    viewer.scope_overrides = auth_service.serialize_scopes(
+        [
+            *auth_service.get_role_scopes(UserRole.USER),
+            auth_service.SCOPE_ARTICLE_DISTRIBUTION_REPORT_READ,
+        ]
+    )
+    test_db_session.commit()
+    test_db_session.refresh(viewer)
+
+    users_resp = test_client.get(
+        "/api/article-distribution/reports/overview",
+        headers=_headers(viewer),
+        params={"view": "users", "keyword": "Overview"},
+    )
+    assert users_resp.status_code == 200, users_resp.text
+    users_report = users_resp.json()
+    assert users_report["summary"]["total_articles"] == 2
+    assert users_report["summary"]["published_articles"] == 1
+    assert users_report["summary"]["unpublished_articles"] == 1
+    assert users_report["items"][0]["item_type"] == "user"
+    assert users_report["items"][0]["published_count"] == 1
+    assert users_report["items"][0]["remaining_count"] == 1
+
+    missing_resp = test_client.get(
+        "/api/article-distribution/reports/overview",
+        headers=_headers(viewer),
+        params={
+            "view": "articles",
+            "missing_traffic_only": True,
+            "recorded_from": "2026-05-28T00:00:00+00:00",
+            "recorded_to": "2026-05-29T00:00:00+00:00",
+        },
+    )
+    assert missing_resp.status_code == 200, missing_resp.text
+    missing_report = missing_resp.json()
+    assert missing_report["total"] == 1
+    assert missing_report["summary"]["missing_articles"] == 1
+    assert missing_report["items"][0]["item_type"] == "article"
+    assert missing_report["items"][0]["missing_traffic"] is True
+    assert missing_report["items"][0]["latest_traffic_stat"]["read_count"] == 50
+
+    topic_denied_resp = test_client.get(
+        "/api/article-distribution/reports/overview",
+        headers=_headers(viewer),
+        params={"view": "topics"},
+    )
+    assert topic_denied_resp.status_code == 403
+
+    topic_resp = test_client.get(
+        "/api/article-distribution/reports/overview",
+        headers=_headers(admin),
+        params={"view": "topics"},
+    )
+    assert topic_resp.status_code == 200, topic_resp.text
+    topic_report = topic_resp.json()
+    assert topic_report["items"][0]["item_type"] == "topic"
+    assert any(item["topic"] == "统一报表" for item in topic_report["items"])
+
+
 def test_admin_can_export_publicity_records_csv(test_client, test_db_session: Session):
     owner = _create_user(test_db_session, username="publicity_owner", name="Owner Name")
     viewer = _create_user(test_db_session, username="publicity_viewer")

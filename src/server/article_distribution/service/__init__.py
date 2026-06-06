@@ -33,6 +33,7 @@ from .reports import (
     list_missing_traffic_report,
     list_public_dashboard,
     list_metadata_dashboard,
+    list_report_overview,
     list_unpublished_report,
 )
 from .traffic import (
@@ -65,6 +66,7 @@ __all__ = [
     "list_missing_traffic_report",
     "list_public_dashboard",
     "list_metadata_dashboard",
+    "list_report_overview",
     "list_articles",
     "list_articles_page",
     "list_unpublished_report",

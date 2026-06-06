@@ -645,6 +645,109 @@ export interface ArticleDistributionMetadataDashboard {
   page_size: number
 }
 
+export type ArticleDistributionOverviewView = 'users' | 'articles' | 'topics'
+
+export interface ArticleDistributionOverviewSummary {
+  total_users: number
+  total_articles: number
+  published_articles: number
+  unpublished_articles: number
+  invalid_articles: number
+  inactive_account_articles: number
+  missing_articles: number
+  topic_count: number
+  material_count: number
+  read_count: number
+  like_count: number
+  favorite_count: number
+  share_count: number
+}
+
+export interface ArticleDistributionOverviewArticle {
+  item_type: 'article'
+  id: number
+  title: string
+  markdown_content: string
+  scheduled_date: string
+  user_id: number
+  username: string
+  name: string | null
+  email: string
+  account_id: number
+  account_name: string
+  platform: string
+  publication_type: ArticlePublicationType
+  account_is_active: boolean
+  publish_status: ArticlePublishStatus
+  published_url: string | null
+  created_at: string
+  missing_traffic: boolean
+  output_id: string | null
+  topic: string | null
+  materials: string[]
+  article_role: string | null
+  angle_label: string | null
+  audience_label: string | null
+  summary: string | null
+  metadata: Record<string, unknown> | null
+  latest_traffic_stat: ArticleDistributionTrafficStat | null
+}
+
+export interface ArticleDistributionOverviewUser {
+  item_type: 'user'
+  user_id: number
+  username: string
+  name: string | null
+  email: string
+  remaining_count: number
+  published_count: number
+  invalid_count: number
+  inactive_account_articles: number
+  missing_count: number
+  read_count: number
+  like_count: number
+  favorite_count: number
+  share_count: number
+  platform_summaries: ArticleDistributionPlatformSummary[]
+  articles: ArticleDistributionOverviewArticle[]
+}
+
+export interface ArticleDistributionOverviewTopic {
+  item_type: 'topic'
+  key: string
+  output_id: string | null
+  topic: string
+  materials: string[]
+  article_count: number
+  read_count: number
+  like_count: number
+  favorite_count: number
+  share_count: number
+  articles: ArticleDistributionOverviewArticle[]
+}
+
+export type ArticleDistributionOverviewItem =
+  | ArticleDistributionOverviewUser
+  | ArticleDistributionOverviewArticle
+  | ArticleDistributionOverviewTopic
+
+export interface ArticleDistributionOverview {
+  view: ArticleDistributionOverviewView
+  summary: ArticleDistributionOverviewSummary
+  items: ArticleDistributionOverviewItem[]
+  total: number
+  page: number
+  page_size: number
+}
+
+export interface ArticleDistributionOverviewParams extends ArticleDistributionPendingReportFilters {
+  view?: ArticleDistributionOverviewView
+  keyword?: string
+  missing_traffic_only?: boolean
+  recorded_from?: string
+  recorded_to?: string
+}
+
 export type ArticleDistributionPublicityRecordExportParams = ArticleDistributionPendingReportFilters
 
 export interface ArticleDistributionMissingTrafficFilters extends ArticleDistributionPendingReportFilters {
