@@ -8,7 +8,6 @@ import type {
   ArticleDistributionOverview,
   ArticleDistributionOverviewArticle,
   ArticleDistributionOverviewArticleDetail,
-  ArticleDistributionOverviewItem,
   ArticleDistributionOverviewParams,
   ArticleDistributionOverviewSortBy,
   ArticleDistributionOverviewSortOrder,
@@ -364,7 +363,7 @@ export default function ArticleDistributionReportPage() {
     setPage(1)
   }
 
-  const handleOverviewTableChange: NonNullable<TableProps<ArticleDistributionOverviewItem>['onChange']> = (
+  const createOverviewTableChange = <T extends object>(): NonNullable<TableProps<T>['onChange']> => (
     _pagination,
     _filters,
     sorter,
@@ -513,7 +512,7 @@ export default function ArticleDistributionReportPage() {
           loading={loading}
           columns={visibleUserColumns}
           dataSource={users}
-          onChange={handleOverviewTableChange}
+          onChange={createOverviewTableChange()}
           expandable={{
             onExpand: (expanded, record) => {
               if (expanded && !userArticlePages[record.user_id]) {
@@ -572,7 +571,7 @@ export default function ArticleDistributionReportPage() {
           loading={loading}
           columns={visibleArticleColumns}
           dataSource={articles}
-          onChange={handleOverviewTableChange}
+          onChange={createOverviewTableChange()}
           locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无文章数据" /> }}
           pagination={pagination}
           tableLayout="fixed"
@@ -586,7 +585,7 @@ export default function ArticleDistributionReportPage() {
           loading={loading}
           columns={visibleTopicColumns}
           dataSource={topics}
-          onChange={handleOverviewTableChange}
+          onChange={createOverviewTableChange()}
           expandable={{
             onExpand: (expanded, record) => {
               if (expanded && !topicArticlePages[record.key]) {
