@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from datetime import date, datetime
 
-from sqlalchemy import or_
+from sqlalchemy import String, cast, literal, or_
 from sqlalchemy.orm import Query
 
 from src.server.auth.models import User
@@ -64,6 +64,8 @@ class ArticleDistributionReportOverviewDAO(ArticleDistributionReportQueryDAO):
     def list_overview_article_owner_rows(
         self,
         *,
+        user_id: int | None = None,
+        topic_key: str | None = None,
         scheduled_from: date | None = None,
         scheduled_to: date | None = None,
         platform: str | None = None,
@@ -78,6 +80,8 @@ class ArticleDistributionReportOverviewDAO(ArticleDistributionReportQueryDAO):
         tuple[ArticleDistributionArticle, ArticleDistributionAccount, User]
     ]:
         query = self._overview_query(
+            user_id=user_id,
+            topic_key=topic_key,
             scheduled_from=scheduled_from,
             scheduled_to=scheduled_to,
             platform=platform,
@@ -106,6 +110,8 @@ class ArticleDistributionReportOverviewDAO(ArticleDistributionReportQueryDAO):
     def list_overview_article_owner_rows_page(
         self,
         *,
+        user_id: int | None = None,
+        topic_key: str | None = None,
         scheduled_from: date | None = None,
         scheduled_to: date | None = None,
         platform: str | None = None,
@@ -122,6 +128,8 @@ class ArticleDistributionReportOverviewDAO(ArticleDistributionReportQueryDAO):
         list[tuple[ArticleDistributionArticle, ArticleDistributionAccount, User]], int
     ]:
         query = self._overview_query(
+            user_id=user_id,
+            topic_key=topic_key,
             scheduled_from=scheduled_from,
             scheduled_to=scheduled_to,
             platform=platform,
@@ -150,6 +158,25 @@ class ArticleDistributionReportOverviewDAO(ArticleDistributionReportQueryDAO):
         )
         return [(article, account, owner) for article, account, owner in rows], total
 
+    def get_overview_article_owner_row(
+        self,
+        article_id: int,
+    ) -> tuple[ArticleDistributionArticle, ArticleDistributionAccount, User] | None:
+        row = (
+            self._overview_query(account_status="all")
+            .with_entities(
+                ArticleDistributionArticle,
+                ArticleDistributionAccount,
+                User,
+            )
+            .filter(ArticleDistributionArticle.id == article_id)
+            .first()
+        )
+        if row is None:
+            return None
+        article, account, owner = row
+        return article, account, owner
+
     def traffic_article_ids_in_range(
         self,
         article_ids: list[int],
@@ -174,6 +201,8 @@ class ArticleDistributionReportOverviewDAO(ArticleDistributionReportQueryDAO):
     def _overview_query(
         self,
         *,
+        user_id: int | None = None,
+        topic_key: str | None = None,
         scheduled_from: date | None = None,
         scheduled_to: date | None = None,
         platform: str | None = None,
@@ -186,12 +215,22 @@ class ArticleDistributionReportOverviewDAO(ArticleDistributionReportQueryDAO):
         recorded_to: datetime | None = None,
     ) -> Query[ArticleDistributionArticle]:
         query = self._report_query(
+            user_id=user_id,
             scheduled_from=scheduled_from,
             scheduled_to=scheduled_to,
             platform=platform,
             publication_type=publication_type,
             account_status=account_status,
         )
+        if topic_key:
+            output_id = ArticleDistributionArticle.article_metadata["output_id"].as_string()
+            query = query.filter(
+                or_(
+                    output_id == topic_key,
+                    literal("article:") + cast(ArticleDistributionArticle.id, String)
+                    == topic_key,
+                )
+            )
         if publish_status:
             query = query.filter(ArticleDistributionArticle.publish_status == publish_status)
         if keyword:

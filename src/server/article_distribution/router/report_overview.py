@@ -21,6 +21,8 @@ from src.server.database import get_db
 from .. import service
 from ..schemas import (
     AccountStatusFilter,
+    ArticleDistributionOverviewArticleDetailOut,
+    ArticleDistributionOverviewArticlePageOut,
     ArticleDistributionOverviewOut,
     ArticleDistributionOverviewView,
     PublishStatus,
@@ -91,6 +93,78 @@ async def list_report_overview(
         )
 
     return await run_in_thread(_list)
+
+
+@router.get(
+    "/reports/overview/articles",
+    response_model=ArticleDistributionOverviewArticlePageOut,
+    summary="查看统一分发报表文章明细",
+)
+async def list_report_overview_articles(
+    user_id: int | None = Query(default=None, ge=1),
+    topic_key: str | None = Query(default=None),
+    keyword: str | None = Query(default=None),
+    scheduled_from: date | None = Query(default=None),
+    scheduled_to: date | None = Query(default=None),
+    platform: str | None = Query(default=None),
+    publication_type: PublicationType | None = Query(default=None),
+    account_status: AccountStatusFilter = Query(default="active"),
+    publish_status: PublishStatus | None = Query(default=None),
+    missing_traffic_only: bool = Query(default=False),
+    recorded_from: datetime | None = Query(default=None),
+    recorded_to: datetime | None = Query(default=None),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
+    db: Session = Depends(get_db),
+    _: User = Security(
+        get_current_user, scopes=[SCOPE_ARTICLE_DISTRIBUTION_REPORT_READ]
+    ),
+):
+    def _list():
+        return service.list_report_overview_articles(
+            db,
+            user_id=user_id,
+            topic_key=topic_key,
+            keyword=keyword,
+            scheduled_from=scheduled_from,
+            scheduled_to=scheduled_to,
+            platform=platform,
+            publication_type=publication_type,
+            account_status=account_status,
+            publish_status=publish_status,
+            missing_traffic_only=missing_traffic_only,
+            recorded_from=recorded_from,
+            recorded_to=recorded_to,
+            page=page,
+            page_size=page_size,
+        )
+
+    return await run_in_thread(_list)
+
+
+@router.get(
+    "/reports/overview/articles/{article_id}",
+    response_model=ArticleDistributionOverviewArticleDetailOut,
+    summary="查看统一分发报表文章详情",
+)
+async def get_report_overview_article_detail(
+    article_id: int,
+    recorded_from: datetime | None = Query(default=None),
+    recorded_to: datetime | None = Query(default=None),
+    db: Session = Depends(get_db),
+    _: User = Security(
+        get_current_user, scopes=[SCOPE_ARTICLE_DISTRIBUTION_REPORT_READ]
+    ),
+):
+    def _get():
+        return service.get_report_overview_article_detail(
+            db,
+            article_id=article_id,
+            recorded_from=recorded_from,
+            recorded_to=recorded_to,
+        )
+
+    return await run_in_thread(_get)
 
 
 @router.get(

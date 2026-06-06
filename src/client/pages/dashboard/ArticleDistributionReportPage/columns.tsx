@@ -1,7 +1,6 @@
-import { Flex, Popover, Space, Tag, Typography } from 'antd'
+import { Space, Tag, Typography } from 'antd'
 import type { TableColumnsType } from 'antd'
 import type {
-  ArticleDistributionOverviewArticle,
   ArticleDistributionOverviewTopic,
   ArticleDistributionOverviewUser,
   ArticleDistributionPlatformSummary,
@@ -97,9 +96,7 @@ export function buildTopicColumns(): TableColumnsType<ArticleDistributionOvervie
   ]
 }
 
-export function buildPlatformColumns(
-  user: ArticleDistributionOverviewUser,
-): TableColumnsType<ArticleDistributionPlatformSummary> {
+export function buildPlatformColumns(): TableColumnsType<ArticleDistributionPlatformSummary> {
   return [
     {
       title: '发布平台',
@@ -135,48 +132,14 @@ export function buildPlatformColumns(
       render: (value: number) => <Tag color={value > 0 ? 'red' : 'default'}>{value}</Tag>,
     },
     {
-      title: '文章链接',
-      key: 'published_article_links',
+      title: '最新链接',
+      key: 'latest_published_url',
       width: 140,
-      render: (_, record) => renderPublishedArticleLinks(user, record),
+      render: (_, record) => record.latest_published_url ? (
+        <Typography.Link href={record.latest_published_url} target="_blank" rel="noreferrer">
+          检查
+        </Typography.Link>
+      ) : '-',
     },
   ]
-}
-
-function renderPublishedArticleLinks(
-  user: ArticleDistributionOverviewUser,
-  platformSummary: ArticleDistributionPlatformSummary,
-) {
-  const articles = user.articles.filter(
-    (article): article is ArticleDistributionOverviewArticle & { published_url: string } =>
-      article.account_id === platformSummary.account_id &&
-      article.publish_status === 'published' &&
-      Boolean(article.published_url),
-  )
-  if (!articles.length) return '-'
-
-  return (
-    <Popover
-      trigger="click"
-      placement="bottomRight"
-      title="已发布文章链接"
-      content={(
-        <Flex vertical gap={12} style={{ width: 420, maxWidth: '70vw', maxHeight: 360, overflow: 'auto' }}>
-          {articles.map((article) => (
-            <Space key={article.id} direction="vertical" size={0} style={{ minWidth: 0, width: '100%' }}>
-              <Typography.Text strong ellipsis>
-                {article.title}
-              </Typography.Text>
-              <Typography.Text type="secondary">{article.scheduled_date}</Typography.Text>
-              <Typography.Link href={article.published_url} target="_blank" rel="noreferrer" ellipsis>
-                {article.published_url}
-              </Typography.Link>
-            </Space>
-          ))}
-        </Flex>
-      )}
-    >
-      <Typography.Link>查看 {articles.length} 篇</Typography.Link>
-    </Popover>
-  )
 }

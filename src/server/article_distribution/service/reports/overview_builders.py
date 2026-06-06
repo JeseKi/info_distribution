@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from ...dao import ArticleDistributionDAO
 from ...schemas import (
+    ArticleDistributionOverviewArticleDetailOut,
     ArticleDistributionOverviewArticleOut,
     ArticleDistributionOverviewSummaryOut,
     ArticleDistributionOverviewTopicOut,
@@ -32,6 +33,7 @@ def _overview_articles_from_rows(
     *,
     recorded_from: datetime | None,
     recorded_to: datetime | None,
+    include_detail_fields: bool = False,
 ) -> list[ArticleDistributionOverviewArticleOut]:
     dao = ArticleDistributionDAO(db)
     article_ids = [article.id for article, _, _ in rows]
@@ -52,51 +54,63 @@ def _overview_articles_from_rows(
             else None
         )
         latest_stat = latest_traffic_stats.get(article.id)
-        articles.append(
-            ArticleDistributionOverviewArticleOut(
-                id=article.id,
-                title=article.title,
-                markdown_content=article.markdown_content,
-                scheduled_date=article.scheduled_date,
-                user_id=owner.id,
-                username=owner.username,
-                name=owner.name,
-                email=owner.email,
-                account_id=account.id,
-                account_name=account.account_name,
-                platform=account.platform,
-                publication_type=normalize_publication_type(account.publication_type),
-                account_is_active=account.is_active,
-                publish_status=normalize_publish_status(article.publish_status),
-                published_url=article.published_url,
-                created_at=article.created_at,
-                missing_traffic=(
+        article_out_fields = {
+                "id": article.id,
+                "title": article.title,
+                "scheduled_date": article.scheduled_date,
+                "user_id": owner.id,
+                "username": owner.username,
+                "name": owner.name,
+                "email": owner.email,
+                "account_id": account.id,
+                "account_name": account.account_name,
+                "platform": account.platform,
+                "publication_type": normalize_publication_type(account.publication_type),
+                "account_is_active": account.is_active,
+                "publish_status": normalize_publish_status(article.publish_status),
+                "published_url": article.published_url,
+                "created_at": article.created_at,
+                "missing_traffic": (
                     recorded_from is not None
                     and recorded_to is not None
                     and article.publish_status == "published"
                     and bool(article.published_url)
                     and article.id not in traffic_article_ids
                 ),
-                output_id=_metadata_output_id(metadata),
-                topic=_metadata_topic(metadata),
-                materials=_metadata_material_titles(metadata),
-                article_role=_metadata_article_string(metadata, "role"),
-                angle_label=_metadata_string(metadata, "angle_label"),
-                audience_label=_metadata_string(metadata, "audience_label"),
-                summary=_metadata_article_string(metadata, "summary"),
-                metadata=metadata,
-                latest_traffic_stat=(
+                "output_id": _metadata_output_id(metadata),
+                "topic": _metadata_topic(metadata),
+                "materials": _metadata_material_titles(metadata),
+                "article_role": _metadata_article_string(metadata, "role"),
+                "angle_label": _metadata_string(metadata, "angle_label"),
+                "audience_label": _metadata_string(metadata, "audience_label"),
+                "latest_traffic_stat": (
                     ArticleTrafficStatOut.model_validate(latest_stat)
                     if latest_stat is not None
                     else None
                 ),
+            }
+        if include_detail_fields:
+            articles.append(
+                ArticleDistributionOverviewArticleDetailOut(
+                    **article_out_fields,
+                    markdown_content=article.markdown_content,
+                    summary=_metadata_article_string(metadata, "summary"),
+                    metadata=metadata,
+                )
             )
-        )
+        else:
+            articles.append(
+                ArticleDistributionOverviewArticleOut(
+                    **article_out_fields,
+                )
+            )
     return articles
 
 
 def _overview_users_from_articles(
     articles: list[ArticleDistributionOverviewArticleOut],
+    *,
+    include_articles: bool = True,
 ) -> list[ArticleDistributionOverviewUserOut]:
     grouped: dict[int, ArticleDistributionOverviewUserOut] = {}
     platform_summaries: dict[tuple[int, int], ArticleDistributionPlatformSummaryOut] = {}
@@ -151,13 +165,16 @@ def _overview_users_from_articles(
         elif article.account_is_active:
             user_report.remaining_count += 1
             platform_summary.unpublished_count += 1
-        user_report.articles.append(article)
+        if include_articles:
+            user_report.articles.append(article)
 
     return list(grouped.values())
 
 
 def _overview_topics_from_articles(
     articles: list[ArticleDistributionOverviewArticleOut],
+    *,
+    include_articles: bool = True,
 ) -> list[ArticleDistributionOverviewTopicOut]:
     grouped: dict[str, ArticleDistributionOverviewTopicOut] = {}
     for article in articles:
@@ -185,7 +202,8 @@ def _overview_topics_from_articles(
             topic_row.like_count += latest_stat.like_count
             topic_row.favorite_count += latest_stat.favorite_count
             topic_row.share_count += latest_stat.share_count
-        topic_row.articles.append(article)
+        if include_articles:
+            topic_row.articles.append(article)
     return list(grouped.values())
 
 
@@ -193,7 +211,7 @@ def _overview_summary(
     articles: list[ArticleDistributionOverviewArticleOut],
 ) -> ArticleDistributionOverviewSummaryOut:
     users = {article.user_id for article in articles}
-    topics = _overview_topics_from_articles(articles)
+    topics = _overview_topics_from_articles(articles, include_articles=False)
     materials = {
         material
         for topic in topics

@@ -12,6 +12,8 @@ from sqlalchemy.orm import Session
 from ...dao import ArticleDistributionDAO
 from ...schemas import (
     AccountStatusFilter,
+    ArticleDistributionOverviewArticleDetailOut,
+    ArticleDistributionOverviewArticlePageOut,
     ArticleDistributionOverviewOut,
     ArticleDistributionOverviewView,
 )
@@ -116,7 +118,7 @@ def list_report_overview(
         )
 
     if view == "topics":
-        topics = _overview_topics_from_articles(all_articles)
+        topics = _overview_topics_from_articles(all_articles, include_articles=False)
         paged_topics = cast(
             list[OverviewItemOut],
             topics[(page - 1) * page_size : page * page_size],
@@ -130,7 +132,7 @@ def list_report_overview(
             page_size=page_size,
         )
 
-    users = _overview_users_from_articles(all_articles)
+    users = _overview_users_from_articles(all_articles, include_articles=False)
     paged_users = cast(
         list[OverviewItemOut],
         users[(page - 1) * page_size : page * page_size],
@@ -143,3 +145,101 @@ def list_report_overview(
         page=page,
         page_size=page_size,
     )
+
+
+def list_report_overview_articles(
+    db: Session,
+    *,
+    user_id: int | None = None,
+    topic_key: str | None = None,
+    keyword: str | None = None,
+    scheduled_from: date | None = None,
+    scheduled_to: date | None = None,
+    platform: str | None = None,
+    publication_type: str | None = None,
+    account_status: AccountStatusFilter = "active",
+    publish_status: str | None = None,
+    missing_traffic_only: bool = False,
+    recorded_from: datetime | None = None,
+    recorded_to: datetime | None = None,
+    page: int = 1,
+    page_size: int = 20,
+) -> ArticleDistributionOverviewArticlePageOut:
+    normalized_recorded_from: datetime | None = None
+    normalized_recorded_to: datetime | None = None
+    if recorded_from is not None and recorded_to is not None:
+        normalized_recorded_from = _normalize_datetime(recorded_from)
+        normalized_recorded_to = _normalize_datetime(recorded_to)
+        if normalized_recorded_from >= normalized_recorded_to:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="流量统计时间范围无效",
+            )
+    elif missing_traffic_only:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="筛选未填流量时必须提供流量统计时间范围",
+        )
+
+    dao = ArticleDistributionDAO(db)
+    page_rows, total = dao.list_overview_article_owner_rows_page(
+        user_id=user_id,
+        topic_key=normalize_optional(topic_key),
+        scheduled_from=scheduled_from,
+        scheduled_to=scheduled_to,
+        platform=normalize_optional(platform),
+        publication_type=publication_type,
+        account_status=account_status,
+        publish_status=publish_status,
+        keyword=normalize_optional(keyword),
+        missing_traffic_only=missing_traffic_only,
+        recorded_from=normalized_recorded_from,
+        recorded_to=normalized_recorded_to,
+        page=page,
+        page_size=page_size,
+    )
+    return ArticleDistributionOverviewArticlePageOut(
+        items=_overview_articles_from_rows(
+            db,
+            page_rows,
+            recorded_from=normalized_recorded_from,
+            recorded_to=normalized_recorded_to,
+        ),
+        total=total,
+        page=page,
+        page_size=page_size,
+    )
+
+
+def get_report_overview_article_detail(
+    db: Session,
+    *,
+    article_id: int,
+    recorded_from: datetime | None = None,
+    recorded_to: datetime | None = None,
+) -> ArticleDistributionOverviewArticleDetailOut:
+    normalized_recorded_from: datetime | None = None
+    normalized_recorded_to: datetime | None = None
+    if recorded_from is not None and recorded_to is not None:
+        normalized_recorded_from = _normalize_datetime(recorded_from)
+        normalized_recorded_to = _normalize_datetime(recorded_to)
+        if normalized_recorded_from >= normalized_recorded_to:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="流量统计时间范围无效",
+            )
+
+    row = ArticleDistributionDAO(db).get_overview_article_owner_row(article_id)
+    if row is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="文章不存在",
+        )
+    articles = _overview_articles_from_rows(
+        db,
+        [row],
+        recorded_from=normalized_recorded_from,
+        recorded_to=normalized_recorded_to,
+        include_detail_fields=True,
+    )
+    return cast(ArticleDistributionOverviewArticleDetailOut, articles[0])

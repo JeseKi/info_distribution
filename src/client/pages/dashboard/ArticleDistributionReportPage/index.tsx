@@ -6,6 +6,7 @@ import { useAuth } from '../../../hooks/useAuth'
 import type {
   ArticleDistributionOverview,
   ArticleDistributionOverviewArticle,
+  ArticleDistributionOverviewArticleDetail,
   ArticleDistributionOverviewParams,
   ArticleDistributionOverviewView,
   ArticleDistributionReportExportFormat,
@@ -22,6 +23,22 @@ import { SummaryFilterCard } from './SummaryFilterCard'
 import { tableScroll } from './tableUtils'
 import type { FilterValues } from './types'
 
+interface ExpandedArticlePage {
+  items: ArticleDistributionOverviewArticle[]
+  total: number
+  page: number
+  pageSize: number
+  loading: boolean
+}
+
+const defaultExpandedArticlePage: ExpandedArticlePage = {
+  items: [],
+  total: 0,
+  page: 1,
+  pageSize: 10,
+  loading: false,
+}
+
 export default function ArticleDistributionReportPage() {
   const { message } = App.useApp()
   const { user } = useAuth()
@@ -34,6 +51,10 @@ export default function ArticleDistributionReportPage() {
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(20)
   const [selectedArticle, setSelectedArticle] = useState<ArticleDistributionOverviewArticle | null>(null)
+  const [selectedArticleDetail, setSelectedArticleDetail] = useState<ArticleDistributionOverviewArticleDetail | null>(null)
+  const [selectedArticleDetailLoading, setSelectedArticleDetailLoading] = useState(false)
+  const [userArticlePages, setUserArticlePages] = useState<Record<number, ExpandedArticlePage>>({})
+  const [topicArticlePages, setTopicArticlePages] = useState<Record<string, ExpandedArticlePage>>({})
   const [visibleColumns, setVisibleColumns] = useState<Record<ArticleDistributionOverviewView, string[]>>(() => ({
     users: readVisibleColumns('users'),
     articles: readVisibleColumns('articles'),
@@ -70,6 +91,114 @@ export default function ArticleDistributionReportPage() {
     return params
   }, [form, view])
 
+  const clearExpandedArticles = useCallback(() => {
+    setUserArticlePages({})
+    setTopicArticlePages({})
+  }, [])
+
+  const loadUserArticles = useCallback(async (
+    userId: number,
+    nextPage = 1,
+    nextPageSize = defaultExpandedArticlePage.pageSize,
+  ) => {
+    setUserArticlePages((current) => ({
+      ...current,
+      [userId]: {
+        ...(current[userId] ?? defaultExpandedArticlePage),
+        page: nextPage,
+        pageSize: nextPageSize,
+        loading: true,
+      },
+    }))
+    try {
+      const params = buildParams(nextPage, nextPageSize)
+      delete params.view
+      const detail = await articleApi.listReportOverviewArticles({
+        ...params,
+        user_id: userId,
+      })
+      setUserArticlePages((current) => ({
+        ...current,
+        [userId]: {
+          items: detail.items,
+          total: detail.total,
+          page: detail.page,
+          pageSize: detail.page_size,
+          loading: false,
+        },
+      }))
+    } catch (error) {
+      message.error(resolveApiErrorMessage(error, '用户文章明细加载失败'))
+      setUserArticlePages((current) => ({
+        ...current,
+        [userId]: {
+          ...(current[userId] ?? defaultExpandedArticlePage),
+          loading: false,
+        },
+      }))
+    }
+  }, [buildParams, message])
+
+  const loadTopicArticles = useCallback(async (
+    topicKey: string,
+    nextPage = 1,
+    nextPageSize = defaultExpandedArticlePage.pageSize,
+  ) => {
+    setTopicArticlePages((current) => ({
+      ...current,
+      [topicKey]: {
+        ...(current[topicKey] ?? defaultExpandedArticlePage),
+        page: nextPage,
+        pageSize: nextPageSize,
+        loading: true,
+      },
+    }))
+    try {
+      const params = buildParams(nextPage, nextPageSize)
+      delete params.view
+      const detail = await articleApi.listReportOverviewArticles({
+        ...params,
+        topic_key: topicKey,
+      })
+      setTopicArticlePages((current) => ({
+        ...current,
+        [topicKey]: {
+          items: detail.items,
+          total: detail.total,
+          page: detail.page,
+          pageSize: detail.page_size,
+          loading: false,
+        },
+      }))
+    } catch (error) {
+      message.error(resolveApiErrorMessage(error, '选题文章明细加载失败'))
+      setTopicArticlePages((current) => ({
+        ...current,
+        [topicKey]: {
+          ...(current[topicKey] ?? defaultExpandedArticlePage),
+          loading: false,
+        },
+      }))
+    }
+  }, [buildParams, message])
+
+  const handleSelectArticle = useCallback((article: ArticleDistributionOverviewArticle) => {
+    setSelectedArticle(article)
+    setSelectedArticleDetail(null)
+    setSelectedArticleDetailLoading(true)
+    const params = buildParams(1, pageSize)
+    articleApi.getReportOverviewArticleDetail(article.id, {
+      recorded_from: params.recorded_from,
+      recorded_to: params.recorded_to,
+    })
+      .then(setSelectedArticleDetail)
+      .catch((error) => {
+        message.error(resolveApiErrorMessage(error, '文章详情加载失败'))
+        setSelectedArticle(null)
+      })
+      .finally(() => setSelectedArticleDetailLoading(false))
+  }, [buildParams, message, pageSize])
+
   const loadOverview = useCallback(async (nextPage = page, nextPageSize = pageSize) => {
     if (view === 'topics' && !canViewTopics) {
       setOverview({ ...defaultOverview, view: 'topics' })
@@ -101,17 +230,20 @@ export default function ArticleDistributionReportPage() {
   }, [view])
 
   const handleApplyFilters = () => {
+    clearExpandedArticles()
     setPage(1)
     void loadOverview(1, pageSize)
   }
 
   const handleResetFilters = () => {
     form.resetFields()
+    clearExpandedArticles()
     setPage(1)
     void loadOverview(1, pageSize)
   }
 
   const handleViewChange = (nextView: ArticleDistributionOverviewView) => {
+    clearExpandedArticles()
     setView(nextView)
     setPage(1)
   }
@@ -141,7 +273,7 @@ export default function ArticleDistributionReportPage() {
   const articleColumns = buildArticleColumns({
     includeUser: true,
     includeActions: true,
-    onSelectArticle: setSelectedArticle,
+    onSelectArticle: handleSelectArticle,
   })
   const topicColumns = buildTopicColumns()
   const visibleUserColumns = filterColumns(userColumns, visibleColumns.users)
@@ -150,12 +282,12 @@ export default function ArticleDistributionReportPage() {
   const expandedUserArticleColumns = buildArticleColumns({
     includeUser: false,
     includeActions: true,
-    onSelectArticle: setSelectedArticle,
+    onSelectArticle: handleSelectArticle,
   })
   const expandedTopicArticleColumns = buildArticleColumns({
     includeUser: true,
     includeActions: true,
-    onSelectArticle: setSelectedArticle,
+    onSelectArticle: handleSelectArticle,
   })
   const pagination = {
     current: page,
@@ -165,6 +297,7 @@ export default function ArticleDistributionReportPage() {
     pageSizeOptions: [10, 20, 50, 100],
     showTotal: (_: number, range: [number, number]) => `第 ${range[0]}-${range[1]} 条，共 ${overview.total} 条`,
     onChange: (nextPage: number, nextPageSize: number) => {
+      clearExpandedArticles()
       setPage(nextPage)
       setPageSize(nextPageSize)
     },
@@ -220,8 +353,14 @@ export default function ArticleDistributionReportPage() {
           columns={visibleUserColumns}
           dataSource={users}
           expandable={{
+            onExpand: (expanded, record) => {
+              if (expanded && !userArticlePages[record.user_id]) {
+                void loadUserArticles(record.user_id)
+              }
+            },
             expandedRowRender: (record) => {
-              const platformColumns = buildPlatformColumns(record)
+              const platformColumns = buildPlatformColumns()
+              const articlePage = userArticlePages[record.user_id] ?? defaultExpandedArticlePage
               return (
                 <Flex vertical gap={12} style={{ minWidth: 0, width: '100%', overflow: 'hidden' }}>
                   <Table
@@ -236,8 +375,19 @@ export default function ArticleDistributionReportPage() {
                   <Table
                     rowKey="id"
                     columns={expandedUserArticleColumns}
-                    dataSource={record.articles}
-                    pagination={false}
+                    dataSource={articlePage.items}
+                    loading={articlePage.loading}
+                    pagination={{
+                      current: articlePage.page,
+                      pageSize: articlePage.pageSize,
+                      total: articlePage.total,
+                      showSizeChanger: true,
+                      pageSizeOptions: [10, 20, 50, 100],
+                      size: 'small',
+                      onChange: (nextPage, nextPageSize) => {
+                        void loadUserArticles(record.user_id, nextPage, nextPageSize)
+                      },
+                    }}
                     size="small"
                     tableLayout="fixed"
                     scroll={tableScroll(expandedUserArticleColumns)}
@@ -273,17 +423,36 @@ export default function ArticleDistributionReportPage() {
           columns={visibleTopicColumns}
           dataSource={topics}
           expandable={{
-            expandedRowRender: (record) => (
-              <Table
-                rowKey="id"
-                size="small"
-                columns={expandedTopicArticleColumns}
-                dataSource={record.articles}
-                pagination={false}
-                tableLayout="fixed"
-                scroll={tableScroll(expandedTopicArticleColumns)}
-              />
-            ),
+            onExpand: (expanded, record) => {
+              if (expanded && !topicArticlePages[record.key]) {
+                void loadTopicArticles(record.key)
+              }
+            },
+            expandedRowRender: (record) => {
+              const articlePage = topicArticlePages[record.key] ?? defaultExpandedArticlePage
+              return (
+                <Table
+                  rowKey="id"
+                  size="small"
+                  columns={expandedTopicArticleColumns}
+                  dataSource={articlePage.items}
+                  loading={articlePage.loading}
+                  pagination={{
+                    current: articlePage.page,
+                    pageSize: articlePage.pageSize,
+                    total: articlePage.total,
+                    showSizeChanger: true,
+                    pageSizeOptions: [10, 20, 50, 100],
+                    size: 'small',
+                    onChange: (nextPage, nextPageSize) => {
+                      void loadTopicArticles(record.key, nextPage, nextPageSize)
+                    },
+                  }}
+                  tableLayout="fixed"
+                  scroll={tableScroll(expandedTopicArticleColumns)}
+                />
+              )
+            },
           }}
           locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无选题数据" /> }}
           pagination={pagination}
@@ -293,7 +462,13 @@ export default function ArticleDistributionReportPage() {
       )}
       <ArticleDetailModal
         article={selectedArticle}
-        onClose={() => setSelectedArticle(null)}
+        detail={selectedArticleDetail}
+        loading={selectedArticleDetailLoading}
+        onClose={() => {
+          setSelectedArticle(null)
+          setSelectedArticleDetail(null)
+          setSelectedArticleDetailLoading(false)
+        }}
       />
     </Flex>
   )

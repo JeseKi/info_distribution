@@ -32,7 +32,6 @@ class ArticleDistributionOverviewArticleOut(BaseModel):
     item_type: Literal["article"] = "article"
     id: int
     title: str
-    markdown_content: str
     scheduled_date: date
     user_id: int
     username: str
@@ -53,9 +52,13 @@ class ArticleDistributionOverviewArticleOut(BaseModel):
     article_role: str | None = None
     angle_label: str | None = None
     audience_label: str | None = None
+    latest_traffic_stat: ArticleTrafficStatOut | None = None
+
+
+class ArticleDistributionOverviewArticleDetailOut(ArticleDistributionOverviewArticleOut):
+    markdown_content: str
     summary: str | None = None
     metadata: dict[str, Any] | None = None
-    latest_traffic_stat: ArticleTrafficStatOut | None = None
 
 
 class ArticleDistributionOverviewUserOut(BaseModel):
@@ -99,6 +102,13 @@ class ArticleDistributionOverviewOut(BaseModel):
         | ArticleDistributionOverviewArticleOut
         | ArticleDistributionOverviewTopicOut
     ]
+    total: int
+    page: int
+    page_size: int
+
+
+class ArticleDistributionOverviewArticlePageOut(BaseModel):
+    items: list[ArticleDistributionOverviewArticleOut]
     total: int
     page: int
     page_size: int

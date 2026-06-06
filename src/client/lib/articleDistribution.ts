@@ -20,6 +20,9 @@ import type {
   ArticleDistributionMissingTrafficUser,
   ArticleDistributionMetadataDashboard,
   ArticleDistributionOverview,
+  ArticleDistributionOverviewArticleDetail,
+  ArticleDistributionOverviewArticlePage,
+  ArticleDistributionOverviewArticlePageParams,
   ArticleDistributionOverviewParams,
   ArticleDistributionPendingReportFilters,
   ArticleDistributionPublicityRecordExportParams,
@@ -147,6 +150,27 @@ export async function listReportOverview(
 ): Promise<ArticleDistributionOverview> {
   const { data } = await api.get<ArticleDistributionOverview>(
     '/article-distribution/reports/overview',
+    { params },
+  )
+  return data
+}
+
+export async function listReportOverviewArticles(
+  params?: ArticleDistributionOverviewArticlePageParams,
+): Promise<ArticleDistributionOverviewArticlePage> {
+  const { data } = await api.get<ArticleDistributionOverviewArticlePage>(
+    '/article-distribution/reports/overview/articles',
+    { params },
+  )
+  return data
+}
+
+export async function getReportOverviewArticleDetail(
+  articleId: number,
+  params?: Pick<ArticleDistributionOverviewParams, 'recorded_from' | 'recorded_to'>,
+): Promise<ArticleDistributionOverviewArticleDetail> {
+  const { data } = await api.get<ArticleDistributionOverviewArticleDetail>(
+    `/article-distribution/reports/overview/articles/${articleId}`,
     { params },
   )
   return data

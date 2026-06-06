@@ -36,6 +36,8 @@ from .reports_missing_traffic import (
     ArticleDistributionMissingTrafficUserOut,
 )
 from .reports_overview import (
+    ArticleDistributionOverviewArticlePageOut,
+    ArticleDistributionOverviewArticleDetailOut,
     ArticleDistributionOverviewArticleOut,
     ArticleDistributionOverviewOut,
     ArticleDistributionOverviewSummaryOut,
@@ -87,6 +89,8 @@ __all__ = [
     "ArticleDistributionMissingTrafficSummaryOut",
     "ArticleDistributionMissingTrafficUserOut",
     "ArticleDistributionOverviewArticleOut",
+    "ArticleDistributionOverviewArticleDetailOut",
+    "ArticleDistributionOverviewArticlePageOut",
     "ArticleDistributionOverviewOut",
     "ArticleDistributionOverviewSummaryOut",
     "ArticleDistributionOverviewTopicOut",

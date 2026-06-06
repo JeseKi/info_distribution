@@ -1339,6 +1339,41 @@ def test_report_overview_supports_views_filters_and_topic_permission(
     assert users_report["items"][0]["item_type"] == "user"
     assert users_report["items"][0]["published_count"] == 1
     assert users_report["items"][0]["remaining_count"] == 1
+    assert users_report["items"][0]["articles"] == []
+
+    user_articles_resp = test_client.get(
+        "/api/article-distribution/reports/overview/articles",
+        headers=_headers(viewer),
+        params={
+            "user_id": owner.id,
+            "keyword": "Overview",
+            "page": 1,
+            "page_size": 1,
+        },
+    )
+    assert user_articles_resp.status_code == 200, user_articles_resp.text
+    user_articles = user_articles_resp.json()
+    assert user_articles["total"] == 2
+    assert user_articles["page_size"] == 1
+    assert len(user_articles["items"]) == 1
+    assert user_articles["items"][0]["item_type"] == "article"
+    assert "markdown_content" not in user_articles["items"][0]
+    assert "metadata" not in user_articles["items"][0]
+    assert "summary" not in user_articles["items"][0]
+
+    detail_resp = test_client.get(
+        f"/api/article-distribution/reports/overview/articles/{published_id}",
+        headers=_headers(viewer),
+        params={
+            "recorded_from": "2026-05-28T00:00:00+00:00",
+            "recorded_to": "2026-05-29T00:00:00+00:00",
+        },
+    )
+    assert detail_resp.status_code == 200, detail_resp.text
+    detail = detail_resp.json()
+    assert detail["markdown_content"] == "body"
+    assert detail["metadata"] == {"output_id": "overview_topic", "topic": "统一报表"}
+    assert detail["missing_traffic"] is True
 
     missing_resp = test_client.get(
         "/api/article-distribution/reports/overview",
@@ -1358,6 +1393,25 @@ def test_report_overview_supports_views_filters_and_topic_permission(
     assert missing_report["items"][0]["missing_traffic"] is True
     assert missing_report["items"][0]["latest_traffic_stat"]["read_count"] == 50
 
+    missing_articles_resp = test_client.get(
+        "/api/article-distribution/reports/overview/articles",
+        headers=_headers(viewer),
+        params={
+            "missing_traffic_only": True,
+            "recorded_from": "2026-05-28T00:00:00+00:00",
+            "recorded_to": "2026-05-29T00:00:00+00:00",
+        },
+    )
+    assert missing_articles_resp.status_code == 200, missing_articles_resp.text
+    assert missing_articles_resp.json()["total"] == 1
+
+    invalid_missing_articles_resp = test_client.get(
+        "/api/article-distribution/reports/overview/articles",
+        headers=_headers(viewer),
+        params={"missing_traffic_only": True},
+    )
+    assert invalid_missing_articles_resp.status_code == 400
+
     topic_denied_resp = test_client.get(
         "/api/article-distribution/reports/overview",
         headers=_headers(viewer),
@@ -1373,7 +1427,18 @@ def test_report_overview_supports_views_filters_and_topic_permission(
     assert topic_resp.status_code == 200, topic_resp.text
     topic_report = topic_resp.json()
     assert topic_report["items"][0]["item_type"] == "topic"
-    assert any(item["topic"] == "统一报表" for item in topic_report["items"])
+    topic_item = next(item for item in topic_report["items"] if item["topic"] == "统一报表")
+    assert topic_item["articles"] == []
+
+    topic_articles_resp = test_client.get(
+        "/api/article-distribution/reports/overview/articles",
+        headers=_headers(admin),
+        params={"topic_key": topic_item["key"]},
+    )
+    assert topic_articles_resp.status_code == 200, topic_articles_resp.text
+    topic_articles = topic_articles_resp.json()
+    assert topic_articles["total"] == 1
+    assert topic_articles["items"][0]["title"] == "Overview missing stat"
 
 
 def test_report_overview_export_supports_csv_xlsx_and_permissions(

@@ -707,9 +707,13 @@ export interface ArticleDistributionOverviewArticle {
   article_role: string | null
   angle_label: string | null
   audience_label: string | null
+  latest_traffic_stat: ArticleDistributionTrafficStat | null
+}
+
+export interface ArticleDistributionOverviewArticleDetail extends ArticleDistributionOverviewArticle {
+  markdown_content: string
   summary: string | null
   metadata: Record<string, unknown> | null
-  latest_traffic_stat: ArticleDistributionTrafficStat | null
 }
 
 export interface ArticleDistributionOverviewUser {
@@ -765,6 +769,19 @@ export interface ArticleDistributionOverviewParams extends ArticleDistributionPe
   missing_traffic_only?: boolean
   recorded_from?: string
   recorded_to?: string
+}
+
+export interface ArticleDistributionOverviewArticlePage {
+  items: ArticleDistributionOverviewArticle[]
+  total: number
+  page: number
+  page_size: number
+}
+
+export interface ArticleDistributionOverviewArticlePageParams
+  extends Omit<ArticleDistributionOverviewParams, 'view'> {
+  user_id?: number
+  topic_key?: string
 }
 
 export type ArticleDistributionPublicityRecordExportParams = ArticleDistributionPendingReportFilters
