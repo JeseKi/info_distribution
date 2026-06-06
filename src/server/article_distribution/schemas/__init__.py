@@ -43,6 +43,8 @@ from .reports_overview import (
     ArticleDistributionOverviewSummaryOut,
     ArticleDistributionOverviewTopicOut,
     ArticleDistributionOverviewUserOut,
+    OverviewSortBy,
+    OverviewSortOrder,
 )
 from .reports_public import (
     ArticleDistributionPublicArticleOut,
@@ -96,6 +98,8 @@ __all__ = [
     "ArticleDistributionOverviewTopicOut",
     "ArticleDistributionOverviewUserOut",
     "ArticleDistributionOverviewView",
+    "OverviewSortBy",
+    "OverviewSortOrder",
     "ArticleDistributionPendingArticleOut",
     "ArticleDistributionPendingUserOut",
     "ArticleDistributionPlatformSummaryOut",

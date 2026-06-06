@@ -18,9 +18,10 @@ import type {
   ArticleDistributionPlatformSummary,
 } from '../../../lib/types'
 import { publicationTypeText } from './constants'
-import { columnTitle, renderMaterials, trafficColumn } from './tableUtils'
+import { columnTitle, remoteSortOrder, renderMaterials, trafficColumn } from './tableUtils'
+import type { ReportSortState } from './tableUtils'
 
-export function buildUserColumns(): TableColumnsType<ArticleDistributionOverviewUser> {
+export function buildUserColumns(sortState?: ReportSortState): TableColumnsType<ArticleDistributionOverviewUser> {
   return [
     {
       title: columnTitle('用户', <TeamOutlined />),
@@ -40,7 +41,8 @@ export function buildUserColumns(): TableColumnsType<ArticleDistributionOverview
       dataIndex: 'remaining_count',
       key: 'remaining_count',
       width: 140,
-      sorter: (a, b) => a.remaining_count - b.remaining_count,
+      sorter: true,
+      sortOrder: remoteSortOrder('remaining_count', sortState),
       render: (value: number) => <Tag color={value > 0 ? 'volcano' : 'default'}>{value} 篇</Tag>,
     },
     {
@@ -48,7 +50,8 @@ export function buildUserColumns(): TableColumnsType<ArticleDistributionOverview
       dataIndex: 'published_count',
       key: 'published_count',
       width: 120,
-      sorter: (a, b) => a.published_count - b.published_count,
+      sorter: true,
+      sortOrder: remoteSortOrder('published_count', sortState),
       render: (value: number) => <Tag color="green">{value} 篇</Tag>,
     },
     {
@@ -56,7 +59,8 @@ export function buildUserColumns(): TableColumnsType<ArticleDistributionOverview
       dataIndex: 'invalid_count',
       key: 'invalid_count',
       width: 100,
-      sorter: (a, b) => a.invalid_count - b.invalid_count,
+      sorter: true,
+      sortOrder: remoteSortOrder('invalid_count', sortState),
       render: (value: number) => <Tag color={value > 0 ? 'red' : 'default'}>{value} 篇</Tag>,
     },
     {
@@ -64,17 +68,18 @@ export function buildUserColumns(): TableColumnsType<ArticleDistributionOverview
       dataIndex: 'missing_count',
       key: 'missing_count',
       width: 120,
-      sorter: (a, b) => a.missing_count - b.missing_count,
+      sorter: true,
+      sortOrder: remoteSortOrder('missing_count', sortState),
       render: (value: number) => <Tag color={value > 0 ? 'orange' : 'default'}>{value} 篇</Tag>,
     },
-    trafficColumn('阅读量', 'read_count', <ReadOutlined />),
-    trafficColumn('点赞量', 'like_count', <LikeOutlined />),
-    trafficColumn('收藏量', 'favorite_count', <StarOutlined />),
-    trafficColumn('转发量', 'share_count', <ShareAltOutlined />),
+    trafficColumn('阅读量', 'read_count', <ReadOutlined />, sortState),
+    trafficColumn('点赞量', 'like_count', <LikeOutlined />, sortState),
+    trafficColumn('收藏量', 'favorite_count', <StarOutlined />, sortState),
+    trafficColumn('转发量', 'share_count', <ShareAltOutlined />, sortState),
   ]
 }
 
-export function buildTopicColumns(): TableColumnsType<ArticleDistributionOverviewTopic> {
+export function buildTopicColumns(sortState?: ReportSortState): TableColumnsType<ArticleDistributionOverviewTopic> {
   return [
     {
       title: columnTitle('选题', <TagsOutlined />),
@@ -92,7 +97,8 @@ export function buildTopicColumns(): TableColumnsType<ArticleDistributionOvervie
       dataIndex: 'article_count',
       key: 'article_count',
       width: 100,
-      sorter: (a, b) => a.article_count - b.article_count,
+      sorter: true,
+      sortOrder: remoteSortOrder('article_count', sortState),
       render: (value: number) => <Tag>{value} 篇</Tag>,
     },
     {
@@ -101,10 +107,10 @@ export function buildTopicColumns(): TableColumnsType<ArticleDistributionOvervie
       width: 300,
       render: (_, record) => renderMaterials(record.materials),
     },
-    trafficColumn('阅读量', 'read_count', <ReadOutlined />),
-    trafficColumn('点赞量', 'like_count', <LikeOutlined />),
-    trafficColumn('收藏量', 'favorite_count', <StarOutlined />),
-    trafficColumn('转发量', 'share_count', <ShareAltOutlined />),
+    trafficColumn('阅读量', 'read_count', <ReadOutlined />, sortState),
+    trafficColumn('点赞量', 'like_count', <LikeOutlined />, sortState),
+    trafficColumn('收藏量', 'favorite_count', <StarOutlined />, sortState),
+    trafficColumn('转发量', 'share_count', <ShareAltOutlined />, sortState),
   ]
 }
 

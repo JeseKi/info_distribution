@@ -12,6 +12,21 @@ from .reports_unpublished import ArticleDistributionPlatformSummaryOut
 from .traffic import ArticleTrafficStatOut
 from .types import ArticleDistributionOverviewView, PublicationType, PublishStatus
 
+OverviewSortBy = Literal[
+    "scheduled_date",
+    "remaining_count",
+    "published_count",
+    "invalid_count",
+    "missing_count",
+    "article_count",
+    "read_count",
+    "like_count",
+    "favorite_count",
+    "share_count",
+]
+OverviewSortOrder = Literal["asc", "desc"]
+
+
 class ArticleDistributionOverviewSummaryOut(BaseModel):
     total_users: int = 0
     total_articles: int = 0

@@ -1441,6 +1441,111 @@ def test_report_overview_supports_views_filters_and_topic_permission(
     assert topic_articles["items"][0]["title"] == "Overview missing stat"
 
 
+def test_report_overview_sorts_metrics_before_pagination(
+    test_client, test_db_session: Session
+):
+    owner_a = _create_user(test_db_session, username="overview_sort_a", name="Sort A")
+    owner_b = _create_user(test_db_session, username="overview_sort_b", name="Sort B")
+    viewer = _create_user(test_db_session, username="overview_sort_viewer")
+    admin = _create_user(
+        test_db_session, username="overview_sort_admin", role=UserRole.ADMIN
+    )
+    viewer.scope_overrides = auth_service.serialize_scopes(
+        [
+            *auth_service.get_role_scopes(UserRole.USER),
+            auth_service.SCOPE_ARTICLE_DISTRIBUTION_REPORT_READ,
+        ]
+    )
+    test_db_session.commit()
+    test_db_session.refresh(viewer)
+
+    article_ids: list[int] = []
+    for owner, title, read_count, like_count in [
+        (owner_a, "Metric Low", 20, 30),
+        (owner_b, "Metric High", 200, 3),
+    ]:
+        account_resp = test_client.post(
+            "/api/article-distribution/accounts",
+            headers=_headers(admin),
+            json={
+                "user_id": owner.id,
+                "account_name": f"{title} Account",
+                "platform": "wechat",
+                "publication_type": "article",
+            },
+        )
+        assert account_resp.status_code == 201
+        upload_resp = test_client.post(
+            "/api/admin/article-distribution/articles",
+            headers=_headers(admin),
+            json={
+                "account_id": account_resp.json()["id"],
+                "articles": [
+                    {
+                        "title": title,
+                        "markdown_content": "body",
+                        "scheduled_date": "2026-05-20",
+                    },
+                ],
+            },
+        )
+        assert upload_resp.status_code == 201
+        article_id = upload_resp.json()[0]["id"]
+        article_ids.append(article_id)
+        stat_resp = test_client.post(
+            f"/api/article-distribution/articles/{article_id}/traffic-stats",
+            headers=_headers(owner),
+            json={
+                "read_count": read_count,
+                "like_count": like_count,
+                "recorded_at": "2026-05-28T10:00:00+00:00",
+            },
+        )
+        assert stat_resp.status_code == 201, stat_resp.text
+
+    users_resp = test_client.get(
+        "/api/article-distribution/reports/overview",
+        headers=_headers(viewer),
+        params={
+            "view": "users",
+            "sort_by": "read_count",
+            "sort_order": "desc",
+            "page": 2,
+            "page_size": 1,
+        },
+    )
+    assert users_resp.status_code == 200, users_resp.text
+    assert users_resp.json()["total"] == 2
+    assert users_resp.json()["items"][0]["username"] == owner_a.username
+
+    articles_resp = test_client.get(
+        "/api/article-distribution/reports/overview",
+        headers=_headers(viewer),
+        params={
+            "view": "articles",
+            "sort_by": "like_count",
+            "sort_order": "asc",
+            "page": 1,
+            "page_size": 1,
+        },
+    )
+    assert articles_resp.status_code == 200, articles_resp.text
+    assert articles_resp.json()["items"][0]["title"] == "Metric High"
+
+    detail_resp = test_client.get(
+        "/api/article-distribution/reports/overview/articles",
+        headers=_headers(viewer),
+        params={
+            "sort_by": "read_count",
+            "sort_order": "desc",
+            "page": 1,
+            "page_size": 1,
+        },
+    )
+    assert detail_resp.status_code == 200, detail_resp.text
+    assert detail_resp.json()["items"][0]["id"] == article_ids[1]
+
+
 def test_report_overview_export_supports_csv_xlsx_and_permissions(
     test_client, test_db_session: Session
 ):

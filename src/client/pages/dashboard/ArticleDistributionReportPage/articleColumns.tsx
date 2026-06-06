@@ -23,15 +23,18 @@ import type {
   ArticlePublishStatus,
 } from '../../../lib/types'
 import { publicationTypeText } from './constants'
-import { columnTitle, publishStatusTag, renderTrafficValue } from './tableUtils'
+import { columnTitle, publishStatusTag, remoteSortOrder, renderTrafficValue } from './tableUtils'
+import type { ReportSortState } from './tableUtils'
 
 export function buildArticleColumns({
   includeUser,
   includeActions,
+  sortState,
   onSelectArticle,
 }: {
   includeUser: boolean
   includeActions: boolean
+  sortState?: ReportSortState
   onSelectArticle: (article: ArticleDistributionOverviewArticle) => void
 }): TableColumnsType<ArticleDistributionOverviewArticle> {
   const columns: TableColumnsType<ArticleDistributionOverviewArticle> = [
@@ -91,7 +94,8 @@ export function buildArticleColumns({
       dataIndex: 'scheduled_date',
       key: 'scheduled_date',
       width: 130,
-      sorter: (a, b) => a.scheduled_date.localeCompare(b.scheduled_date),
+      sorter: true,
+      sortOrder: remoteSortOrder('scheduled_date', sortState),
     },
     {
       title: columnTitle('未填流量', <BarChartOutlined />),
@@ -116,25 +120,32 @@ export function buildArticleColumns({
       title: columnTitle('阅读量', <ReadOutlined />),
       key: 'read_count',
       width: 100,
-      sorter: (a, b) => (a.latest_traffic_stat?.read_count ?? 0) - (b.latest_traffic_stat?.read_count ?? 0),
+      sorter: true,
+      sortOrder: remoteSortOrder('read_count', sortState),
       render: (_, record) => renderTrafficValue(record.latest_traffic_stat?.read_count),
     },
     {
       title: columnTitle('点赞量', <LikeOutlined />),
       key: 'like_count',
       width: 100,
+      sorter: true,
+      sortOrder: remoteSortOrder('like_count', sortState),
       render: (_, record) => renderTrafficValue(record.latest_traffic_stat?.like_count),
     },
     {
       title: columnTitle('收藏量', <StarOutlined />),
       key: 'favorite_count',
       width: 100,
+      sorter: true,
+      sortOrder: remoteSortOrder('favorite_count', sortState),
       render: (_, record) => renderTrafficValue(record.latest_traffic_stat?.favorite_count),
     },
     {
       title: columnTitle('转发量', <ShareAltOutlined />),
       key: 'share_count',
       width: 100,
+      sorter: true,
+      sortOrder: remoteSortOrder('share_count', sortState),
       render: (_, record) => renderTrafficValue(record.latest_traffic_stat?.share_count),
     },
     {

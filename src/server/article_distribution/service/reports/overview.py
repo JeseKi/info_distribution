@@ -16,6 +16,8 @@ from ...schemas import (
     ArticleDistributionOverviewArticlePageOut,
     ArticleDistributionOverviewOut,
     ArticleDistributionOverviewView,
+    OverviewSortBy,
+    OverviewSortOrder,
 )
 from ..helpers import normalize_optional
 from .common import _normalize_datetime
@@ -41,6 +43,8 @@ def list_report_overview(
     missing_traffic_only: bool = False,
     recorded_from: datetime | None = None,
     recorded_to: datetime | None = None,
+    sort_by: OverviewSortBy | None = None,
+    sort_order: OverviewSortOrder = "desc",
     page: int = 1,
     page_size: int = 20,
 ) -> ArticleDistributionOverviewOut:
@@ -85,40 +89,24 @@ def list_report_overview(
     summary = _overview_summary(all_articles)
 
     if view == "articles":
-        page_rows, total = dao.list_overview_article_owner_rows_page(
-            scheduled_from=scheduled_from,
-            scheduled_to=scheduled_to,
-            platform=normalized_platform,
-            publication_type=publication_type,
-            account_status=account_status,
-            publish_status=publish_status,
-            keyword=normalized_keyword,
-            missing_traffic_only=missing_traffic_only,
-            recorded_from=normalized_recorded_from,
-            recorded_to=normalized_recorded_to,
-            page=page,
-            page_size=page_size,
-        )
+        sorted_articles = _sort_overview_items(all_articles, sort_by, sort_order)
+        paged_articles = sorted_articles[(page - 1) * page_size : page * page_size]
         article_items = cast(
             list[OverviewItemOut],
-            _overview_articles_from_rows(
-                db,
-                page_rows,
-                recorded_from=normalized_recorded_from,
-                recorded_to=normalized_recorded_to,
-            ),
+            paged_articles,
         )
         return ArticleDistributionOverviewOut(
             view=view,
             summary=summary,
             items=article_items,
-            total=total,
+            total=len(all_articles),
             page=page,
             page_size=page_size,
         )
 
     if view == "topics":
         topics = _overview_topics_from_articles(all_articles, include_articles=False)
+        topics = _sort_overview_items(topics, sort_by, sort_order)
         paged_topics = cast(
             list[OverviewItemOut],
             topics[(page - 1) * page_size : page * page_size],
@@ -133,6 +121,7 @@ def list_report_overview(
         )
 
     users = _overview_users_from_articles(all_articles, include_articles=False)
+    users = _sort_overview_items(users, sort_by, sort_order)
     paged_users = cast(
         list[OverviewItemOut],
         users[(page - 1) * page_size : page * page_size],
@@ -162,6 +151,8 @@ def list_report_overview_articles(
     missing_traffic_only: bool = False,
     recorded_from: datetime | None = None,
     recorded_to: datetime | None = None,
+    sort_by: OverviewSortBy | None = None,
+    sort_order: OverviewSortOrder = "desc",
     page: int = 1,
     page_size: int = 20,
 ) -> ArticleDistributionOverviewArticlePageOut:
@@ -182,7 +173,7 @@ def list_report_overview_articles(
         )
 
     dao = ArticleDistributionDAO(db)
-    page_rows, total = dao.list_overview_article_owner_rows_page(
+    rows = dao.list_overview_article_owner_rows(
         user_id=user_id,
         topic_key=normalize_optional(topic_key),
         scheduled_from=scheduled_from,
@@ -195,20 +186,41 @@ def list_report_overview_articles(
         missing_traffic_only=missing_traffic_only,
         recorded_from=normalized_recorded_from,
         recorded_to=normalized_recorded_to,
-        page=page,
-        page_size=page_size,
     )
+    articles = _overview_articles_from_rows(
+        db,
+        rows,
+        recorded_from=normalized_recorded_from,
+        recorded_to=normalized_recorded_to,
+    )
+    sorted_articles = _sort_overview_items(articles, sort_by, sort_order)
+    paged_articles = sorted_articles[(page - 1) * page_size : page * page_size]
     return ArticleDistributionOverviewArticlePageOut(
-        items=_overview_articles_from_rows(
-            db,
-            page_rows,
-            recorded_from=normalized_recorded_from,
-            recorded_to=normalized_recorded_to,
-        ),
-        total=total,
+        items=paged_articles,
+        total=len(articles),
         page=page,
         page_size=page_size,
     )
+
+
+def _sort_overview_items(items: list, sort_by: str | None, sort_order: str) -> list:
+    if sort_by is None:
+        return items
+    reverse = sort_order == "desc"
+    return sorted(items, key=lambda item: _overview_sort_value(item, sort_by), reverse=reverse)
+
+
+def _overview_sort_value(item, sort_by: str):
+    if sort_by == "scheduled_date":
+        return getattr(item, "scheduled_date", date.min)
+    if sort_by in {"read_count", "like_count", "favorite_count", "share_count"}:
+        latest_stat = getattr(item, "latest_traffic_stat", None)
+        if latest_stat is not None:
+            return getattr(latest_stat, sort_by, 0)
+    value = getattr(item, sort_by, 0)
+    if value is None:
+        return 0
+    return value
 
 
 def get_report_overview_article_detail(

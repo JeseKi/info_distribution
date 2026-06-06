@@ -769,7 +769,23 @@ export interface ArticleDistributionOverviewParams extends ArticleDistributionPe
   missing_traffic_only?: boolean
   recorded_from?: string
   recorded_to?: string
+  sort_by?: ArticleDistributionOverviewSortBy
+  sort_order?: ArticleDistributionOverviewSortOrder
 }
+
+export type ArticleDistributionOverviewSortBy =
+  | 'scheduled_date'
+  | 'remaining_count'
+  | 'published_count'
+  | 'invalid_count'
+  | 'missing_count'
+  | 'article_count'
+  | 'read_count'
+  | 'like_count'
+  | 'favorite_count'
+  | 'share_count'
+
+export type ArticleDistributionOverviewSortOrder = 'asc' | 'desc'
 
 export interface ArticleDistributionOverviewArticlePage {
   items: ArticleDistributionOverviewArticle[]

@@ -1,7 +1,16 @@
 import { Space, Tag, Typography } from 'antd'
 import type { TableColumnsType } from 'antd'
 import type { ReactNode } from 'react'
-import type { ArticlePublishStatus } from '../../../lib/types'
+import type {
+  ArticleDistributionOverviewSortBy,
+  ArticleDistributionOverviewSortOrder,
+  ArticlePublishStatus,
+} from '../../../lib/types'
+
+export interface ReportSortState {
+  sort_by?: ArticleDistributionOverviewSortBy
+  sort_order?: ArticleDistributionOverviewSortOrder
+}
 
 export function columnTitle(title: string, icon: ReactNode) {
   return (
@@ -33,16 +42,24 @@ export function trafficColumn<T extends object, K extends keyof T & string>(
   title: string,
   dataIndex: K,
   icon?: ReactNode,
+  sortState?: ReportSortState,
 ): TableColumnsType<T>[number] {
-  const valueOf = (record: T) => Number(record[dataIndex] ?? 0)
   return {
     title: icon ? columnTitle(title, icon) : title,
     dataIndex,
     key: dataIndex,
     width: 110,
-    sorter: (a: T, b: T) => valueOf(a) - valueOf(b),
+    sorter: true,
+    sortOrder: sortState?.sort_by === dataIndex
+      ? (sortState.sort_order === 'asc' ? 'ascend' : 'descend')
+      : null,
     render: (value: T[K]) => renderTrafficValue(Number(value)),
   }
+}
+
+export function remoteSortOrder(key: ArticleDistributionOverviewSortBy, sortState?: ReportSortState) {
+  if (sortState?.sort_by !== key) return null
+  return sortState.sort_order === 'asc' ? 'ascend' : 'descend'
 }
 
 export function renderMaterials(materials: string[]) {

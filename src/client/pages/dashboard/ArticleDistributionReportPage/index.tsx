@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Alert, App, Empty, Flex, Form, Table, Typography } from 'antd'
+import type { TableProps } from 'antd'
 import dayjs from 'dayjs'
 import * as articleApi from '../../../lib/articleDistribution'
 import { useAuth } from '../../../hooks/useAuth'
@@ -7,7 +8,10 @@ import type {
   ArticleDistributionOverview,
   ArticleDistributionOverviewArticle,
   ArticleDistributionOverviewArticleDetail,
+  ArticleDistributionOverviewItem,
   ArticleDistributionOverviewParams,
+  ArticleDistributionOverviewSortBy,
+  ArticleDistributionOverviewSortOrder,
   ArticleDistributionOverviewView,
   ArticleDistributionReportExportFormat,
 } from '../../../lib/types'
@@ -27,6 +31,7 @@ import { isArticleItem, isTopicItem, isUserItem } from './itemGuards'
 import { ReportToolbar } from './ReportToolbar'
 import { SummaryFilterCard } from './SummaryFilterCard'
 import { tableScroll } from './tableUtils'
+import type { ReportSortState } from './tableUtils'
 import type { FilterValues } from './types'
 
 interface ExpandedArticlePage {
@@ -45,6 +50,92 @@ const defaultExpandedArticlePage: ExpandedArticlePage = {
   loading: false,
 }
 
+const overviewSortStorageKey = 'article-distribution-report-sort'
+const overviewArticleSortStorageKey = 'article-distribution-report-article-sort'
+const overviewSortFields: ArticleDistributionOverviewSortBy[] = [
+  'scheduled_date',
+  'remaining_count',
+  'published_count',
+  'invalid_count',
+  'missing_count',
+  'article_count',
+  'read_count',
+  'like_count',
+  'favorite_count',
+  'share_count',
+]
+
+function isOverviewSortBy(value: unknown): value is ArticleDistributionOverviewSortBy {
+  return typeof value === 'string' && overviewSortFields.includes(value as ArticleDistributionOverviewSortBy)
+}
+
+function isOverviewSortOrder(value: unknown): value is ArticleDistributionOverviewSortOrder {
+  return value === 'asc' || value === 'desc'
+}
+
+function normalizeSortState(value: unknown): ReportSortState {
+  if (!value || typeof value !== 'object') return {}
+  const candidate = value as Partial<ReportSortState>
+  if (isOverviewSortBy(candidate.sort_by) && isOverviewSortOrder(candidate.sort_order)) {
+    return { sort_by: candidate.sort_by, sort_order: candidate.sort_order }
+  }
+  return {}
+}
+
+function readOverviewSortStates(): Record<ArticleDistributionOverviewView, ReportSortState> {
+  const defaults = { users: {}, articles: {}, topics: {} }
+  if (typeof window === 'undefined') return defaults
+  try {
+    const raw = window.localStorage.getItem(overviewSortStorageKey)
+    if (!raw) return defaults
+    const parsed = JSON.parse(raw) as Partial<Record<ArticleDistributionOverviewView, unknown>>
+    return {
+      users: normalizeSortState(parsed.users),
+      articles: normalizeSortState(parsed.articles),
+      topics: normalizeSortState(parsed.topics),
+    }
+  } catch {
+    return defaults
+  }
+}
+
+function writeOverviewSortStates(states: Record<ArticleDistributionOverviewView, ReportSortState>) {
+  if (typeof window === 'undefined') return
+  window.localStorage.setItem(overviewSortStorageKey, JSON.stringify(states))
+}
+
+function readOverviewArticleSort(): ReportSortState {
+  if (typeof window === 'undefined') return {}
+  try {
+    const raw = window.localStorage.getItem(overviewArticleSortStorageKey)
+    return raw ? normalizeSortState(JSON.parse(raw)) : {}
+  } catch {
+    return {}
+  }
+}
+
+function writeOverviewArticleSort(sortState: ReportSortState) {
+  if (typeof window === 'undefined') return
+  window.localStorage.setItem(overviewArticleSortStorageKey, JSON.stringify(sortState))
+}
+
+function sortParams(sortState: ReportSortState) {
+  return sortState.sort_by && sortState.sort_order
+    ? { sort_by: sortState.sort_by, sort_order: sortState.sort_order }
+    : {}
+}
+
+function sortStateFromTableChange<T extends object>(
+  sorter: Parameters<NonNullable<TableProps<T>['onChange']>>[2],
+): ReportSortState {
+  const activeSorter = Array.isArray(sorter) ? sorter.find((item) => item.order) : sorter
+  if (!activeSorter?.order || !isOverviewSortBy(activeSorter.columnKey)) return {}
+  return {
+    sort_by: activeSorter.columnKey,
+    sort_order: activeSorter.order === 'ascend' ? 'asc' : 'desc',
+  }
+}
+
 export default function ArticleDistributionReportPage() {
   const { message } = App.useApp()
   const { user } = useAuth()
@@ -60,6 +151,10 @@ export default function ArticleDistributionReportPage() {
   const [selectedArticleDetailLoading, setSelectedArticleDetailLoading] = useState(false)
   const [userArticlePages, setUserArticlePages] = useState<Record<number, ExpandedArticlePage>>({})
   const [topicArticlePages, setTopicArticlePages] = useState<Record<string, ExpandedArticlePage>>({})
+  const [overviewSortStates, setOverviewSortStates] = useState<Record<ArticleDistributionOverviewView, ReportSortState>>(
+    () => readOverviewSortStates(),
+  )
+  const [articleSortState, setArticleSortState] = useState<ReportSortState>(() => readOverviewArticleSort())
   const [visibleColumns, setVisibleColumns] = useState<Record<ArticleDistributionOverviewView, string[]>>(() => ({
     users: readVisibleColumns('users'),
     articles: readVisibleColumns('articles'),
@@ -73,6 +168,7 @@ export default function ArticleDistributionReportPage() {
   const buildParams = useCallback((
     nextPage: number,
     nextPageSize: number,
+    currentSortState: ReportSortState = overviewSortStates[view],
   ): ArticleDistributionOverviewParams => {
     const values = form.getFieldsValue()
     const scheduledRange = values.date_range
@@ -88,6 +184,7 @@ export default function ArticleDistributionReportPage() {
       scheduled_from: scheduledRange?.[0]?.format('YYYY-MM-DD'),
       scheduled_to: scheduledRange?.[1]?.format('YYYY-MM-DD'),
       missing_traffic_only: Boolean(values.missing_traffic_only),
+      ...sortParams(currentSortState),
     }
     if (values.missing_traffic_only) {
       const trafficDate = values.traffic_date ?? dayjs()
@@ -95,7 +192,7 @@ export default function ArticleDistributionReportPage() {
       params.recorded_to = trafficDate.add(1, 'day').startOf('day').toISOString()
     }
     return params
-  }, [form, view])
+  }, [form, overviewSortStates, view])
 
   const clearExpandedArticles = useCallback(() => {
     setUserArticlePages({})
@@ -106,6 +203,7 @@ export default function ArticleDistributionReportPage() {
     userId: number,
     nextPage = 1,
     nextPageSize = defaultExpandedArticlePage.pageSize,
+    currentSortState: ReportSortState = articleSortState,
   ) => {
     setUserArticlePages((current) => ({
       ...current,
@@ -117,7 +215,7 @@ export default function ArticleDistributionReportPage() {
       },
     }))
     try {
-      const params = buildParams(nextPage, nextPageSize)
+      const params = buildParams(nextPage, nextPageSize, currentSortState)
       delete params.view
       const detail = await articleApi.listReportOverviewArticles({
         ...params,
@@ -143,12 +241,13 @@ export default function ArticleDistributionReportPage() {
         },
       }))
     }
-  }, [buildParams, message])
+  }, [articleSortState, buildParams, message])
 
   const loadTopicArticles = useCallback(async (
     topicKey: string,
     nextPage = 1,
     nextPageSize = defaultExpandedArticlePage.pageSize,
+    currentSortState: ReportSortState = articleSortState,
   ) => {
     setTopicArticlePages((current) => ({
       ...current,
@@ -160,7 +259,7 @@ export default function ArticleDistributionReportPage() {
       },
     }))
     try {
-      const params = buildParams(nextPage, nextPageSize)
+      const params = buildParams(nextPage, nextPageSize, currentSortState)
       delete params.view
       const detail = await articleApi.listReportOverviewArticles({
         ...params,
@@ -186,7 +285,7 @@ export default function ArticleDistributionReportPage() {
         },
       }))
     }
-  }, [buildParams, message])
+  }, [articleSortState, buildParams, message])
 
   const handleSelectArticle = useCallback((article: ArticleDistributionOverviewArticle) => {
     setSelectedArticle(article)
@@ -205,23 +304,29 @@ export default function ArticleDistributionReportPage() {
       .finally(() => setSelectedArticleDetailLoading(false))
   }, [buildParams, message, pageSize])
 
-  const loadOverview = useCallback(async (nextPage = page, nextPageSize = pageSize) => {
+  const loadOverview = useCallback((
+    nextPage = page,
+    nextPageSize = pageSize,
+    currentSortState: ReportSortState = overviewSortStates[view],
+  ) => {
     if (view === 'topics' && !canViewTopics) {
       setOverview({ ...defaultOverview, view: 'topics' })
       return
     }
     setLoading(true)
-    try {
-      const report = await articleApi.listReportOverview(buildParams(nextPage, nextPageSize))
-      setOverview(report)
-      setPage(report.page)
-      setPageSize(report.page_size)
-    } catch (error) {
-      message.error(resolveApiErrorMessage(error, '统一报表加载失败'))
-    } finally {
-      setLoading(false)
-    }
-  }, [buildParams, canViewTopics, message, page, pageSize, view])
+    return articleApi.listReportOverview(buildParams(nextPage, nextPageSize, currentSortState))
+      .then((report) => {
+        setOverview(report)
+        setPage(report.page)
+        setPageSize(report.page_size)
+      })
+      .catch((error) => {
+        message.error(resolveApiErrorMessage(error, '统一报表加载失败'))
+      })
+      .finally(() => {
+        setLoading(false)
+      })
+  }, [buildParams, canViewTopics, message, overviewSortStates, page, pageSize, view])
 
   useEffect(() => {
     void loadOverview(page, pageSize)
@@ -259,6 +364,48 @@ export default function ArticleDistributionReportPage() {
     setPage(1)
   }
 
+  const handleOverviewTableChange: NonNullable<TableProps<ArticleDistributionOverviewItem>['onChange']> = (
+    _pagination,
+    _filters,
+    sorter,
+  ) => {
+    const nextSortState = sortStateFromTableChange(sorter)
+    const nextSortStates = { ...overviewSortStates, [view]: nextSortState }
+    setOverviewSortStates(nextSortStates)
+    writeOverviewSortStates(nextSortStates)
+    clearExpandedArticles()
+    setPage(1)
+    void loadOverview(1, pageSize, nextSortState)
+  }
+
+  const handleUserArticleTableChange = (
+    userId: number,
+    currentPageSize: number,
+  ): NonNullable<TableProps<ArticleDistributionOverviewArticle>['onChange']> => (
+    _pagination,
+    _filters,
+    sorter,
+  ) => {
+    const nextSortState = sortStateFromTableChange<ArticleDistributionOverviewArticle>(sorter)
+    setArticleSortState(nextSortState)
+    writeOverviewArticleSort(nextSortState)
+    void loadUserArticles(userId, 1, currentPageSize, nextSortState)
+  }
+
+  const handleTopicArticleTableChange = (
+    topicKey: string,
+    currentPageSize: number,
+  ): NonNullable<TableProps<ArticleDistributionOverviewArticle>['onChange']> => (
+    _pagination,
+    _filters,
+    sorter,
+  ) => {
+    const nextSortState = sortStateFromTableChange<ArticleDistributionOverviewArticle>(sorter)
+    setArticleSortState(nextSortState)
+    writeOverviewArticleSort(nextSortState)
+    void loadTopicArticles(topicKey, 1, currentPageSize, nextSortState)
+  }
+
   const handleExport = async (format: ArticleDistributionReportExportFormat) => {
     if (view === 'topics' && !canViewTopics) {
       message.error('缺少选题汇总导出权限')
@@ -279,25 +426,27 @@ export default function ArticleDistributionReportPage() {
   const users = useMemo(() => overview.items.filter(isUserItem), [overview.items])
   const articles = useMemo(() => overview.items.filter(isArticleItem), [overview.items])
   const topics = useMemo(() => overview.items.filter(isTopicItem), [overview.items])
-
-  const userColumns = buildUserColumns()
+  const userColumns = buildUserColumns(overviewSortStates.users)
   const articleColumns = buildArticleColumns({
     includeUser: true,
     includeActions: true,
+    sortState: overviewSortStates.articles,
     onSelectArticle: handleSelectArticle,
   })
-  const topicColumns = buildTopicColumns()
+  const topicColumns = buildTopicColumns(overviewSortStates.topics)
   const visibleUserColumns = filterColumns(userColumns, visibleColumns.users)
   const visibleArticleColumns = filterColumns(articleColumns, visibleColumns.articles)
   const visibleTopicColumns = filterColumns(topicColumns, visibleColumns.topics)
   const expandedUserArticleColumns = buildArticleColumns({
     includeUser: false,
     includeActions: true,
+    sortState: articleSortState,
     onSelectArticle: handleSelectArticle,
   })
   const expandedTopicArticleColumns = buildArticleColumns({
     includeUser: true,
     includeActions: true,
+    sortState: articleSortState,
     onSelectArticle: handleSelectArticle,
   })
   const pagination = {
@@ -364,6 +513,7 @@ export default function ArticleDistributionReportPage() {
           loading={loading}
           columns={visibleUserColumns}
           dataSource={users}
+          onChange={handleOverviewTableChange}
           expandable={{
             onExpand: (expanded, record) => {
               if (expanded && !userArticlePages[record.user_id]) {
@@ -389,6 +539,7 @@ export default function ArticleDistributionReportPage() {
                     columns={expandedUserArticleColumns}
                     dataSource={articlePage.items}
                     loading={articlePage.loading}
+                    onChange={handleUserArticleTableChange(record.user_id, articlePage.pageSize)}
                     pagination={{
                       current: articlePage.page,
                       pageSize: articlePage.pageSize,
@@ -421,6 +572,7 @@ export default function ArticleDistributionReportPage() {
           loading={loading}
           columns={visibleArticleColumns}
           dataSource={articles}
+          onChange={handleOverviewTableChange}
           locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无文章数据" /> }}
           pagination={pagination}
           tableLayout="fixed"
@@ -434,6 +586,7 @@ export default function ArticleDistributionReportPage() {
           loading={loading}
           columns={visibleTopicColumns}
           dataSource={topics}
+          onChange={handleOverviewTableChange}
           expandable={{
             onExpand: (expanded, record) => {
               if (expanded && !topicArticlePages[record.key]) {
@@ -449,6 +602,7 @@ export default function ArticleDistributionReportPage() {
                   columns={expandedTopicArticleColumns}
                   dataSource={articlePage.items}
                   loading={articlePage.loading}
+                  onChange={handleTopicArticleTableChange(record.key, articlePage.pageSize)}
                   pagination={{
                     current: articlePage.page,
                     pageSize: articlePage.pageSize,
