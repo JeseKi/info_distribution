@@ -14,17 +14,15 @@ from .api_keys import (
     list_api_keys,
     revoke_api_key,
 )
-from .articles import (
+from .article_mutations import (
     create_articles_as_admin,
     create_articles_with_api_key,
     delete_article_as_admin,
-    get_article,
-    list_articles,
-    list_articles_page,
     update_article_as_admin,
     update_article_with_api_key,
     update_article_status,
 )
+from .article_queries import get_article, list_articles, list_articles_page
 from .reports import (
     build_publicity_records_csv,
     get_missing_traffic_report_user_detail,
