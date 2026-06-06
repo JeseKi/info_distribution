@@ -1,4 +1,21 @@
 import { Button, Space, Tag, Typography } from 'antd'
+import {
+  BarChartOutlined,
+  CalendarOutlined,
+  CheckCircleOutlined,
+  ClockCircleOutlined,
+  EyeOutlined,
+  FileTextOutlined,
+  IdcardOutlined,
+  LikeOutlined,
+  LinkOutlined,
+  ProfileOutlined,
+  ReadOutlined,
+  ShareAltOutlined,
+  StarOutlined,
+  TagsOutlined,
+  TeamOutlined,
+} from '@ant-design/icons'
 import type { TableColumnsType } from 'antd'
 import dayjs from 'dayjs'
 import type {
@@ -6,7 +23,7 @@ import type {
   ArticlePublishStatus,
 } from '../../../lib/types'
 import { publicationTypeText } from './constants'
-import { publishStatusTag, renderTrafficValue } from './tableUtils'
+import { columnTitle, publishStatusTag, renderTrafficValue } from './tableUtils'
 
 export function buildArticleColumns({
   includeUser,
@@ -19,7 +36,7 @@ export function buildArticleColumns({
 }): TableColumnsType<ArticleDistributionOverviewArticle> {
   const columns: TableColumnsType<ArticleDistributionOverviewArticle> = [
     {
-      title: '文章',
+      title: columnTitle('文章', <FileTextOutlined />),
       key: 'article',
       width: 320,
       render: (_, record) => (
@@ -37,7 +54,7 @@ export function buildArticleColumns({
 
   if (includeUser) {
     columns.push({
-      title: '用户',
+      title: columnTitle('用户', <TeamOutlined />),
       key: 'user',
       width: 240,
       render: (_, record) => (
@@ -51,7 +68,7 @@ export function buildArticleColumns({
 
   columns.push(
     {
-      title: '账号',
+      title: columnTitle('账号', <IdcardOutlined />),
       key: 'account',
       width: 220,
       render: (_, record) => (
@@ -63,65 +80,65 @@ export function buildArticleColumns({
       ),
     },
     {
-      title: '状态',
+      title: columnTitle('状态', <CheckCircleOutlined />),
       dataIndex: 'publish_status',
       key: 'publish_status',
       width: 110,
       render: (value: ArticlePublishStatus) => publishStatusTag(value),
     },
     {
-      title: '计划日期',
+      title: columnTitle('计划日期', <CalendarOutlined />),
       dataIndex: 'scheduled_date',
       key: 'scheduled_date',
       width: 130,
       sorter: (a, b) => a.scheduled_date.localeCompare(b.scheduled_date),
     },
     {
-      title: '未填流量',
+      title: columnTitle('未填流量', <BarChartOutlined />),
       dataIndex: 'missing_traffic',
       key: 'missing_traffic',
       width: 110,
       render: (value: boolean) => <Tag color={value ? 'orange' : 'default'}>{value ? '是' : '否'}</Tag>,
     },
     {
-      title: '选题',
+      title: columnTitle('选题', <TagsOutlined />),
       key: 'topic',
       width: 220,
       render: (_, record) => record.topic || record.output_id || '-',
     },
     {
-      title: '角色',
+      title: columnTitle('角色', <ProfileOutlined />),
       key: 'article_role',
       width: 120,
       render: (_, record) => record.article_role ?? '-',
     },
     {
-      title: '阅读量',
+      title: columnTitle('阅读量', <ReadOutlined />),
       key: 'read_count',
       width: 100,
       sorter: (a, b) => (a.latest_traffic_stat?.read_count ?? 0) - (b.latest_traffic_stat?.read_count ?? 0),
       render: (_, record) => renderTrafficValue(record.latest_traffic_stat?.read_count),
     },
     {
-      title: '点赞量',
+      title: columnTitle('点赞量', <LikeOutlined />),
       key: 'like_count',
       width: 100,
       render: (_, record) => renderTrafficValue(record.latest_traffic_stat?.like_count),
     },
     {
-      title: '收藏量',
+      title: columnTitle('收藏量', <StarOutlined />),
       key: 'favorite_count',
       width: 100,
       render: (_, record) => renderTrafficValue(record.latest_traffic_stat?.favorite_count),
     },
     {
-      title: '转发量',
+      title: columnTitle('转发量', <ShareAltOutlined />),
       key: 'share_count',
       width: 100,
       render: (_, record) => renderTrafficValue(record.latest_traffic_stat?.share_count),
     },
     {
-      title: '统计时间',
+      title: columnTitle('统计时间', <ClockCircleOutlined />),
       key: 'traffic_recorded_at',
       width: 150,
       render: (_, record) => record.latest_traffic_stat
@@ -129,7 +146,7 @@ export function buildArticleColumns({
         : '-',
     },
     {
-      title: '发布链接',
+      title: columnTitle('发布链接', <LinkOutlined />),
       dataIndex: 'published_url',
       key: 'published_url',
       width: 110,
@@ -143,7 +160,7 @@ export function buildArticleColumns({
 
   if (includeActions) {
     columns.push({
-      title: '操作',
+      title: columnTitle('操作', <EyeOutlined />),
       key: 'actions',
       fixed: 'right',
       width: 90,

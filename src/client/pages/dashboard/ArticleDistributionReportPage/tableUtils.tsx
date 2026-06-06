@@ -1,6 +1,16 @@
 import { Space, Tag, Typography } from 'antd'
 import type { TableColumnsType } from 'antd'
+import type { ReactNode } from 'react'
 import type { ArticlePublishStatus } from '../../../lib/types'
+
+export function columnTitle(title: string, icon: ReactNode) {
+  return (
+    <Space size={6}>
+      {icon}
+      <span>{title}</span>
+    </Space>
+  )
+}
 
 export function publishStatusTag(status: ArticlePublishStatus) {
   if (status === 'published') return <Tag color="green">已发布</Tag>
@@ -22,10 +32,11 @@ export function tableScroll<T extends object>(columns: TableColumnsType<T>) {
 export function trafficColumn<T extends object, K extends keyof T & string>(
   title: string,
   dataIndex: K,
+  icon?: ReactNode,
 ): TableColumnsType<T>[number] {
   const valueOf = (record: T) => Number(record[dataIndex] ?? 0)
   return {
-    title,
+    title: icon ? columnTitle(title, icon) : title,
     dataIndex,
     key: dataIndex,
     width: 110,

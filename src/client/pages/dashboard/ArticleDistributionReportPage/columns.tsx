@@ -1,4 +1,16 @@
 import { Space, Tag, Typography } from 'antd'
+import {
+  CheckCircleOutlined,
+  ExclamationCircleOutlined,
+  FileTextOutlined,
+  LinkOutlined,
+  LikeOutlined,
+  ReadOutlined,
+  ShareAltOutlined,
+  StarOutlined,
+  TagsOutlined,
+  TeamOutlined,
+} from '@ant-design/icons'
 import type { TableColumnsType } from 'antd'
 import type {
   ArticleDistributionOverviewTopic,
@@ -6,12 +18,12 @@ import type {
   ArticleDistributionPlatformSummary,
 } from '../../../lib/types'
 import { publicationTypeText } from './constants'
-import { renderMaterials, trafficColumn } from './tableUtils'
+import { columnTitle, renderMaterials, trafficColumn } from './tableUtils'
 
 export function buildUserColumns(): TableColumnsType<ArticleDistributionOverviewUser> {
   return [
     {
-      title: '用户',
+      title: columnTitle('用户', <TeamOutlined />),
       key: 'user',
       width: 320,
       render: (_, record) => (
@@ -24,7 +36,7 @@ export function buildUserColumns(): TableColumnsType<ArticleDistributionOverview
       ),
     },
     {
-      title: '剩余未发布',
+      title: columnTitle('剩余未发布', <ExclamationCircleOutlined />),
       dataIndex: 'remaining_count',
       key: 'remaining_count',
       width: 140,
@@ -32,7 +44,7 @@ export function buildUserColumns(): TableColumnsType<ArticleDistributionOverview
       render: (value: number) => <Tag color={value > 0 ? 'volcano' : 'default'}>{value} 篇</Tag>,
     },
     {
-      title: '已发布',
+      title: columnTitle('已发布', <CheckCircleOutlined />),
       dataIndex: 'published_count',
       key: 'published_count',
       width: 120,
@@ -40,7 +52,7 @@ export function buildUserColumns(): TableColumnsType<ArticleDistributionOverview
       render: (value: number) => <Tag color="green">{value} 篇</Tag>,
     },
     {
-      title: '失效',
+      title: columnTitle('失效', <FileTextOutlined />),
       dataIndex: 'invalid_count',
       key: 'invalid_count',
       width: 100,
@@ -48,24 +60,24 @@ export function buildUserColumns(): TableColumnsType<ArticleDistributionOverview
       render: (value: number) => <Tag color={value > 0 ? 'red' : 'default'}>{value} 篇</Tag>,
     },
     {
-      title: '未填流量',
+      title: columnTitle('未填流量', <ExclamationCircleOutlined />),
       dataIndex: 'missing_count',
       key: 'missing_count',
       width: 120,
       sorter: (a, b) => a.missing_count - b.missing_count,
       render: (value: number) => <Tag color={value > 0 ? 'orange' : 'default'}>{value} 篇</Tag>,
     },
-    trafficColumn('阅读量', 'read_count'),
-    trafficColumn('点赞量', 'like_count'),
-    trafficColumn('收藏量', 'favorite_count'),
-    trafficColumn('转发量', 'share_count'),
+    trafficColumn('阅读量', 'read_count', <ReadOutlined />),
+    trafficColumn('点赞量', 'like_count', <LikeOutlined />),
+    trafficColumn('收藏量', 'favorite_count', <StarOutlined />),
+    trafficColumn('转发量', 'share_count', <ShareAltOutlined />),
   ]
 }
 
 export function buildTopicColumns(): TableColumnsType<ArticleDistributionOverviewTopic> {
   return [
     {
-      title: '选题',
+      title: columnTitle('选题', <TagsOutlined />),
       key: 'topic',
       width: 360,
       render: (_, record) => (
@@ -76,7 +88,7 @@ export function buildTopicColumns(): TableColumnsType<ArticleDistributionOvervie
       ),
     },
     {
-      title: '文章',
+      title: columnTitle('文章', <FileTextOutlined />),
       dataIndex: 'article_count',
       key: 'article_count',
       width: 100,
@@ -84,22 +96,22 @@ export function buildTopicColumns(): TableColumnsType<ArticleDistributionOvervie
       render: (value: number) => <Tag>{value} 篇</Tag>,
     },
     {
-      title: '素材',
+      title: columnTitle('素材', <FileTextOutlined />),
       key: 'materials',
       width: 300,
       render: (_, record) => renderMaterials(record.materials),
     },
-    trafficColumn('阅读量', 'read_count'),
-    trafficColumn('点赞量', 'like_count'),
-    trafficColumn('收藏量', 'favorite_count'),
-    trafficColumn('转发量', 'share_count'),
+    trafficColumn('阅读量', 'read_count', <ReadOutlined />),
+    trafficColumn('点赞量', 'like_count', <LikeOutlined />),
+    trafficColumn('收藏量', 'favorite_count', <StarOutlined />),
+    trafficColumn('转发量', 'share_count', <ShareAltOutlined />),
   ]
 }
 
 export function buildPlatformColumns(): TableColumnsType<ArticleDistributionPlatformSummary> {
   return [
     {
-      title: '发布平台',
+      title: columnTitle('发布平台', <TagsOutlined />),
       key: 'platform',
       width: 320,
       render: (_, record) => (
@@ -111,28 +123,28 @@ export function buildPlatformColumns(): TableColumnsType<ArticleDistributionPlat
       ),
     },
     {
-      title: '发布数量',
+      title: columnTitle('发布数量', <CheckCircleOutlined />),
       dataIndex: 'published_count',
       key: 'published_count',
       width: 120,
       render: (value: number) => <Tag color="green">{value}</Tag>,
     },
     {
-      title: '剩余未发布',
+      title: columnTitle('剩余未发布', <ExclamationCircleOutlined />),
       dataIndex: 'unpublished_count',
       key: 'unpublished_count',
       width: 140,
       render: (value: number) => <Tag color={value > 0 ? 'volcano' : 'default'}>{value}</Tag>,
     },
     {
-      title: '失效数量',
+      title: columnTitle('失效数量', <FileTextOutlined />),
       dataIndex: 'invalid_count',
       key: 'invalid_count',
       width: 120,
       render: (value: number) => <Tag color={value > 0 ? 'red' : 'default'}>{value}</Tag>,
     },
     {
-      title: '最新链接',
+      title: columnTitle('最新链接', <LinkOutlined />),
       key: 'latest_published_url',
       width: 140,
       render: (_, record) => record.latest_published_url ? (

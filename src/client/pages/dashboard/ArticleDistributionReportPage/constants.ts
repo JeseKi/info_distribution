@@ -99,6 +99,36 @@ export const defaultVisibleColumns: Record<ArticleDistributionOverviewView, stri
   ],
 }
 
+export const defaultVisibleSummaryMetrics = [
+  'total_users',
+  'total_articles',
+  'published_articles',
+  'unpublished_articles',
+  'missing_articles',
+  'topic_count',
+  'material_count',
+  'read_count',
+  'like_count',
+  'favorite_count',
+  'share_count',
+]
+
+export const summaryMetricLabels: Record<string, string> = {
+  total_users: '用户数',
+  total_articles: '文章数',
+  published_articles: '已发布',
+  unpublished_articles: '未发布',
+  invalid_articles: '文档失效',
+  inactive_account_articles: '停用账号文章',
+  missing_articles: '未填流量',
+  topic_count: '选题数',
+  material_count: '素材数',
+  read_count: '阅读量',
+  like_count: '点赞量',
+  favorite_count: '收藏量',
+  share_count: '转发量',
+}
+
 export const columnLabels: Record<ArticleDistributionOverviewView, Record<string, string>> = {
   users: {
     user: '用户',

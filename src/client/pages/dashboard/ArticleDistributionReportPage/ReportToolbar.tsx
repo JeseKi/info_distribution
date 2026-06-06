@@ -1,4 +1,4 @@
-import { Button, Select, Segmented, Space } from 'antd'
+import { Button, Dropdown, Segmented, Space } from 'antd'
 import { DownloadOutlined, ReloadOutlined } from '@ant-design/icons'
 import type {
   ArticleDistributionOverviewView,
@@ -10,26 +10,26 @@ import { ColumnSelector } from './ColumnSelector'
 export function ReportToolbar({
   canViewTopics,
   exporting,
-  exportFormat,
   loading,
   view,
   visibleKeys,
+  visibleSummaryKeys,
   onExport,
-  onFormatChange,
   onRefresh,
   onVisibleKeysChange,
+  onVisibleSummaryKeysChange,
   onViewChange,
 }: {
   canViewTopics: boolean
   exporting: boolean
-  exportFormat: ArticleDistributionReportExportFormat
   loading: boolean
   view: ArticleDistributionOverviewView
   visibleKeys: string[]
-  onExport: () => void
-  onFormatChange: (format: ArticleDistributionReportExportFormat) => void
+  visibleSummaryKeys: string[]
+  onExport: (format: ArticleDistributionReportExportFormat) => void
   onRefresh: () => void
   onVisibleKeysChange: (keys: string[]) => void
+  onVisibleSummaryKeysChange: (keys: string[]) => void
   onViewChange: (view: ArticleDistributionOverviewView) => void
 }) {
   return (
@@ -45,24 +45,25 @@ export function ReportToolbar({
       <ColumnSelector
         view={view}
         visibleKeys={visibleKeys}
+        visibleSummaryKeys={visibleSummaryKeys}
         onChange={onVisibleKeysChange}
+        onSummaryChange={onVisibleSummaryKeysChange}
       />
-      <Select<ArticleDistributionReportExportFormat>
-        value={exportFormat}
-        options={[
-          { label: 'Excel', value: 'xlsx' },
-          { label: 'CSV', value: 'csv' },
-        ]}
-        style={{ width: 96 }}
-        onChange={onFormatChange}
-      />
-      <Button
-        icon={<DownloadOutlined />}
-        loading={exporting}
-        onClick={onExport}
+      <Dropdown
+        menu={{
+          items: [
+            { key: 'xlsx', label: '导出为 Excel' },
+            { key: 'csv', label: '导出为 CSV' },
+          ],
+          onClick: ({ key }) => onExport(key as ArticleDistributionReportExportFormat),
+        }}
+        trigger={['click']}
+        disabled={exporting}
       >
-        导出
-      </Button>
+        <Button icon={<DownloadOutlined />} loading={exporting}>
+          导出
+        </Button>
+      </Dropdown>
       <Button
         icon={<ReloadOutlined />}
         loading={loading}

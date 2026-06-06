@@ -16,7 +16,13 @@ import { ArticleDetailModal } from './ArticleDetailModal'
 import { buildArticleColumns } from './articleColumns'
 import { buildPlatformColumns, buildTopicColumns, buildUserColumns } from './columns'
 import { defaultOverview, metadataScope } from './constants'
-import { filterColumns, readVisibleColumns, writeVisibleColumns } from './columnVisibility'
+import {
+  filterColumns,
+  readVisibleColumns,
+  readVisibleSummaryMetrics,
+  writeVisibleColumns,
+  writeVisibleSummaryMetrics,
+} from './columnVisibility'
 import { isArticleItem, isTopicItem, isUserItem } from './itemGuards'
 import { ReportToolbar } from './ReportToolbar'
 import { SummaryFilterCard } from './SummaryFilterCard'
@@ -46,7 +52,6 @@ export default function ArticleDistributionReportPage() {
   const [view, setView] = useState<ArticleDistributionOverviewView>('users')
   const [loading, setLoading] = useState(false)
   const [exporting, setExporting] = useState(false)
-  const [exportFormat, setExportFormat] = useState<ArticleDistributionReportExportFormat>('xlsx')
   const [overview, setOverview] = useState<ArticleDistributionOverview>(defaultOverview)
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(20)
@@ -60,6 +65,7 @@ export default function ArticleDistributionReportPage() {
     articles: readVisibleColumns('articles'),
     topics: readVisibleColumns('topics'),
   }))
+  const [visibleSummaryKeys, setVisibleSummaryKeys] = useState<string[]>(() => readVisibleSummaryMetrics())
 
   const canViewTopics = Boolean(user?.effective_scopes.includes(metadataScope))
   const missingTrafficOnly = Form.useWatch('missing_traffic_only', form)
@@ -229,6 +235,11 @@ export default function ArticleDistributionReportPage() {
     })
   }, [view])
 
+  const setVisibleSummaryMetrics = useCallback((keys: string[]) => {
+    setVisibleSummaryKeys(keys)
+    writeVisibleSummaryMetrics(keys)
+  }, [])
+
   const handleApplyFilters = () => {
     clearExpandedArticles()
     setPage(1)
@@ -248,14 +259,14 @@ export default function ArticleDistributionReportPage() {
     setPage(1)
   }
 
-  const handleExport = async () => {
+  const handleExport = async (format: ArticleDistributionReportExportFormat) => {
     if (view === 'topics' && !canViewTopics) {
       message.error('缺少选题汇总导出权限')
       return
     }
     setExporting(true)
     try {
-      await articleApi.downloadReportOverviewExport(buildParams(1, pageSize), exportFormat)
+      await articleApi.downloadReportOverviewExport(buildParams(1, pageSize), format)
       message.success('文件已开始下载')
     } catch (error) {
       message.error(resolveApiErrorMessage(error, '统一报表导出失败'))
@@ -317,14 +328,14 @@ export default function ArticleDistributionReportPage() {
         <ReportToolbar
           canViewTopics={canViewTopics}
           exporting={exporting}
-          exportFormat={exportFormat}
           loading={loading}
           view={view}
           visibleKeys={visibleColumns[view]}
-          onExport={() => void handleExport()}
-          onFormatChange={setExportFormat}
+          visibleSummaryKeys={visibleSummaryKeys}
+          onExport={(format) => void handleExport(format)}
           onRefresh={() => void loadOverview(page, pageSize)}
           onVisibleKeysChange={setVisibleKeys}
+          onVisibleSummaryKeysChange={setVisibleSummaryMetrics}
           onViewChange={handleViewChange}
         />
       </Flex>
@@ -342,6 +353,7 @@ export default function ArticleDistributionReportPage() {
         form={form}
         missingTrafficOnly={missingTrafficOnly}
         summary={summary}
+        visibleSummaryKeys={visibleSummaryKeys}
         onApplyFilters={handleApplyFilters}
         onResetFilters={handleResetFilters}
       />
