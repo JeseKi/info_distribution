@@ -49,6 +49,18 @@ export function useColumns({
       render: (value: string | null) => value ?? '-',
     },
     {
+      title: '微信昵称',
+      dataIndex: 'wechat_nickname',
+      key: 'wechat_nickname',
+      render: (value: string | null) => value ?? '-',
+    },
+    {
+      title: '微信号',
+      dataIndex: 'wechat_id',
+      key: 'wechat_id',
+      render: (value: string | null) => value ?? '-',
+    },
+    {
       title: '角色',
       dataIndex: 'role',
       key: 'role',

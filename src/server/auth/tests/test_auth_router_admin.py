@@ -211,3 +211,57 @@ def test_admin_cannot_delete_self(test_client, test_db_session):
     assert resp.status_code == 400, resp.text
     assert resp.json()["detail"] == "不能删除当前登录用户"
     assert test_db_session.query(User).filter(User.id == admin.id).first() is not None
+
+
+def test_admin_can_manage_user_wechat_fields(test_client, test_db_session):
+    admin = User(
+        username="wechat_admin",
+        email="wechat_admin@example.com",
+        role=UserRole.ADMIN,
+    )
+    admin.set_password("Password123")
+    test_db_session.add(admin)
+    test_db_session.commit()
+    test_db_session.refresh(admin)
+
+    admin_token = service.create_access_token(
+        {
+            "sub": admin.username,
+            "scope": [
+                service.SCOPE_ADMIN_USERS_READ,
+                service.SCOPE_ADMIN_USERS_WRITE,
+            ],
+        }
+    )
+    headers = {"Authorization": f"Bearer {admin_token}"}
+
+    create_resp = test_client.post(
+        "/api/admin/users",
+        json={
+            "username": "wechat_member",
+            "email": "wechat_member@example.com",
+            "password": "Password123",
+            "name": "Wechat Member",
+            "wechat_nickname": "分发助手",
+            "wechat_id": "wx_distribution",
+        },
+        headers=headers,
+    )
+    assert create_resp.status_code == 201, create_resp.text
+    created = create_resp.json()
+    assert created["wechat_nickname"] == "分发助手"
+    assert created["wechat_id"] == "wx_distribution"
+
+    user = test_db_session.query(User).filter(User.id == created["id"]).one()
+    assert user.wechat_nickname == "分发助手"
+    assert user.wechat_id == "wx_distribution"
+
+    update_resp = test_client.patch(
+        f"/api/admin/users/{created['id']}",
+        json={"wechat_nickname": "更新昵称", "wechat_id": None},
+        headers=headers,
+    )
+    assert update_resp.status_code == 200, update_resp.text
+    updated = update_resp.json()
+    assert updated["wechat_nickname"] == "更新昵称"
+    assert updated["wechat_id"] is None

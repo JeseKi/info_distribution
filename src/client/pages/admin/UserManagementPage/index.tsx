@@ -107,7 +107,12 @@ export default function UserManagementPage() {
     if (!trimmed) return users
     return users.filter((user) => {
       const name = user.name ?? ''
-      return [user.username, user.email, name].join(' ').toLowerCase().includes(trimmed)
+      const wechatNickname = user.wechat_nickname ?? ''
+      const wechatId = user.wechat_id ?? ''
+      return [user.username, user.email, name, wechatNickname, wechatId]
+        .join(' ')
+        .toLowerCase()
+        .includes(trimmed)
     })
   }, [users, keyword])
 
@@ -134,7 +139,7 @@ export default function UserManagementPage() {
           </Space>
           <Flex wrap="wrap" gap={8} style={{ width: isMobile ? '100%' : 'auto' }}>
             <Input
-              placeholder="搜索用户名 / 邮箱 / 姓名"
+              placeholder="搜索用户名 / 邮箱 / 姓名 / 微信"
               value={keyword}
               onChange={(e) => setKeyword(e.target.value)}
               allowClear

@@ -81,6 +81,8 @@ async def create_user(
         email=payload.email,
         password=payload.password,
         name=payload.name,
+        wechat_nickname=payload.wechat_nickname,
+        wechat_id=payload.wechat_id,
         role=payload.role,
         status=payload.status,
     )

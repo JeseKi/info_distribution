@@ -4,6 +4,8 @@ export interface EditFormValues {
   username: string
   email: string
   name?: string | null
+  wechat_nickname?: string | null
+  wechat_id?: string | null
   role: UserRole
   status: UserStatus
 }
@@ -22,6 +24,8 @@ export interface CreateFormValues {
   username: string
   email: string
   name?: string | null
+  wechat_nickname?: string | null
+  wechat_id?: string | null
   role: UserRole
   status: UserStatus
   password: string

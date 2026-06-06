@@ -219,6 +219,8 @@ export interface AdminUser {
   username: string
   email: string
   name: string | null
+  wechat_nickname: string | null
+  wechat_id: string | null
   role: UserRole
   status: UserStatus
   scope_overrides: string[] | null
@@ -231,6 +233,8 @@ export interface AdminUserCreatePayload {
   username: string
   email: string
   name?: string | null
+  wechat_nickname?: string | null
+  wechat_id?: string | null
   role?: UserRole
   status?: UserStatus
   password: string
@@ -240,6 +244,8 @@ export interface AdminUserUpdatePayload {
   username?: string | null
   email?: string | null
   name?: string | null
+  wechat_nickname?: string | null
+  wechat_id?: string | null
   role?: UserRole
   status?: UserStatus
   password?: string | null

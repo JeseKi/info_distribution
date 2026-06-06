@@ -63,6 +63,12 @@ export default function EditUserModal({
         <Form.Item label="姓名" name="name">
           <Input placeholder="可选" />
         </Form.Item>
+        <Form.Item label="微信昵称" name="wechat_nickname">
+          <Input placeholder="可选" />
+        </Form.Item>
+        <Form.Item label="微信号" name="wechat_id">
+          <Input placeholder="可选" />
+        </Form.Item>
         <Form.Item label="角色" name="role">
           <Select
             options={roleOptions}

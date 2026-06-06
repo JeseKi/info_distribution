@@ -32,6 +32,8 @@ def create_user(
     email: str,
     password: str,
     name: str | None = None,
+    wechat_nickname: str | None = None,
+    wechat_id: str | None = None,
     role: UserRole | None = None,
     status: UserStatus | None = None,
 ) -> User:
@@ -41,6 +43,8 @@ def create_user(
         username=username,
         email=email,
         name=name,
+        wechat_nickname=wechat_nickname,
+        wechat_id=wechat_id,
         role=selected_role,
         status=selected_status,
     )
@@ -54,11 +58,15 @@ def create_user(
         scope_overrides=serialize_scopes(get_role_scopes(selected_role)),
     )
 
-    # 更新 name, role, status
-    if name is not None:
+    # 更新可选资料字段
+    if name is not None or wechat_nickname is not None or wechat_id is not None:
         update_fields = {}
         if name is not None:
             update_fields["name"] = name
+        if wechat_nickname is not None:
+            update_fields["wechat_nickname"] = wechat_nickname
+        if wechat_id is not None:
+            update_fields["wechat_id"] = wechat_id
         user = UserDAO(db).update(user, **update_fields)
 
     return user

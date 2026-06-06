@@ -20,6 +20,8 @@ class AdminUserOut(BaseModel):
     username: str
     email: EmailStr
     name: Optional[str] = Field(default=None)
+    wechat_nickname: Optional[str] = Field(default=None)
+    wechat_id: Optional[str] = Field(default=None)
     role: UserRole
     status: UserStatus
     scope_overrides: list[str] | None = Field(
@@ -37,6 +39,8 @@ class AdminUserCreate(BaseModel):
     username: str = Field(..., min_length=3, max_length=50)
     email: EmailStr
     name: Optional[str] = Field(default=None, max_length=100)
+    wechat_nickname: Optional[str] = Field(default=None, max_length=100)
+    wechat_id: Optional[str] = Field(default=None, max_length=100)
     role: UserRole = UserRole.USER
     status: UserStatus = UserStatus.ACTIVE
     password: str = Field(..., min_length=8)
@@ -46,6 +50,8 @@ class AdminUserUpdate(BaseModel):
     username: Optional[str] = Field(default=None, min_length=3, max_length=50)
     email: Optional[EmailStr] = None
     name: Optional[str] = Field(default=None, max_length=100)
+    wechat_nickname: Optional[str] = Field(default=None, max_length=100)
+    wechat_id: Optional[str] = Field(default=None, max_length=100)
     role: Optional[UserRole] = None
     status: Optional[UserStatus] = None
     password: Optional[str] = Field(default=None, min_length=8)

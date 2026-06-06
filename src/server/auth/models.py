@@ -39,6 +39,8 @@ class User(Base):
     password_hash: Mapped[str] = mapped_column(String(128), nullable=False)
     scope_overrides: Mapped[Optional[str]] = mapped_column(Text, default=None)
     name: Mapped[Optional[str]] = mapped_column(String(100), default=None)
+    wechat_nickname: Mapped[Optional[str]] = mapped_column(String(100), default=None)
+    wechat_id: Mapped[Optional[str]] = mapped_column(String(100), default=None)
     remark: Mapped[Optional[str]] = mapped_column(Text, default=None)
     role: Mapped[UserRole] = mapped_column(
         SQLEnum(UserRole), nullable=False, default=UserRole.USER

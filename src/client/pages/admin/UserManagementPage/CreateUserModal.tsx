@@ -57,6 +57,12 @@ export default function CreateUserModal({
         <Form.Item label="姓名" name="name">
           <Input placeholder="可选" />
         </Form.Item>
+        <Form.Item label="微信昵称" name="wechat_nickname">
+          <Input placeholder="可选" />
+        </Form.Item>
+        <Form.Item label="微信号" name="wechat_id">
+          <Input placeholder="可选" />
+        </Form.Item>
         <Form.Item
           label="密码"
           name="password"
