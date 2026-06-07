@@ -56,6 +56,14 @@ async def update_profile(
     db: Session = Depends(get_db),
 ):
     update_payload = user_data.model_dump(exclude_unset=True)
+
+    for optional_text_field in ("name", "wechat_nickname", "wechat_id"):
+        if optional_text_field in update_payload:
+            raw_value = update_payload[optional_text_field]
+            update_payload[optional_text_field] = (
+                raw_value.strip() if raw_value and raw_value.strip() else None
+            )
+
     if "username" in update_payload:
         raw_username = update_payload["username"]
         if raw_username is None:

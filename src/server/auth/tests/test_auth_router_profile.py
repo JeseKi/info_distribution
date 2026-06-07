@@ -39,13 +39,33 @@ def test_update_profile_supports_username_change(test_client):
 
     resp = test_client.put(
         "/api/auth/profile",
-        json={"username": "updated_profile_user", "name": "新的昵称"},
+        json={
+            "username": "updated_profile_user",
+            "name": "新的昵称",
+            "wechat_nickname": "微信昵称",
+            "wechat_id": "wechat_profile_id",
+        },
         headers=headers,
     )
     assert resp.status_code == 200, resp.text
     data = resp.json()
     assert data["username"] == "updated_profile_user"
     assert data["name"] == "新的昵称"
+    assert data["wechat_nickname"] == "微信昵称"
+    assert data["wechat_id"] == "wechat_profile_id"
+
+    login = test_client.post(
+        "/api/auth/login",
+        json={"username": "updated_profile_user", "password": "Password123"},
+    )
+    assert login.status_code == 200, login.text
+    headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+
+    profile = test_client.get("/api/auth/profile", headers=headers)
+    assert profile.status_code == 200
+    profile_data = profile.json()
+    assert profile_data["wechat_nickname"] == "微信昵称"
+    assert profile_data["wechat_id"] == "wechat_profile_id"
 
 def test_email_change_flow(test_client):
     # 注册

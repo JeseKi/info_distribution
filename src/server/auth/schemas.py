@@ -40,6 +40,8 @@ class UserProfile(BaseModel):
     username: str
     email: EmailStr
     name: Optional[str] = Field(default=None)
+    wechat_nickname: Optional[str] = Field(default=None)
+    wechat_id: Optional[str] = Field(default=None)
     role: UserRole
     status: UserStatus
     effective_scopes: list[str]
@@ -59,6 +61,8 @@ class UserCreate(BaseModel):
 class UserUpdate(BaseModel):
     username: Optional[str] = Field(default=None, min_length=3, max_length=50)
     name: Optional[str] = Field(default=None, max_length=100)
+    wechat_nickname: Optional[str] = Field(default=None, max_length=100)
+    wechat_id: Optional[str] = Field(default=None, max_length=100)
 
 
 class UserLogin(BaseModel):

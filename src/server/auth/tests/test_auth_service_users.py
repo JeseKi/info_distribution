@@ -92,11 +92,18 @@ def test_update_user(test_db_session: Session):
     test_db_session.refresh(user)
 
     # 更新用户信息
-    update_data = UserUpdate(username="updated_user", name="Updated Name")
+    update_data = UserUpdate(
+        username="updated_user",
+        name="Updated Name",
+        wechat_nickname="Wechat Nickname",
+        wechat_id="wechat_id",
+    )
     updated_user = update_user(test_db_session, user, update_data)
 
     assert updated_user.username == "updated_user"
     assert updated_user.name == "Updated Name"
+    assert updated_user.wechat_nickname == "Wechat Nickname"
+    assert updated_user.wechat_id == "wechat_id"
 
 
 def test_bootstrap_default_admin(test_db_session: Session):

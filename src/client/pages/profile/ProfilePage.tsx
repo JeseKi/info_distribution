@@ -10,10 +10,12 @@ import {
   Typography,
 } from 'antd'
 import {
+  IdcardOutlined,
   MailOutlined,
   SafetyCertificateOutlined,
   SendOutlined,
   UserOutlined,
+  WechatOutlined,
 } from '@ant-design/icons'
 import { useEffect, useState } from 'react'
 import { useAuth } from '../../hooks/useAuth'
@@ -23,7 +25,12 @@ export default function ProfilePage() {
   const { user, update, sendEmailChangeCode, confirmEmailChange } = useAuth()
   const { message } = App.useApp()
 
-  const [profileForm] = Form.useForm<{ username: string; name?: string }>()
+  const [profileForm] = Form.useForm<{
+    username: string
+    name?: string
+    wechat_nickname?: string
+    wechat_id?: string
+  }>()
   const [emailForm] = Form.useForm<{ email: string; code: string }>()
   const pendingEmail = Form.useWatch('email', emailForm)
 
@@ -38,8 +45,10 @@ export default function ProfilePage() {
     profileForm.setFieldsValue({
       username: user?.username ?? '',
       name: user?.name ?? undefined,
+      wechat_nickname: user?.wechat_nickname ?? undefined,
+      wechat_id: user?.wechat_id ?? undefined,
     })
-  }, [profileForm, user?.name, user?.username])
+  }, [profileForm, user?.name, user?.username, user?.wechat_id, user?.wechat_nickname])
 
   useEffect(() => {
     if (emailCountdown <= 0) {
@@ -53,13 +62,22 @@ export default function ProfilePage() {
     return () => window.clearInterval(timer)
   }, [emailCountdown])
 
-  const handleProfileSubmit = async (values: { username: string; name?: string }) => {
+  const handleProfileSubmit = async (values: {
+    username: string
+    name?: string
+    wechat_nickname?: string
+    wechat_id?: string
+  }) => {
     setProfileSubmitting(true)
     setProfileError(null)
     try {
       const payload = {
         username: values.username.trim(),
         name: values.name?.trim() ? values.name.trim() : null,
+        wechat_nickname: values.wechat_nickname?.trim()
+          ? values.wechat_nickname.trim()
+          : null,
+        wechat_id: values.wechat_id?.trim() ? values.wechat_id.trim() : null,
       }
       await update(payload)
       message.success('个人资料已更新')
@@ -119,7 +137,7 @@ export default function ProfilePage() {
         <Typography.Title level={3} style={{ marginBottom: 8 }}>
           个人信息
         </Typography.Title>
-        <Typography.Text type="secondary">管理您的用户名和邮箱。</Typography.Text>
+        <Typography.Text type="secondary">管理您的用户名、微信信息和邮箱。</Typography.Text>
       </div>
 
       <Card title="基础资料" bordered={false} style={{ width: '100%' }}>
@@ -159,6 +177,32 @@ export default function ProfilePage() {
               style={{ marginBottom: 20 }}
             >
               <Input placeholder="可选" allowClear size="large" />
+            </Form.Item>
+            <Form.Item
+              label="微信昵称"
+              name="wechat_nickname"
+              rules={[{ max: 100, message: '微信昵称不能超过 100 个字符' }]}
+              style={{ marginBottom: 20 }}
+            >
+              <Input
+                prefix={<WechatOutlined />}
+                placeholder="可选"
+                allowClear
+                size="large"
+              />
+            </Form.Item>
+            <Form.Item
+              label="微信号"
+              name="wechat_id"
+              rules={[{ max: 100, message: '微信号不能超过 100 个字符' }]}
+              style={{ marginBottom: 20 }}
+            >
+              <Input
+                prefix={<IdcardOutlined />}
+                placeholder="可选"
+                allowClear
+                size="large"
+              />
             </Form.Item>
             <Form.Item style={{ marginBottom: 0 }}>
               <Button type="primary" htmlType="submit" loading={profileSubmitting} size="large">

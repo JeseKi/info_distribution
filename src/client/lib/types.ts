@@ -122,6 +122,8 @@ export interface UserProfile {
   username: string
   email: string
   name: string | null
+  wechat_nickname: string | null
+  wechat_id: string | null
   role: UserRole
   status: UserStatus
   effective_scopes: string[]
@@ -188,6 +190,8 @@ export interface RegisterWithCodePayload {
 export interface UpdateProfilePayload {
   username?: string | null
   name?: string | null
+  wechat_nickname?: string | null
+  wechat_id?: string | null
 }
 
 export interface PasswordResetLinkPayload {
