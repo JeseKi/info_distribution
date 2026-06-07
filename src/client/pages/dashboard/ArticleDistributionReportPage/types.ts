@@ -7,6 +7,8 @@ import type {
 
 export interface FilterValues {
   keyword?: string
+  project_id?: number
+  theme_id?: number
   platform?: string
   publication_type?: ArticlePublicationType
   publish_status?: ArticlePublishStatus

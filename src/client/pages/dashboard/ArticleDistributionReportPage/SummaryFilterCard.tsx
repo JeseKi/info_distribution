@@ -18,7 +18,7 @@ import {
 import dayjs from 'dayjs'
 import type { FormInstance } from 'antd'
 import type { ReactNode } from 'react'
-import type { ArticleDistributionOverviewSummary } from '../../../lib/types'
+import type { ArticleDistributionOverviewSummary, Project, Theme } from '../../../lib/types'
 import {
   accountStatusOptions,
   publicationTypeOptions,
@@ -49,23 +49,45 @@ const summaryMetricConfig: {
 export function SummaryFilterCard({
   form,
   missingTrafficOnly,
+  projects,
   summary,
+  themes,
   visibleSummaryKeys,
   onApplyFilters,
   onResetFilters,
 }: {
   form: FormInstance<FilterValues>
   missingTrafficOnly: boolean | undefined
+  projects: Project[]
   summary: ArticleDistributionOverviewSummary
+  themes: Theme[]
   visibleSummaryKeys: string[]
   onApplyFilters: () => void
   onResetFilters: () => void
 }) {
   const [filterModalOpen, setFilterModalOpen] = useState(false)
+  const selectedProjectId = Form.useWatch('project_id', form)
   const visibleSummaryMetrics = useMemo(() => {
     const visible = new Set(visibleSummaryKeys)
     return summaryMetricConfig.filter((metric) => visible.has(metric.key))
   }, [visibleSummaryKeys])
+  const projectOptions = useMemo(
+    () => projects.map((project) => ({
+      label: project.is_active ? project.name : `${project.name}（停用）`,
+      value: project.id,
+    })),
+    [projects],
+  )
+  const themeOptions = useMemo(() => {
+    const selectedProject = projects.find((project) => project.id === selectedProjectId)
+    const availableThemes = selectedProject
+      ? themes.filter((theme) => selectedProject.theme_ids.includes(theme.id))
+      : themes
+    return availableThemes.map((theme) => ({
+      label: theme.is_active ? theme.name : `${theme.name}（停用）`,
+      value: theme.id,
+    }))
+  }, [projects, selectedProjectId, themes])
 
   const handleApplyFilters = () => {
     onApplyFilters()
@@ -132,6 +154,17 @@ export function SummaryFilterCard({
             >
               <Form.Item label="搜索" name="keyword">
                 <Input prefix={<SearchOutlined />} allowClear placeholder="用户、文章、账号或链接" />
+              </Form.Item>
+              <Form.Item label="项目" name="project_id">
+                <Select
+                  allowClear
+                  options={projectOptions}
+                  placeholder="全部项目"
+                  onChange={() => form.setFieldValue('theme_id', undefined)}
+                />
+              </Form.Item>
+              <Form.Item label="主题" name="theme_id">
+                <Select allowClear options={themeOptions} placeholder="全部主题" />
               </Form.Item>
               <Form.Item label="平台" name="platform">
                 <Input allowClear placeholder="wechat、zhihu..." />

@@ -25,6 +25,8 @@ class ArticleDistributionReportQueryDAO(ArticleDistributionBaseDAO):
         user_id: int | None = None,
         scheduled_from: date | None = None,
         scheduled_to: date | None = None,
+        project_id: int | None = None,
+        theme_id: int | None = None,
         platform: str | None = None,
         publication_type: str | None = None,
         account_status: str = "active",
@@ -48,6 +50,10 @@ class ArticleDistributionReportQueryDAO(ArticleDistributionBaseDAO):
             query = query.filter(
                 ArticleDistributionArticle.scheduled_date <= scheduled_to
             )
+        if project_id is not None:
+            query = query.filter(ArticleDistributionArticle.project_id == project_id)
+        if theme_id is not None:
+            query = query.filter(ArticleDistributionAccount.theme_id == theme_id)
         if platform:
             query = query.filter(ArticleDistributionAccount.platform == platform)
         if publication_type:

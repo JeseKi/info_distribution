@@ -3,6 +3,7 @@ import { Alert, App, Empty, Flex, Form, Table, Typography } from 'antd'
 import type { TableProps } from 'antd'
 import dayjs from 'dayjs'
 import * as articleApi from '../../../lib/articleDistribution'
+import { listProjects, listThemes } from '../../../lib/admin'
 import { useAuth } from '../../../hooks/useAuth'
 import type {
   ArticleDistributionOverview,
@@ -13,6 +14,8 @@ import type {
   ArticleDistributionOverviewSortOrder,
   ArticleDistributionOverviewView,
   ArticleDistributionReportExportFormat,
+  Project,
+  Theme,
 } from '../../../lib/types'
 import { resolveApiErrorMessage } from '../../../lib/error'
 import { ArticleDetailModal } from './ArticleDetailModal'
@@ -154,6 +157,8 @@ export default function ArticleDistributionReportPage() {
     () => readOverviewSortStates(),
   )
   const [articleSortState, setArticleSortState] = useState<ReportSortState>(() => readOverviewArticleSort())
+  const [projects, setProjects] = useState<Project[]>([])
+  const [themes, setThemes] = useState<Theme[]>([])
   const [visibleColumns, setVisibleColumns] = useState<Record<ArticleDistributionOverviewView, string[]>>(() => ({
     users: readVisibleColumns('users'),
     articles: readVisibleColumns('articles'),
@@ -176,6 +181,8 @@ export default function ArticleDistributionReportPage() {
       page: nextPage,
       page_size: nextPageSize,
       keyword: values.keyword?.trim() || undefined,
+      project_id: values.project_id,
+      theme_id: values.theme_id,
       platform: values.platform?.trim() || undefined,
       publication_type: values.publication_type,
       publish_status: values.publish_status,
@@ -330,6 +337,17 @@ export default function ArticleDistributionReportPage() {
   useEffect(() => {
     void loadOverview(page, pageSize)
   }, [loadOverview, page, pageSize])
+
+  useEffect(() => {
+    void Promise.all([listProjects(), listThemes()])
+      .then(([nextProjects, nextThemes]) => {
+        setProjects(nextProjects)
+        setThemes(nextThemes)
+      })
+      .catch((error) => {
+        message.error(resolveApiErrorMessage(error, '项目主题选项加载失败'))
+      })
+  }, [message])
 
   const setVisibleKeys = useCallback((keys: string[]) => {
     setVisibleColumns((current) => {
@@ -500,7 +518,9 @@ export default function ArticleDistributionReportPage() {
       <SummaryFilterCard
         form={form}
         missingTrafficOnly={missingTrafficOnly}
+        projects={projects}
         summary={summary}
+        themes={themes}
         visibleSummaryKeys={visibleSummaryKeys}
         onApplyFilters={handleApplyFilters}
         onResetFilters={handleResetFilters}

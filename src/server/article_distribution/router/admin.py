@@ -60,6 +60,8 @@ async def create_articles_as_admin(
 async def export_publicity_records_csv(
     scheduled_from: date | None = Query(default=None),
     scheduled_to: date | None = Query(default=None),
+    project_id: int | None = Query(default=None, ge=1),
+    theme_id: int | None = Query(default=None, ge=1),
     platform: str | None = Query(default=None),
     publication_type: PublicationType | None = Query(default=None),
     account_status: AccountStatusFilter = Query(default="all"),
@@ -74,6 +76,8 @@ async def export_publicity_records_csv(
             current_user=current_user,
             scheduled_from=scheduled_from,
             scheduled_to=scheduled_to,
+            project_id=project_id,
+            theme_id=theme_id,
             platform=platform,
             publication_type=publication_type,
             account_status=account_status,

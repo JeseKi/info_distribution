@@ -21,6 +21,7 @@ from src.server.auth.models import User
 from src.server.auth.schemas import UserRole
 from src.server.auth import service as auth_service
 from src.server.project_management.dao import ProjectManagementDAO
+from src.server.project_management.models import Project, Theme
 from src.server.project_management.service import bootstrap_default_project_theme
 
 
@@ -1308,6 +1309,7 @@ def test_report_overview_supports_views_filters_and_topic_permission(
     )
     viewer = _create_user(test_db_session, username="overview_viewer")
     admin = _create_user(test_db_session, username="overview_admin", role=UserRole.ADMIN)
+    default_project = bootstrap_default_project_theme(test_db_session)
 
     account_resp = test_client.post(
         "/api/article-distribution/accounts",
@@ -1320,6 +1322,7 @@ def test_report_overview_supports_views_filters_and_topic_permission(
         },
     )
     assert account_resp.status_code == 201
+    account_theme_id = account_resp.json()["theme_id"]
 
     upload_resp = test_client.post(
         "/api/admin/article-distribution/articles",
@@ -1331,14 +1334,14 @@ def test_report_overview_supports_views_filters_and_topic_permission(
                     "title": "Overview missing stat",
                     "markdown_content": "body",
                     "scheduled_date": "2026-05-20",
-                    "project_id": 1,
+                    "project_id": default_project.id,
                     "metadata": {"output_id": "overview_topic", "topic": "统一报表"},
                 },
                 {
                     "title": "Overview unpublished",
                     "markdown_content": "body",
                     "scheduled_date": "2026-05-21",
-                "project_id": 1,
+                    "project_id": default_project.id,
                 },
             ],
         },
@@ -1399,12 +1402,38 @@ def test_report_overview_supports_views_filters_and_topic_permission(
     assert users_report["items"][0]["remaining_count"] == 1
     assert users_report["items"][0]["articles"] == []
 
+    project_filtered_resp = test_client.get(
+        "/api/article-distribution/reports/overview",
+        headers=_headers(viewer),
+        params={"view": "users", "project_id": default_project.id},
+    )
+    assert project_filtered_resp.status_code == 200
+    assert project_filtered_resp.json()["summary"]["total_articles"] == 2
+
+    theme_filtered_resp = test_client.get(
+        "/api/article-distribution/reports/overview",
+        headers=_headers(viewer),
+        params={"view": "users", "theme_id": account_theme_id},
+    )
+    assert theme_filtered_resp.status_code == 200
+    assert theme_filtered_resp.json()["summary"]["total_articles"] == 2
+
+    empty_filter_resp = test_client.get(
+        "/api/article-distribution/reports/overview",
+        headers=_headers(viewer),
+        params={"view": "users", "project_id": default_project.id + 10000},
+    )
+    assert empty_filter_resp.status_code == 200
+    assert empty_filter_resp.json()["summary"]["total_articles"] == 0
+
     user_articles_resp = test_client.get(
         "/api/article-distribution/reports/overview/articles",
         headers=_headers(viewer),
         params={
             "user_id": owner.id,
             "keyword": "Overview",
+            "project_id": default_project.id,
+            "theme_id": account_theme_id,
             "page": 1,
             "page_size": 1,
         },
@@ -1792,6 +1821,16 @@ def test_admin_can_export_publicity_records_csv(test_client, test_db_session: Se
     admin = _create_user(
         test_db_session, username="publicity_admin", role=UserRole.ADMIN
     )
+    project_dao = ProjectManagementDAO(test_db_session)
+    default_project = bootstrap_default_project_theme(test_db_session)
+    default_theme = project_dao.get_theme_by_name("AI")
+    assert default_theme is not None
+    other_theme = project_dao.create_theme(Theme(name="Healthcare", is_active=True))
+    other_project = project_dao.create_project(
+        Project(name="MED", code="MEDPROJA", is_active=True)
+    )
+    project_dao.replace_project_themes(other_project.id, [other_theme.id])
+    project_dao.add_user_project(owner.id, other_project.id)
 
     active_account_resp = test_client.post(
         "/api/article-distribution/accounts",
@@ -1801,6 +1840,7 @@ def test_admin_can_export_publicity_records_csv(test_client, test_db_session: Se
             "account_name": "公众号",
             "platform": "wechat",
             "publication_type": "article",
+            "theme_id": default_theme.id,
         },
     )
     inactive_account_resp = test_client.post(
@@ -1811,6 +1851,7 @@ def test_admin_can_export_publicity_records_csv(test_client, test_db_session: Se
             "account_name": "旧号",
             "platform": "wechat",
             "publication_type": "article",
+            "theme_id": default_theme.id,
         },
     )
     other_account_resp = test_client.post(
@@ -1821,6 +1862,7 @@ def test_admin_can_export_publicity_records_csv(test_client, test_db_session: Se
             "account_name": "知乎号",
             "platform": "zhihu",
             "publication_type": "article",
+            "theme_id": other_theme.id,
         },
     )
     assert active_account_resp.status_code == 201
@@ -1840,31 +1882,31 @@ def test_admin_can_export_publicity_records_csv(test_client, test_db_session: Se
                     "title": "Published A",
                     "markdown_content": "body",
                     "scheduled_date": "2026-05-27",
-                "project_id": 1,
+                    "project_id": default_project.id,
                 },
                 {
                     "title": "Unpublished",
                     "markdown_content": "body",
                     "scheduled_date": "2026-05-27",
-                "project_id": 1,
+                    "project_id": default_project.id,
                 },
                 {
                     "title": "Invalid",
                     "markdown_content": "body",
                     "scheduled_date": "2026-05-27",
-                "project_id": 1,
+                    "project_id": default_project.id,
                 },
                 {
                     "title": "No URL",
                     "markdown_content": "body",
                     "scheduled_date": "2026-05-27",
-                "project_id": 1,
+                    "project_id": default_project.id,
                 },
                 {
                     "title": "Future",
                     "markdown_content": "body",
                     "scheduled_date": "2099-01-01",
-                "project_id": 1,
+                    "project_id": default_project.id,
                 },
             ],
         },
@@ -1879,7 +1921,7 @@ def test_admin_can_export_publicity_records_csv(test_client, test_db_session: Se
                     "title": "Inactive published",
                     "markdown_content": "body",
                     "scheduled_date": "2026-05-26",
-                "project_id": 1,
+                    "project_id": default_project.id,
                 }
             ],
         },
@@ -1894,7 +1936,7 @@ def test_admin_can_export_publicity_records_csv(test_client, test_db_session: Se
                     "title": "Zhihu published",
                     "markdown_content": "body",
                     "scheduled_date": "2026-05-27",
-                "project_id": 1,
+                    "project_id": other_project.id,
                 }
             ],
         },
@@ -2016,6 +2058,43 @@ def test_admin_can_export_publicity_records_csv(test_client, test_db_session: Se
         csv.DictReader(StringIO(active_filtered_resp.content.decode("utf-8-sig")))
     )
     assert [row["标题"] for row in filtered_rows] == ["Published A"]
+
+    project_filtered_resp = test_client.get(
+        "/api/admin/article-distribution/publicity-records.csv",
+        headers=_headers(admin),
+        params={"project_id": other_project.id, "scheduled_to": "2026-05-28"},
+    )
+    assert project_filtered_resp.status_code == 200
+    project_rows = list(
+        csv.DictReader(StringIO(project_filtered_resp.content.decode("utf-8-sig")))
+    )
+    assert [row["标题"] for row in project_rows] == ["Zhihu published"]
+
+    theme_filtered_resp = test_client.get(
+        "/api/admin/article-distribution/publicity-records.csv",
+        headers=_headers(admin),
+        params={"theme_id": other_theme.id, "scheduled_to": "2026-05-28"},
+    )
+    assert theme_filtered_resp.status_code == 200
+    theme_rows = list(
+        csv.DictReader(StringIO(theme_filtered_resp.content.decode("utf-8-sig")))
+    )
+    assert [row["标题"] for row in theme_rows] == ["Zhihu published"]
+
+    mismatched_filter_resp = test_client.get(
+        "/api/admin/article-distribution/publicity-records.csv",
+        headers=_headers(admin),
+        params={
+            "project_id": default_project.id,
+            "theme_id": other_theme.id,
+            "scheduled_to": "2026-05-28",
+        },
+    )
+    assert mismatched_filter_resp.status_code == 200
+    mismatched_rows = list(
+        csv.DictReader(StringIO(mismatched_filter_resp.content.decode("utf-8-sig")))
+    )
+    assert mismatched_rows == []
 
     inactive_filtered_resp = test_client.get(
         "/api/admin/article-distribution/publicity-records.csv",

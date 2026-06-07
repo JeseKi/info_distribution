@@ -119,6 +119,8 @@ def build_publicity_records_csv(
     current_user: User,
     scheduled_from: date | None = None,
     scheduled_to: date | None = None,
+    project_id: int | None = None,
+    theme_id: int | None = None,
     platform: str | None = None,
     publication_type: str | None = None,
     account_status: AccountStatusFilter = "all",
@@ -135,6 +137,8 @@ def build_publicity_records_csv(
     rows = dao.list_publicity_record_rows(
         scheduled_from=scheduled_from,
         scheduled_to=effective_scheduled_to,
+        project_id=project_id,
+        theme_id=theme_id,
         platform=normalize_optional(platform),
         publication_type=publication_type,
         account_status=account_status,

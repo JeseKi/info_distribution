@@ -18,7 +18,7 @@ import {
 import type { TableColumnsType } from 'antd'
 import { DownloadOutlined, KeyOutlined, PlusOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
-import { listUsers } from '../../lib/admin'
+import { listProjects, listThemes, listUsers } from '../../lib/admin'
 import * as articleApi from '../../lib/articleDistribution'
 import type {
   AdminUser,
@@ -28,6 +28,8 @@ import type {
   ArticleDistributionArticleBatchPayload,
   ArticleDistributionPublicityRecordExportParams,
   ArticlePublicationType,
+  Project,
+  Theme,
 } from '../../lib/types'
 
 function inactiveAccountTag(isActive?: boolean) {
@@ -60,6 +62,8 @@ interface UploadFormValues {
 interface CsvExportFormValues {
   scheduled_from?: dayjs.Dayjs
   scheduled_to?: dayjs.Dayjs
+  project_id?: number
+  theme_id?: number
   platform?: string
   publication_type?: ArticlePublicationType
   account_status?: ArticleDistributionAccountStatusFilter
@@ -70,8 +74,11 @@ export default function ArticleDistributionAdminPage() {
   const [users, setUsers] = useState<AdminUser[]>([])
   const [accounts, setAccounts] = useState<ArticleDistributionAccount[]>([])
   const [apiKeys, setApiKeys] = useState<ArticleDistributionApiKey[]>([])
+  const [projects, setProjects] = useState<Project[]>([])
+  const [themes, setThemes] = useState<Theme[]>([])
   const [loading, setLoading] = useState(false)
   const [exportingCsv, setExportingCsv] = useState(false)
+  const [selectedExportProjectId, setSelectedExportProjectId] = useState<number | undefined>()
   const [selectedUserId, setSelectedUserId] = useState<number | undefined>()
   const [uploadForm] = Form.useForm<UploadFormValues>()
   const [keyForm] = Form.useForm<{ name: string }>()
@@ -105,15 +112,38 @@ export default function ArticleDistributionAdminPage() {
     })) ?? []
   }, [selectedUserId, users])
 
+  const exportProjectOptions = useMemo(
+    () => projects.map((project) => ({
+      label: project.is_active ? project.name : `${project.name}（停用）`,
+      value: project.id,
+    })),
+    [projects],
+  )
+
+  const exportThemeOptions = useMemo(() => {
+    const selectedProject = projects.find((project) => project.id === selectedExportProjectId)
+    const availableThemes = selectedProject
+      ? themes.filter((theme) => selectedProject.theme_ids.includes(theme.id))
+      : themes
+    return availableThemes.map((theme) => ({
+      label: theme.is_active ? theme.name : `${theme.name}（停用）`,
+      value: theme.id,
+    }))
+  }, [projects, selectedExportProjectId, themes])
+
   const loadInitialData = useCallback(async () => {
     setLoading(true)
     try {
-      const [nextUsers, nextKeys] = await Promise.all([
+      const [nextUsers, nextKeys, nextProjects, nextThemes] = await Promise.all([
         listUsers(),
         articleApi.listArticleApiKeys(),
+        listProjects(),
+        listThemes(),
       ])
       setUsers(nextUsers)
       setApiKeys(nextKeys)
+      setProjects(nextProjects)
+      setThemes(nextThemes)
     } catch (error) {
       message.error(resolveErrorMessage(error))
     } finally {
@@ -192,6 +222,8 @@ export default function ArticleDistributionAdminPage() {
     const params: ArticleDistributionPublicityRecordExportParams = {
       scheduled_from: values.scheduled_from?.format('YYYY-MM-DD'),
       scheduled_to: (values.scheduled_to ?? dayjs()).format('YYYY-MM-DD'),
+      project_id: values.project_id,
+      theme_id: values.theme_id,
       platform: values.platform?.trim() || undefined,
       publication_type: values.publication_type,
       account_status: values.account_status ?? 'all',
@@ -248,6 +280,20 @@ export default function ArticleDistributionAdminPage() {
             <Form.Item label="截止日期" name="scheduled_to" style={{ minWidth: 180 }}>
               <DatePicker allowClear={false} style={{ width: '100%' }} />
             </Form.Item>
+            <Form.Item label="项目" name="project_id" style={{ minWidth: 180 }}>
+              <Select
+                allowClear
+                options={exportProjectOptions}
+                placeholder="全部项目"
+                onChange={(projectId?: number) => {
+                  setSelectedExportProjectId(projectId)
+                  csvExportForm.setFieldValue('theme_id', undefined)
+                }}
+              />
+            </Form.Item>
+            <Form.Item label="主题" name="theme_id" style={{ minWidth: 180 }}>
+              <Select allowClear options={exportThemeOptions} placeholder="全部主题" />
+            </Form.Item>
             <Form.Item label="平台" name="platform" style={{ minWidth: 180 }}>
               <Input allowClear placeholder="wechat、zhihu..." />
             </Form.Item>
@@ -270,6 +316,7 @@ export default function ArticleDistributionAdminPage() {
                 <Button
                   onClick={() => {
                     csvExportForm.resetFields()
+                    setSelectedExportProjectId(undefined)
                   }}
                 >
                   重置

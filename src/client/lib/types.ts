@@ -839,6 +839,8 @@ export interface ArticleDistributionOverview {
 export interface ArticleDistributionOverviewParams extends ArticleDistributionPendingReportFilters {
   view?: ArticleDistributionOverviewView
   keyword?: string
+  project_id?: number
+  theme_id?: number
   missing_traffic_only?: boolean
   recorded_from?: string
   recorded_to?: string
@@ -873,7 +875,10 @@ export interface ArticleDistributionOverviewArticlePageParams
   topic_key?: string
 }
 
-export type ArticleDistributionPublicityRecordExportParams = ArticleDistributionPendingReportFilters
+export interface ArticleDistributionPublicityRecordExportParams extends ArticleDistributionPendingReportFilters {
+  project_id?: number
+  theme_id?: number
+}
 
 export interface ArticleDistributionMissingTrafficFilters extends ArticleDistributionPendingReportFilters {
   recorded_from: string
