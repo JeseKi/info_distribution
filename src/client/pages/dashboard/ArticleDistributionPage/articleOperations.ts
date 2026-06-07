@@ -4,6 +4,7 @@ import {
   buildWechatHtml,
   copyHtml,
   copyText,
+  downloadMarkdownImagesAsFiles,
   downloadMarkdownImagesAsZip,
   markdownToPlainText,
 } from '../../../lib/articleDistributionExport'
@@ -15,6 +16,8 @@ type MessageApi = {
   success: (content: string) => void
   warning: (content: string) => void
 }
+
+export type ImagePackageDownloadMode = 'zip' | 'images'
 
 export async function copyArticleContent({
   article,
@@ -50,28 +53,31 @@ export async function copyArticleContent({
 export async function downloadArticleImagePackage({
   article,
   message,
+  mode,
   setDownloadingImages,
   setImagePackageProgress,
 }: {
   article: ArticleDistributionArticle
   message: MessageApi
+  mode: ImagePackageDownloadMode
   setDownloadingImages: (downloading: boolean) => void
   setImagePackageProgress: (progress: ImagePackageProgressState | null) => void
 }) {
   setDownloadingImages(true)
-  setImagePackageProgress({ percent: 0, title: '准备下载图片包', detail: '正在解析文章图片' })
+  setImagePackageProgress({ percent: 0, title: '准备下载图片', detail: '正在解析文章图片' })
   try {
-    const count = await downloadMarkdownImagesAsZip(article.markdown_content, article.title, {
+    const downloadImages = mode === 'zip' ? downloadMarkdownImagesAsZip : downloadMarkdownImagesAsFiles
+    const count = await downloadImages(article.markdown_content, article.title, {
       onProgress: (progress) => setImagePackageProgress(buildImagePackageProgressState(progress)),
     })
     if (count === 0) {
       message.warning('文章中没有图片')
     } else {
-      setImagePackageProgress({ percent: 100, title: '图片包已生成', detail: `已下载 ${count} 张图片` })
+      setImagePackageProgress({ percent: 100, title: '图片已下载', detail: `已下载 ${count} 张图片` })
       message.success(`已下载 ${count} 张图片`)
     }
   } catch {
-    message.error('图片包下载失败')
+    message.error('图片下载失败')
   } finally {
     setDownloadingImages(false)
     setImagePackageProgress(null)

@@ -10,7 +10,7 @@ import type {
   ArticleDistributionArticleStatusCounts,
   ArticlePublishStatus,
 } from '../../../lib/types'
-import { copyArticleContent, downloadArticleImagePackage } from './articleOperations'
+import { copyArticleContent, downloadArticleImagePackage, type ImagePackageDownloadMode } from './articleOperations'
 import { defaultArticlePageSize, defaultArticleStatusCounts, publicationTypeText } from './constants'
 import { resolveErrorMessage } from './errors'
 import { normalizeAccountPayload } from './normalize'
@@ -242,11 +242,12 @@ export function useArticleDistributionController() {
     })
   }
 
-  const handleDownloadImagePackage = async () => {
+  const handleDownloadImagePackage = async (mode: ImagePackageDownloadMode) => {
     if (!selectedArticle) return
     await downloadArticleImagePackage({
       article: selectedArticle,
       message,
+      mode,
       setDownloadingImages,
       setImagePackageProgress,
     })

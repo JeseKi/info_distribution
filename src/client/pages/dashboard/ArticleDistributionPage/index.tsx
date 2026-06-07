@@ -53,7 +53,7 @@ export default function ArticleDistributionPage() {
           onCopyAction={(type) => void state.copyAction(type)}
           onCopyMenuOpenChange={state.setCopyMenuOpen}
           onDeleteArticle={(article) => void state.handleDeleteArticle(article)}
-          onDownloadImagePackage={() => void state.handleDownloadImagePackage()}
+          onDownloadImagePackage={(mode) => void state.handleDownloadImagePackage(mode)}
           onEditArticle={state.openArticleEditModal}
           onOpenPublishModal={state.openPublishModal}
           onStatusChange={(article, status) => void state.handleDirectStatusChange(article, status)}

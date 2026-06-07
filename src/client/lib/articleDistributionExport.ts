@@ -710,6 +710,95 @@ export async function downloadMarkdownImagesAsZip(
   return savedCount
 }
 
+function downloadBlob(blob: Blob, filename: string): void {
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  link.click()
+  URL.revokeObjectURL(url)
+}
+
+export async function downloadMarkdownImagesAsFiles(
+  markdown: string,
+  _filename: string,
+  options: ImagePackageDownloadOptions = {},
+): Promise<number> {
+  const images = extractMarkdownImages(markdown)
+  if (images.length === 0) return 0
+
+  const usedNames = new Set<string>()
+  let savedCount = 0
+  let processedImages = 0
+  let loadedBytes = 0
+
+  const emitProgress = (progress: Omit<ImagePackageDownloadProgress, 'totalImages'>) => {
+    options.onProgress?.({
+      totalImages: images.length,
+      ...progress,
+    })
+  }
+
+  for (const [index, image] of images.entries()) {
+    let currentLoadedBytes = 0
+    let currentTotalBytes: number | undefined
+    emitProgress({
+      phase: 'downloading',
+      processedImages,
+      savedImages: savedCount,
+      loadedBytes,
+      currentImageIndex: index + 1,
+      currentLoadedBytes,
+      currentTotalBytes,
+    })
+
+    const packageImage = await fetchImageForPackage(image.href, (progress) => {
+      currentLoadedBytes = progress.loadedBytes
+      currentTotalBytes = progress.totalBytes
+      emitProgress({
+        phase: 'downloading',
+        processedImages,
+        savedImages: savedCount,
+        loadedBytes: loadedBytes + currentLoadedBytes,
+        currentImageIndex: index + 1,
+        currentLoadedBytes,
+        currentTotalBytes,
+      })
+    })
+    processedImages += 1
+    if (!packageImage) {
+      emitProgress({
+        phase: 'downloading',
+        processedImages,
+        savedImages: savedCount,
+        loadedBytes,
+        currentLoadedBytes: 0,
+      })
+      continue
+    }
+
+    loadedBytes += packageImage.data.byteLength
+    downloadBlob(
+      new Blob([packageImage.data], { type: packageImage.contentType ?? 'application/octet-stream' }),
+      uniqueImageFilename(image, index + 1, packageImage.contentType, usedNames),
+    )
+    savedCount += 1
+    emitProgress({
+      phase: 'downloading',
+      processedImages,
+      savedImages: savedCount,
+      loadedBytes,
+      currentLoadedBytes: 0,
+    })
+  }
+
+  if (savedCount === 0) {
+    throw new Error('图片下载失败')
+  }
+
+  return savedCount
+}
+
 async function buildDocxBlocks(markdown: string): Promise<DocxBlock[]> {
   const tokens = marked.lexer(markdown, { gfm: true })
   const blocks: DocxBlock[] = []

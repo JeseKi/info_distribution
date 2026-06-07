@@ -1,7 +1,9 @@
-import { Button, Descriptions, Empty, Flex, Popconfirm, Popover, Progress, Space, Tabs, Tag, Typography } from 'antd'
+import { Button, Descriptions, Dropdown, Empty, Flex, Popconfirm, Popover, Progress, Space, Tabs, Tag, Typography } from 'antd'
+import type { MenuProps } from 'antd'
 import {
   CopyOutlined,
   DeleteOutlined,
+  DownOutlined,
   DownloadOutlined,
   EditOutlined,
   FileTextOutlined,
@@ -11,6 +13,7 @@ import MarkdownArticleViewer from '../../../components/article/MarkdownArticleVi
 import { downloadMarkdownAsDocx } from '../../../lib/articleDistributionExport'
 import { publicationTypeText } from './constants'
 import { inactiveAccountTag, publishStatusTag } from './statusTags'
+import type { ImagePackageDownloadMode } from './articleOperations'
 import type { ImagePackageProgressState } from './types'
 
 export function ArticlePreviewPanel({
@@ -35,7 +38,7 @@ export function ArticlePreviewPanel({
   onCopyAction: (type: 'markdown' | 'plain' | 'html' | 'wechat') => void
   onCopyMenuOpenChange: (open: boolean) => void
   onDeleteArticle: (article: ArticleDistributionArticle) => void
-  onDownloadImagePackage: () => void
+  onDownloadImagePackage: (mode: ImagePackageDownloadMode) => void
   onEditArticle: (article: ArticleDistributionArticle) => void
   onOpenPublishModal: (article: ArticleDistributionArticle) => void
   onStatusChange: (article: ArticleDistributionArticle, publishStatus: ArticlePublishStatus) => void
@@ -107,7 +110,7 @@ function PreviewHeader({
   onCopyAction: (type: 'markdown' | 'plain' | 'html' | 'wechat') => void
   onCopyMenuOpenChange: (open: boolean) => void
   onDeleteArticle: (article: ArticleDistributionArticle) => void
-  onDownloadImagePackage: () => void
+  onDownloadImagePackage: (mode: ImagePackageDownloadMode) => void
   onEditArticle: (article: ArticleDistributionArticle) => void
   onOpenPublishModal: (article: ArticleDistributionArticle) => void
   onStatusChange: (article: ArticleDistributionArticle, publishStatus: ArticlePublishStatus) => void
@@ -216,9 +219,17 @@ function PreviewActions({
   onCopyAction: (type: 'markdown' | 'plain' | 'html' | 'wechat') => void
   onCopyMenuOpenChange: (open: boolean) => void
   onDeleteArticle: (article: ArticleDistributionArticle) => void
-  onDownloadImagePackage: () => void
+  onDownloadImagePackage: (mode: ImagePackageDownloadMode) => void
   onEditArticle: (article: ArticleDistributionArticle) => void
 }) {
+  const imagePackageMenu: MenuProps = {
+    items: [
+      { key: 'zip', label: '下载为压缩包' },
+      { key: 'images', label: '下载为多张图片' },
+    ],
+    onClick: ({ key }) => onDownloadImagePackage(key as ImagePackageDownloadMode),
+  }
+
   return (
     <Space wrap style={{ marginTop: 16 }}>
       <Popover
@@ -236,13 +247,11 @@ function PreviewActions({
       >
         <Button icon={<CopyOutlined />}>复制</Button>
       </Popover>
-      <Button
-        icon={<DownloadOutlined />}
-        loading={downloadingImages}
-        onClick={onDownloadImagePackage}
-      >
-        图片包
-      </Button>
+      <Dropdown menu={imagePackageMenu} trigger={['click']} disabled={downloadingImages}>
+        <Button icon={<DownloadOutlined />} loading={downloadingImages}>
+          图片包 <DownOutlined />
+        </Button>
+      </Dropdown>
       <Button
         icon={<DownloadOutlined />}
         onClick={() => void downloadMarkdownAsDocx(selectedArticle.markdown_content, selectedArticle.title)}
