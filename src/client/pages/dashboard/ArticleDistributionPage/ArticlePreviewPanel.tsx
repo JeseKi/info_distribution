@@ -140,6 +140,7 @@ function PreviewHeader({
           {selectedArticle.account ? publicationTypeText[selectedArticle.account.publication_type] : '-'}
         </Descriptions.Item>
         <Descriptions.Item label="来源">{selectedArticle.source}</Descriptions.Item>
+        <Descriptions.Item label="项目">{selectedArticle.project?.name ?? '-'}</Descriptions.Item>
         <Descriptions.Item label="文章 ID">{selectedArticle.id}</Descriptions.Item>
         <Descriptions.Item label="发布地址">
           {selectedArticle.published_url ? (

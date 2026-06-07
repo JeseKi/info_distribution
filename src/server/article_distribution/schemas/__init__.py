@@ -21,6 +21,7 @@ from .articles import (
     ArticleUpdate,
     ArticleUploadItem,
     ArticleV1Update,
+    ArticleV2Update,
 )
 from .reports_metadata import (
     ArticleDistributionMetadataDashboardArticleOut,
@@ -118,6 +119,7 @@ __all__ = [
     "ArticleUpdate",
     "ArticleUploadItem",
     "ArticleV1Update",
+    "ArticleV2Update",
     "PublicationType",
     "PublishStatus",
     "UserAccountDirectoryOut",

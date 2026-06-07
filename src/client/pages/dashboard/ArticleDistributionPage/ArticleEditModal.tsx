@@ -6,12 +6,16 @@ export function ArticleEditModal({
   accountOptions,
   form,
   open,
+  projectOptions,
+  onAccountChange,
   onCancel,
   onSubmit,
 }: {
   accountOptions: AccountSelectOption[]
   form: FormInstance<ArticleEditFormValues>
   open: boolean
+  projectOptions: AccountSelectOption[]
+  onAccountChange: (accountId: number) => void
   onCancel: () => void
   onSubmit: (values: ArticleEditFormValues) => void
 }) {
@@ -26,7 +30,10 @@ export function ArticleEditModal({
     >
       <Form form={form} layout="vertical" onFinish={onSubmit}>
         <Form.Item label="账号" name="account_id" rules={[{ required: true, message: '请选择账号' }]}>
-          <Select options={accountOptions} />
+          <Select options={accountOptions} onChange={(value: number) => onAccountChange(value)} />
+        </Form.Item>
+        <Form.Item label="项目" name="project_id" rules={[{ required: true, message: '请选择项目' }]}>
+          <Select options={projectOptions} />
         </Form.Item>
         <Form.Item label="标题" name="title" rules={[{ required: true, message: '请输入标题' }]}>
           <Input />

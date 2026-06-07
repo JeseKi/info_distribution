@@ -8,6 +8,7 @@ import type {
 
 export interface ArticleEditFormValues {
   account_id: number
+  project_id: number
   title: string
   scheduled_date: dayjs.Dayjs
   markdown_content: string
@@ -15,6 +16,7 @@ export interface ArticleEditFormValues {
 
 export interface ArticleFilterFormValues {
   account_id?: number
+  project_id?: number
   publish_status?: ArticlePublishStatus
   publication_type?: ArticlePublicationType
   date_range?: [dayjs.Dayjs, dayjs.Dayjs]

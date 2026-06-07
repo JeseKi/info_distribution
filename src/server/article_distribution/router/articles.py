@@ -34,6 +34,7 @@ from .shared import admin_router, router
 async def list_articles(
     user_id: int | None = Query(default=None, ge=1),
     account_id: int | None = Query(default=None, ge=1),
+    project_id: int | None = Query(default=None, ge=1),
     scheduled_from: date | None = Query(default=None),
     scheduled_to: date | None = Query(default=None),
     publish_status: PublishStatus | None = Query(default=None),
@@ -50,6 +51,7 @@ async def list_articles(
             current_user=current_user,
             user_id=user_id,
             account_id=account_id,
+            project_id=project_id,
             scheduled_from=scheduled_from,
             scheduled_to=scheduled_to,
             publish_status=publish_status,
@@ -64,6 +66,7 @@ async def list_articles(
 async def list_articles_page(
     user_id: int | None = Query(default=None, ge=1),
     account_id: int | None = Query(default=None, ge=1),
+    project_id: int | None = Query(default=None, ge=1),
     scheduled_from: date | None = Query(default=None),
     scheduled_to: date | None = Query(default=None),
     publish_status: PublishStatus | None = Query(default=None),
@@ -82,6 +85,7 @@ async def list_articles_page(
             current_user=current_user,
             user_id=user_id,
             account_id=account_id,
+            project_id=project_id,
             scheduled_from=scheduled_from,
             scheduled_to=scheduled_to,
             publish_status=publish_status,

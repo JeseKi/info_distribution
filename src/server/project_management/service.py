@@ -272,6 +272,22 @@ def validate_user_theme_id(db: Session, user_id: int, theme_id: int) -> int:
     return theme_id
 
 
+def validate_user_project_id(db: Session, user_id: int, project_id: int) -> int:
+    dao = ProjectManagementDAO(db)
+    project = dao.get_project(project_id)
+    if project is None or not project.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="文章项目不存在或已停用",
+        )
+    if project_id not in set(dao.list_user_project_ids(user_id)):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="文章项目必须属于账号归属用户所在项目",
+        )
+    return project_id
+
+
 def _assert_project_ids_exist(db: Session, project_ids: list[int]) -> None:
     dao = ProjectManagementDAO(db)
     missing = [project_id for project_id in set(project_ids) if dao.get_project(project_id) is None]

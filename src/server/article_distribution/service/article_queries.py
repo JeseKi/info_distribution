@@ -9,6 +9,7 @@ from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
 from src.server.auth.models import User
+from src.server.project_management.service import validate_user_project_id
 
 from ..dao import ArticleDistributionDAO
 from ..schemas import ArticleOut, ArticlePageOut, ArticleStatusCountsOut
@@ -28,6 +29,7 @@ def list_articles(
     current_user: User,
     user_id: int | None = None,
     account_id: int | None = None,
+    project_id: int | None = None,
     scheduled_from: date | None = None,
     scheduled_to: date | None = None,
     publish_status: str | None = None,
@@ -39,11 +41,14 @@ def list_articles(
         account = get_accessible_account(db, account_id, current_user, write=False)
         if target_user_id is not None and account.user_id != target_user_id:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无权限")
+    if project_id is not None and target_user_id is not None:
+        validate_user_project_id(db, target_user_id, project_id)
 
     dao = ArticleDistributionDAO(db)
     articles = dao.list_articles(
         user_id=target_user_id,
         account_id=account_id,
+        project_id=project_id,
         scheduled_from=scheduled_from,
         scheduled_to=scheduled_to,
         publish_status=publish_status,
@@ -59,6 +64,7 @@ def list_articles_page(
     current_user: User,
     user_id: int | None = None,
     account_id: int | None = None,
+    project_id: int | None = None,
     scheduled_from: date | None = None,
     scheduled_to: date | None = None,
     publish_status: str | None = None,
@@ -72,12 +78,15 @@ def list_articles_page(
         account = get_accessible_account(db, account_id, current_user, write=False)
         if target_user_id is not None and account.user_id != target_user_id:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无权限")
+    if project_id is not None and target_user_id is not None:
+        validate_user_project_id(db, target_user_id, project_id)
 
     dao = ArticleDistributionDAO(db)
     normalized_platform = normalize_optional(platform)
     articles, total = dao.list_articles_page(
         user_id=target_user_id,
         account_id=account_id,
+        project_id=project_id,
         scheduled_from=scheduled_from,
         scheduled_to=scheduled_to,
         publish_status=publish_status,
@@ -89,6 +98,7 @@ def list_articles_page(
     status_counts = dao.count_articles_by_status(
         user_id=target_user_id,
         account_id=account_id,
+        project_id=project_id,
         scheduled_from=scheduled_from,
         scheduled_to=scheduled_to,
         publish_status=publish_status,

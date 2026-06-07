@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { App, Form, Space } from 'antd'
 import dayjs from 'dayjs'
 import { useAuth } from '../../../hooks/useAuth'
+import { listProjects } from '../../../lib/admin'
 import * as articleApi from '../../../lib/articleDistribution'
 import type {
   ArticleDistributionAccount,
@@ -10,6 +11,7 @@ import type {
   ArticleDistributionArticleStatusCounts,
   ArticlePublishStatus,
   AccountOptions as ArticleAccountOptions,
+  ProjectSummary,
 } from '../../../lib/types'
 import { copyArticleContent, downloadArticleImagePackage, type ImagePackageDownloadMode } from './articleOperations'
 import { defaultArticlePageSize, defaultArticleStatusCounts, publicationTypeText } from './constants'
@@ -34,6 +36,7 @@ export function useArticleDistributionController() {
   const [accountModalOpen, setAccountModalOpen] = useState(false)
   const [accountSetupOptions, setAccountSetupOptions] = useState<ArticleAccountOptions>({ projects: [], themes: [] })
   const [accountSetupOptionsLoading, setAccountSetupOptionsLoading] = useState(false)
+  const [availableProjects, setAvailableProjects] = useState<ProjectSummary[]>([])
   const [editingAccount, setEditingAccount] = useState<ArticleDistributionAccount | null>(null)
   const [accountForm] = Form.useForm<AccountFormValues>()
   const [filterForm] = Form.useForm<ArticleFilterFormValues>()
@@ -69,11 +72,20 @@ export function useArticleDistributionController() {
     [accounts],
   )
 
+  const projectOptions = useMemo(
+    () => availableProjects.map((project) => ({
+      label: project.is_active ? project.name : `${project.name}（停用）`,
+      value: project.id,
+    })),
+    [availableProjects],
+  )
+
   const buildFilters = useCallback((): ArticleDistributionArticleFilters => {
     const values = filterForm.getFieldsValue()
     const range = values.date_range
     return {
       account_id: values.account_id,
+      project_id: values.project_id,
       publish_status: values.publish_status,
       publication_type: values.publication_type,
       scheduled_from: range?.[0]?.format('YYYY-MM-DD'),
@@ -108,6 +120,20 @@ export function useArticleDistributionController() {
   useEffect(() => {
     void loadData(undefined, { page: 1, pageSize: defaultArticlePageSize })
   }, [loadData])
+
+  useEffect(() => {
+    if (!user) {
+      setAvailableProjects([])
+      return
+    }
+    if (!isAdmin) {
+      setAvailableProjects(user.projects)
+      return
+    }
+    void listProjects()
+      .then((projects) => setAvailableProjects(projects))
+      .catch(() => setAvailableProjects([]))
+  }, [isAdmin, user])
 
   const reloadCurrentPage = () => loadData(buildFilters(), { page: articlePage, pageSize: articlePageSize })
 
@@ -213,11 +239,19 @@ export function useArticleDistributionController() {
   const openArticleEditModal = (article: ArticleDistributionArticle) => {
     articleEditForm.setFieldsValue({
       account_id: article.account_id,
+      project_id: article.project_id,
       title: article.title,
       scheduled_date: dayjs(article.scheduled_date),
       markdown_content: article.markdown_content,
     })
+    void loadAccountSetupOptions(article.account?.user_id)
     setArticleEditModalOpen(true)
+  }
+
+  const handleArticleEditAccountChange = (accountId: number) => {
+    const account = accounts.find((item) => item.id === accountId)
+    articleEditForm.setFieldValue('project_id', undefined)
+    void loadAccountSetupOptions(account?.user_id)
   }
 
   const handleArticleEditSubmit = async (values: ArticleEditFormValues) => {
@@ -225,6 +259,7 @@ export function useArticleDistributionController() {
     try {
       const updated = await articleApi.updateAdminArticle(selectedArticle.id, {
         account_id: values.account_id,
+        project_id: values.project_id,
         title: values.title,
         scheduled_date: values.scheduled_date.format('YYYY-MM-DD'),
         markdown_content: values.markdown_content,
@@ -282,8 +317,9 @@ export function useArticleDistributionController() {
     articleEditModalOpen, copyMenuOpen, publishModalOpen,
     accountOptions, accounts, articlePage, articlePageSize, articleStatusCounts, articleTotal, articles,
     downloadingImages, editingAccount, imagePackageProgress, isAdmin, loading, selectedArticle,
+    projectOptions,
     buildFilters, copyAction, loadAccountSetupOptions, loadData, openArticleEditModal, openPublishModal, reloadCurrentPage,
-    handleAccountSubmit, handleArticleEditSubmit, handleCreateAccount, handleDeleteAccount,
+    handleAccountSubmit, handleArticleEditAccountChange, handleArticleEditSubmit, handleCreateAccount, handleDeleteAccount,
     handleDeleteArticle, handleDirectStatusChange, handleDownloadImagePackage, handleEditAccount,
     handlePublishSubmit, handleResetFilters, handleToggleAccountActive,
     setAccountModalOpen, setArticleEditModalOpen, setCopyMenuOpen, setPublishModalOpen, setSelectedArticleId,

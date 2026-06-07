@@ -431,6 +431,7 @@ export interface ArticleDistributionArticle {
   id: number
   user_id: number
   account_id: number
+  project_id: number
   title: string
   markdown_content: string
   metadata: Record<string, unknown> | null
@@ -443,12 +444,14 @@ export interface ArticleDistributionArticle {
   created_at: string
   updated_at: string
   account: ArticleDistributionAccount | null
+  project: ProjectSummary | null
 }
 
 export interface ArticleDistributionArticleUploadItem {
   title: string
   markdown_content: string
   scheduled_date: string
+  project_id: number
   metadata?: Record<string, unknown> | null
 }
 
@@ -460,6 +463,7 @@ export interface ArticleDistributionArticleBatchPayload {
 export interface ArticleDistributionArticleFilters {
   user_id?: number
   account_id?: number
+  project_id?: number
   scheduled_from?: string
   scheduled_to?: string
   publish_status?: ArticlePublishStatus
@@ -523,6 +527,7 @@ export interface ArticleDistributionTrafficSummaryPage {
 
 export interface ArticleDistributionArticleUpdatePayload {
   account_id?: number
+  project_id?: number
   title?: string
   markdown_content?: string
   scheduled_date?: string

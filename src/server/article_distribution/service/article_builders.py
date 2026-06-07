@@ -6,7 +6,7 @@ from __future__ import annotations
 from sqlalchemy.orm import Session
 
 from ..models import ArticleDistributionAccount, ArticleDistributionArticle
-from ..schemas import ArticleUploadItem, ArticleV1Update
+from ..schemas import ArticleUploadItem, ArticleV1Update, ArticleV2Update
 from .helpers import (
     get_active_account_or_404,
     normalize_published_url,
@@ -27,6 +27,7 @@ def build_articles(
         ArticleDistributionArticle(
             user_id=account.user_id,
             account_id=account.id,
+            project_id=item.project_id,
             title=normalize_required(item.title, "标题不能为空"),
             markdown_content=normalize_required(item.markdown_content, "正文不能为空"),
             article_metadata=item.metadata,
@@ -80,6 +81,24 @@ def v1_update_fields(
         published_url = non_empty_string(raw_fields.get("published_url"))
         if published_url is not None and article.publish_status == "published":
             fields["published_url"] = normalize_published_url(published_url)
+
+    return fields
+
+
+def v2_update_fields(
+    db: Session,
+    *,
+    article: ArticleDistributionArticle,
+    payload: ArticleV2Update,
+) -> dict[str, object]:
+    raw_fields = payload.model_dump(exclude_unset=True)
+    legacy_fields = {key: value for key, value in raw_fields.items() if key != "project_id"}
+    fields = v1_update_fields(db, article=article, payload=ArticleV1Update(**legacy_fields))
+
+    if raw_fields.get("project_id") is not None:
+        fields["project_id"] = int(raw_fields["project_id"])
+    elif raw_fields.get("account_id") is not None:
+        fields["project_id"] = article.project_id
 
     return fields
 

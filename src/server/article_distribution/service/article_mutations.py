@@ -7,11 +7,12 @@ from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
 from src.server.auth.models import User
+from src.server.project_management.service import validate_user_project_id
 
 from ..dao import ArticleDistributionDAO
 from ..models import ArticleDistributionAPIKey
-from ..schemas import ArticleBatchCreate, ArticleOut, ArticleUpdate, ArticleV1Update
-from .article_builders import build_articles, v1_update_fields
+from ..schemas import ArticleBatchCreate, ArticleOut, ArticleUpdate, ArticleV1Update, ArticleV2Update
+from .article_builders import build_articles, v1_update_fields, v2_update_fields
 from .helpers import (
     article_to_out,
     articles_to_out,
@@ -53,10 +54,17 @@ def update_article_as_admin(
     fields = payload.model_dump(exclude_unset=True)
     if "metadata" in fields:
         fields["article_metadata"] = fields.pop("metadata")
+    target_user_id = article.user_id
+    next_project_id = fields.get("project_id", article.project_id)
     if "account_id" in fields and fields["account_id"] is not None:
         account = get_active_account_or_404(db, int(fields["account_id"]))
         fields["account_id"] = account.id
         fields["user_id"] = account.user_id
+        target_user_id = account.user_id
+    if next_project_id is not None:
+        fields["project_id"] = validate_user_project_id(
+            db, target_user_id, int(next_project_id)
+        )
     if "title" in fields and fields["title"] is not None:
         fields["title"] = normalize_required(str(fields["title"]), "标题不能为空")
     if "markdown_content" in fields and fields["markdown_content"] is not None:
@@ -98,6 +106,35 @@ def update_article_with_api_key(
     return article_to_out(db, updated)
 
 
+def update_article_with_api_key_v2(
+    db: Session,
+    *,
+    article_id: int,
+    payload: ArticleV2Update,
+    api_key: ArticleDistributionAPIKey,
+) -> ArticleOut:
+    _ = api_key
+    dao = ArticleDistributionDAO(db)
+    article = dao.get_article(article_id)
+    if article is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="文章不存在")
+
+    fields = v2_update_fields(db, article=article, payload=payload)
+    if not fields:
+        return article_to_out(db, article)
+
+    target_user_value = fields.get("user_id")
+    target_user_id = (
+        target_user_value if isinstance(target_user_value, int) else article.user_id
+    )
+    project_value = fields.get("project_id")
+    next_project_id = project_value if isinstance(project_value, int) else article.project_id
+    fields["project_id"] = validate_user_project_id(db, target_user_id, next_project_id)
+
+    updated = dao.update_article(article, **fields)
+    return article_to_out(db, updated)
+
+
 def delete_article_as_admin(db: Session, *, article_id: int, current_user: User) -> None:
     assert_admin(current_user)
     dao = ArticleDistributionDAO(db)
@@ -112,6 +149,8 @@ def create_articles_as_admin(
 ) -> list[ArticleOut]:
     assert_admin(current_user)
     account = get_active_account_or_404(db, payload.account_id)
+    for item in payload.articles:
+        validate_user_project_id(db, account.user_id, item.project_id)
     articles = build_articles(
         account=account,
         items=payload.articles,
@@ -130,6 +169,8 @@ def create_articles_with_api_key(
     api_key: ArticleDistributionAPIKey,
 ) -> list[ArticleOut]:
     account = get_active_account_or_404(db, payload.account_id)
+    for item in payload.articles:
+        validate_user_project_id(db, account.user_id, item.project_id)
     articles = build_articles(
         account=account,
         items=payload.articles,
@@ -139,3 +180,12 @@ def create_articles_with_api_key(
     )
     created = ArticleDistributionDAO(db).create_articles(articles)
     return articles_to_out(db, created)
+
+
+def create_articles_with_api_key_v2(
+    db: Session,
+    *,
+    payload: ArticleBatchCreate,
+    api_key: ArticleDistributionAPIKey,
+) -> list[ArticleOut]:
+    return create_articles_with_api_key(db, payload=payload, api_key=api_key)

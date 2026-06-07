@@ -8,6 +8,8 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from src.server.project_management.schemas import ProjectSummary
+
 from .accounts import AccountOut
 from .types import PublishStatus
 
@@ -15,6 +17,7 @@ class ArticleUploadItem(BaseModel):
     title: str = Field(..., min_length=1, max_length=200)
     markdown_content: str = Field(..., min_length=1)
     scheduled_date: date
+    project_id: int = Field(..., ge=1)
     metadata: dict[str, Any] | None = None
 
 
@@ -30,6 +33,7 @@ class ArticleStatusUpdate(BaseModel):
 
 class ArticleUpdate(BaseModel):
     account_id: int | None = Field(default=None, ge=1)
+    project_id: int | None = Field(default=None, ge=1)
     title: str | None = Field(default=None, min_length=1, max_length=200)
     markdown_content: str | None = Field(default=None, min_length=1)
     scheduled_date: date | None = None
@@ -48,10 +52,22 @@ class ArticleV1Update(BaseModel):
     metadata: dict[str, Any] | None = None
 
 
+class ArticleV2Update(BaseModel):
+    account_id: int | None = Field(default=None, ge=1)
+    project_id: int | None = Field(default=None, ge=1)
+    title: str | None = Field(default=None, max_length=200)
+    markdown_content: str | None = None
+    scheduled_date: date | None = None
+    publish_status: PublishStatus | None = None
+    published_url: str | None = Field(default=None, max_length=2048)
+    metadata: dict[str, Any] | None = None
+
+
 class ArticleOut(BaseModel):
     id: int
     user_id: int
     account_id: int
+    project_id: int
     title: str
     markdown_content: str
     metadata: dict[str, Any] | None = None
@@ -64,6 +80,7 @@ class ArticleOut(BaseModel):
     created_at: datetime
     updated_at: datetime
     account: AccountOut | None = None
+    project: ProjectSummary | None = None
 
     model_config = ConfigDict(from_attributes=True)
 

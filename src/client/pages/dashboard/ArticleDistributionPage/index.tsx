@@ -27,6 +27,7 @@ export default function ArticleDistributionPage() {
           filterForm={state.filterForm}
           invalidCount={state.articleStatusCounts.invalid}
           isAdmin={state.isAdmin}
+          projectOptions={state.projectOptions}
           publishedCount={state.articleStatusCounts.published}
           unreadCount={state.articleStatusCounts.unpublished}
           onApplyFilters={(page, pageSize) => void state.loadData(state.buildFilters(), { page, pageSize })}
@@ -81,6 +82,11 @@ export default function ArticleDistributionPage() {
         accountOptions={state.accountOptions}
         form={state.articleEditForm}
         open={state.articleEditModalOpen}
+        projectOptions={state.accountSetupOptions.projects.map((project) => ({
+          label: project.is_active ? project.name : `${project.name}（停用）`,
+          value: project.id,
+        }))}
+        onAccountChange={state.handleArticleEditAccountChange}
         onCancel={() => state.setArticleEditModalOpen(false)}
         onSubmit={(values) => void state.handleArticleEditSubmit(values)}
       />

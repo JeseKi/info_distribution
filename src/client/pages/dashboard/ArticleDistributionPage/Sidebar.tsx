@@ -13,6 +13,7 @@ export function Sidebar({
   filterForm,
   invalidCount,
   isAdmin,
+  projectOptions,
   publishedCount,
   unreadCount,
   onApplyFilters,
@@ -27,6 +28,7 @@ export function Sidebar({
   filterForm: FormInstance<ArticleFilterFormValues>
   invalidCount: number
   isAdmin: boolean
+  projectOptions: AccountSelectOption[]
   publishedCount: number
   unreadCount: number
   onApplyFilters: (page: number, pageSize: number) => void
@@ -47,6 +49,9 @@ export function Sidebar({
         <Form form={filterForm} layout="vertical">
           <Form.Item label="账号" name="account_id">
             <Select allowClear placeholder="全部账号" options={accountOptions} />
+          </Form.Item>
+          <Form.Item label="项目" name="project_id">
+            <Select allowClear placeholder="全部项目" options={projectOptions} />
           </Form.Item>
           <Form.Item label="发布类型" name="publication_type">
             <Select allowClear placeholder="全部类型" options={publicationTypeOptions} />

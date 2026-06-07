@@ -1,79 +1,77 @@
 # -*- coding: utf-8 -*-
-"""API key routes for article distribution V1."""
+"""API key routes for article distribution V2."""
 
 from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import Depends, Header, HTTPException, status
+from fastapi import Depends, Header, status
 from sqlalchemy.orm import Session
 
 from src.server.dao.dao_base import run_in_thread
 from src.server.database import get_db
 
+from .. import service
 from ..schemas import (
     ArticleBatchCreate,
     ArticleOut,
-    ArticleV1Update,
+    ArticleV2Update,
     UserAccountDirectoryOut,
 )
-from .shared import v1_router
+from .shared import v2_router
 
 
-def _raise_v1_deprecated() -> None:
-    raise HTTPException(
-        status_code=status.HTTP_410_GONE,
-        detail="文章分发 V1 API 已废弃，请使用 /api/v2/article-distribution",
-    )
-
-
-@v1_router.get(
+@v2_router.get(
     "/accounts",
     response_model=list[UserAccountDirectoryOut],
     summary="使用 API Key 获取账号目录",
 )
-async def list_account_directory_v1(
+async def list_account_directory_v2(
     x_api_key: Annotated[str | None, Header(alias="X-API-Key")] = None,
     db: Session = Depends(get_db),
 ):
     def _list():
-        _ = db, x_api_key
-        _raise_v1_deprecated()
+        service.authenticate_api_key(db, x_api_key)
+        return service.list_account_directory(db)
 
     return await run_in_thread(_list)
 
 
-@v1_router.post(
+@v2_router.post(
     "/articles",
     response_model=list[ArticleOut],
     status_code=status.HTTP_201_CREATED,
     summary="使用 API Key 上传文章",
 )
-async def create_articles_v1(
+async def create_articles_v2(
     payload: ArticleBatchCreate,
     x_api_key: Annotated[str | None, Header(alias="X-API-Key")] = None,
     db: Session = Depends(get_db),
 ):
     def _create():
-        _ = db, payload, x_api_key
-        _raise_v1_deprecated()
+        api_key = service.authenticate_api_key(db, x_api_key)
+        return service.create_articles_with_api_key_v2(
+            db, payload=payload, api_key=api_key
+        )
 
     return await run_in_thread(_create)
 
 
-@v1_router.patch(
+@v2_router.patch(
     "/articles/{article_id}",
     response_model=ArticleOut,
     summary="使用 API Key 更新文章",
 )
-async def update_article_v1(
+async def update_article_v2(
     article_id: int,
-    payload: ArticleV1Update,
+    payload: ArticleV2Update,
     x_api_key: Annotated[str | None, Header(alias="X-API-Key")] = None,
     db: Session = Depends(get_db),
 ):
     def _update():
-        _ = db, article_id, payload, x_api_key
-        _raise_v1_deprecated()
+        api_key = service.authenticate_api_key(db, x_api_key)
+        return service.update_article_with_api_key_v2(
+            db, article_id=article_id, payload=payload, api_key=api_key
+        )
 
     return await run_in_thread(_update)

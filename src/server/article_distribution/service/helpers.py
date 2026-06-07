@@ -12,6 +12,8 @@ from sqlalchemy.orm import Session
 
 from src.server.auth.models import User
 from src.server.auth.schemas import UserRole
+from src.server.project_management.dao import ProjectManagementDAO
+from src.server.project_management.schemas import ProjectSummary
 
 from ..dao import ArticleDistributionDAO
 from ..models import ArticleDistributionAccount, ArticleDistributionArticle
@@ -93,11 +95,13 @@ def articles_to_out(
 
 def article_to_out(db: Session, article: ArticleDistributionArticle) -> ArticleOut:
     account = ArticleDistributionDAO(db).get_account(article.account_id)
+    project = ProjectManagementDAO(db).get_project(article.project_id)
     return ArticleOut.model_validate(
         {
             **article.__dict__,
             "metadata": article.article_metadata,
             "account": account,
+            "project": ProjectSummary.model_validate(project) if project else None,
         }
     )
 

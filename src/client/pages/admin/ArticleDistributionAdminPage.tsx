@@ -51,6 +51,7 @@ interface UploadFormValues {
   account_id: number
   articles: Array<{
     title: string
+    project_id: number
     scheduled_date: dayjs.Dayjs
     markdown_content: string
   }>
@@ -94,6 +95,15 @@ export default function ArticleDistributionAdminPage() {
     })),
     [accounts],
   )
+
+  const selectedUserProjectOptions = useMemo(() => {
+    const selectedUser = users.find((user) => user.id === selectedUserId)
+    return selectedUser?.projects.map((project) => ({
+      label: project.is_active ? project.name : `${project.name}（停用）`,
+      value: project.id,
+      disabled: !project.is_active,
+    })) ?? []
+  }, [selectedUserId, users])
 
   const loadInitialData = useCallback(async () => {
     setLoading(true)
@@ -161,6 +171,7 @@ export default function ArticleDistributionAdminPage() {
         title: article.title,
         markdown_content: article.markdown_content,
         scheduled_date: article.scheduled_date.format('YYYY-MM-DD'),
+        project_id: article.project_id,
       })),
     }
     try {
@@ -285,6 +296,13 @@ export default function ArticleDistributionAdminPage() {
                 onChange={(userId: number) => {
                   setSelectedUserId(userId)
                   uploadForm.setFieldValue('account_id', undefined)
+                  uploadForm.setFieldValue(
+                    'articles',
+                    (uploadForm.getFieldValue('articles') ?? []).map((article: Partial<UploadFormValues['articles'][number]>) => ({
+                      ...article,
+                      project_id: undefined,
+                    })),
+                  )
                   void loadAccounts(userId)
                 }}
               />
@@ -306,6 +324,13 @@ export default function ArticleDistributionAdminPage() {
                   >
                     <Form.Item name={[field.name, 'title']} label="标题" rules={[{ required: true, message: '请输入标题' }]}>
                       <Input />
+                    </Form.Item>
+                    <Form.Item name={[field.name, 'project_id']} label="项目" rules={[{ required: true, message: '请选择项目' }]}>
+                      <Select
+                        disabled={!selectedUserId}
+                        options={selectedUserProjectOptions}
+                        placeholder="请选择项目"
+                      />
                     </Form.Item>
                     <Form.Item name={[field.name, 'scheduled_date']} label="发布日期" rules={[{ required: true, message: '请选择发布日期' }]}>
                       <DatePicker />

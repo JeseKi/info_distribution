@@ -18,9 +18,11 @@ from .api_keys import (
 from .article_mutations import (
     create_articles_as_admin,
     create_articles_with_api_key,
+    create_articles_with_api_key_v2,
     delete_article_as_admin,
     update_article_as_admin,
     update_article_with_api_key,
+    update_article_with_api_key_v2,
     update_article_status,
 )
 from .article_queries import get_article, list_articles, list_articles_page
@@ -57,6 +59,7 @@ __all__ = [
     "create_api_key",
     "create_articles_as_admin",
     "create_articles_with_api_key",
+    "create_articles_with_api_key_v2",
     "create_article_traffic_stat",
     "delete_account",
     "delete_article_as_admin",
@@ -84,5 +87,6 @@ __all__ = [
     "update_account",
     "update_article_as_admin",
     "update_article_with_api_key",
+    "update_article_with_api_key_v2",
     "update_article_status",
 ]

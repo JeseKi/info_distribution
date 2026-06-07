@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Article distribution routes."""
 
-from .shared import admin_router, router, v1_router
+from .shared import admin_router, router, v1_router, v2_router
 from . import accounts as _accounts
 from . import admin as _admin
 from . import articles as _articles
@@ -13,6 +13,7 @@ from . import report_public as _report_public
 from . import report_unpublished as _report_unpublished
 from . import traffic as _traffic
 from . import v1 as _v1
+from . import v2 as _v2
 
 # Keep module references so route decorators are registered and imports are explicit.
 _ROUTE_MODULES = (
@@ -27,6 +28,7 @@ _ROUTE_MODULES = (
     _report_unpublished,
     _traffic,
     _v1,
+    _v2,
 )
 
 _validate_proxy_image_url = _proxy._validate_proxy_image_url
@@ -38,4 +40,5 @@ __all__ = [
     "router",
     "socket",
     "v1_router",
+    "v2_router",
 ]

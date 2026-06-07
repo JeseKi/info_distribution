@@ -34,6 +34,7 @@ class ArticleDistributionArticleDAO(ArticleDistributionAccountDAO):
         *,
         user_id: int | None = None,
         account_id: int | None = None,
+        project_id: int | None = None,
         scheduled_from: date | None = None,
         scheduled_to: date | None = None,
         publish_status: str | None = None,
@@ -43,6 +44,7 @@ class ArticleDistributionArticleDAO(ArticleDistributionAccountDAO):
         query = self._article_query(
             user_id=user_id,
             account_id=account_id,
+            project_id=project_id,
             scheduled_from=scheduled_from,
             scheduled_to=scheduled_to,
             publish_status=publish_status,
@@ -61,6 +63,7 @@ class ArticleDistributionArticleDAO(ArticleDistributionAccountDAO):
         *,
         user_id: int | None = None,
         account_id: int | None = None,
+        project_id: int | None = None,
         scheduled_from: date | None = None,
         scheduled_to: date | None = None,
         publish_status: str | None = None,
@@ -72,6 +75,7 @@ class ArticleDistributionArticleDAO(ArticleDistributionAccountDAO):
         query = self._article_query(
             user_id=user_id,
             account_id=account_id,
+            project_id=project_id,
             scheduled_from=scheduled_from,
             scheduled_to=scheduled_to,
             publish_status=publish_status,
@@ -94,6 +98,7 @@ class ArticleDistributionArticleDAO(ArticleDistributionAccountDAO):
         *,
         user_id: int | None = None,
         account_id: int | None = None,
+        project_id: int | None = None,
         scheduled_from: date | None = None,
         scheduled_to: date | None = None,
         publish_status: str | None = None,
@@ -103,6 +108,7 @@ class ArticleDistributionArticleDAO(ArticleDistributionAccountDAO):
         query = self._article_query(
             user_id=user_id,
             account_id=account_id,
+            project_id=project_id,
             scheduled_from=scheduled_from,
             scheduled_to=scheduled_to,
             publish_status=publish_status,
@@ -126,6 +132,7 @@ class ArticleDistributionArticleDAO(ArticleDistributionAccountDAO):
         *,
         user_id: int | None = None,
         account_id: int | None = None,
+        project_id: int | None = None,
         scheduled_from: date | None = None,
         scheduled_to: date | None = None,
         publish_status: str | None = None,
@@ -148,6 +155,8 @@ class ArticleDistributionArticleDAO(ArticleDistributionAccountDAO):
 
         if account_id is not None:
             query = query.filter(ArticleDistributionArticle.account_id == account_id)
+        if project_id is not None:
+            query = query.filter(ArticleDistributionArticle.project_id == project_id)
         if scheduled_from is not None:
             query = query.filter(
                 ArticleDistributionArticle.scheduled_date >= scheduled_from

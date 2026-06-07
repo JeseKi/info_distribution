@@ -111,7 +111,7 @@ def test_image_proxy_rejects_untrusted_private_address(monkeypatch):
     assert exc_info.value.detail == "不允许代理内网或本机图片地址"
 
 
-def test_v1_account_directory_groups_accounts_by_user_with_api_key(
+def test_v2_account_directory_groups_accounts_by_user_with_api_key(
     test_client, test_db_session: Session
 ):
     owner_a = _create_user(test_db_session, username="owner_a", name="Owner A")
@@ -149,7 +149,7 @@ def test_v1_account_directory_groups_accounts_by_user_with_api_key(
     assert key_resp.status_code == 201
 
     directory_resp = test_client.get(
-        "/api/v1/article-distribution/accounts",
+        "/api/v2/article-distribution/accounts",
         headers={"X-API-Key": key_resp.json()["api_key"]},
     )
 
@@ -204,12 +204,31 @@ def test_v1_account_directory_groups_accounts_by_user_with_api_key(
     ]
 
 
-def test_v1_account_directory_requires_api_key(
-    test_client, test_db_session: Session
-):
-    response = test_client.get("/api/v1/article-distribution/accounts")
+def test_v1_endpoints_are_deprecated(test_client):
+    account_resp = test_client.get("/api/v1/article-distribution/accounts")
+    assert account_resp.status_code == 410
 
-    assert response.status_code == 401
+    upload_resp = test_client.post(
+        "/api/v1/article-distribution/articles",
+        json={
+            "account_id": 1,
+            "articles": [
+                {
+                    "title": "Deprecated",
+                    "markdown_content": "body",
+                    "scheduled_date": "2026-05-21",
+                    "project_id": 1,
+                }
+            ],
+        },
+    )
+    assert upload_resp.status_code == 410
+
+    update_resp = test_client.patch(
+        "/api/v1/article-distribution/articles/1",
+        json={"title": "Deprecated"},
+    )
+    assert update_resp.status_code == 410
 
 
 def test_user_can_manage_own_accounts(test_client, test_db_session: Session):
@@ -395,6 +414,7 @@ def test_user_cannot_access_other_users_articles(
                     "title": "A",
                     "markdown_content": "# A",
                     "scheduled_date": "2026-05-20",
+                    "project_id": 1,
                 }
             ],
         },
@@ -437,7 +457,7 @@ def test_admin_and_api_key_can_upload_articles(
     assert raw_key.startswith("adv1_")
 
     api_resp = test_client.post(
-        "/api/v1/article-distribution/articles",
+        "/api/v2/article-distribution/articles",
         headers={"X-API-Key": raw_key},
         json={
             "account_id": account_id,
@@ -446,11 +466,13 @@ def test_admin_and_api_key_can_upload_articles(
                     "title": "API article",
                     "markdown_content": "body",
                     "scheduled_date": "2026-05-21",
+                    "project_id": 1,
                 },
                 {
                     "title": "API article 2",
                     "markdown_content": "body2",
                     "scheduled_date": "2026-05-21",
+                    "project_id": 1,
                 },
             ],
         },
@@ -466,11 +488,11 @@ def test_admin_and_api_key_can_upload_articles(
     assert stored_key.last_used_at is not None
 
 
-def test_v1_api_key_can_update_article_fields_without_empty_overwrites(
+def test_v2_api_key_can_update_article_fields_without_empty_overwrites(
     test_client, test_db_session: Session
 ):
-    owner = _create_user(test_db_session, username="v1_update_owner")
-    admin = _create_user(test_db_session, username="v1_update_admin", role=UserRole.ADMIN)
+    owner = _create_user(test_db_session, username="v2_update_owner")
+    admin = _create_user(test_db_session, username="v2_update_admin", role=UserRole.ADMIN)
 
     account_resp = test_client.post(
         "/api/article-distribution/accounts",
@@ -492,7 +514,7 @@ def test_v1_api_key_can_update_article_fields_without_empty_overwrites(
     raw_key = key_resp.json()["api_key"]
 
     upload_resp = test_client.post(
-        "/api/v1/article-distribution/articles",
+        "/api/v2/article-distribution/articles",
         headers={"X-API-Key": raw_key},
         json={
             "account_id": account_id,
@@ -501,6 +523,7 @@ def test_v1_api_key_can_update_article_fields_without_empty_overwrites(
                     "title": "Original",
                     "markdown_content": "body",
                     "scheduled_date": "2026-05-30",
+                    "project_id": 1,
                     "metadata": {"output_id": "260530_1"},
                 }
             ],
@@ -511,14 +534,15 @@ def test_v1_api_key_can_update_article_fields_without_empty_overwrites(
     assert upload_resp.json()[0]["metadata"] == {"output_id": "260530_1"}
 
     update_resp = test_client.patch(
-        f"/api/v1/article-distribution/articles/{article_id}",
+        f"/api/v2/article-distribution/articles/{article_id}",
         headers={"X-API-Key": raw_key},
         json={
             "title": " ",
             "markdown_content": None,
             "scheduled_date": "2026-05-31",
+            "project_id": 1,
             "publish_status": "published",
-            "published_url": "https://example.com/articles/v1",
+            "published_url": "https://example.com/articles/v2",
             "metadata": {
                 "output_id": "260530_1",
                 "topic": "测试选题",
@@ -532,22 +556,22 @@ def test_v1_api_key_can_update_article_fields_without_empty_overwrites(
     assert updated["markdown_content"] == "body"
     assert updated["scheduled_date"] == "2026-05-31"
     assert updated["publish_status"] == "published"
-    assert updated["published_url"] == "https://example.com/articles/v1"
+    assert updated["published_url"] == "https://example.com/articles/v2"
     assert updated["metadata"]["topic"] == "测试选题"
 
     empty_update_resp = test_client.patch(
-        f"/api/v1/article-distribution/articles/{article_id}",
+        f"/api/v2/article-distribution/articles/{article_id}",
         headers={"X-API-Key": raw_key},
         json={"title": "", "metadata": {}, "published_url": ""},
     )
     assert empty_update_resp.status_code == 200
     unchanged = empty_update_resp.json()
     assert unchanged["title"] == "Original"
-    assert unchanged["published_url"] == "https://example.com/articles/v1"
+    assert unchanged["published_url"] == "https://example.com/articles/v2"
     assert unchanged["metadata"]["topic"] == "测试选题"
 
     missing_key_resp = test_client.patch(
-        f"/api/v1/article-distribution/articles/{article_id}",
+        f"/api/v2/article-distribution/articles/{article_id}",
         json={"title": "Denied"},
     )
     assert missing_key_resp.status_code == 401
@@ -590,7 +614,7 @@ def test_inactive_accounts_are_hidden_from_directory_and_reject_uploads(
     raw_key = key_resp.json()["api_key"]
 
     directory_resp = test_client.get(
-        "/api/v1/article-distribution/accounts",
+        "/api/v2/article-distribution/accounts",
         headers={"X-API-Key": raw_key},
     )
     assert directory_resp.status_code == 200
@@ -603,6 +627,7 @@ def test_inactive_accounts_are_hidden_from_directory_and_reject_uploads(
                 "title": "Blocked",
                 "markdown_content": "body",
                 "scheduled_date": "2026-05-25",
+                "project_id": 1,
             }
         ],
     }
@@ -615,7 +640,7 @@ def test_inactive_accounts_are_hidden_from_directory_and_reject_uploads(
     assert admin_upload_resp.json()["detail"] == "账号已停用，不能新增文章"
 
     api_upload_resp = test_client.post(
-        "/api/v1/article-distribution/articles",
+        "/api/v2/article-distribution/articles",
         headers={"X-API-Key": raw_key},
         json=upload_payload,
     )
@@ -647,6 +672,7 @@ def test_publish_status_and_filters(test_client, test_db_session: Session):
                     "title": "Video",
                     "markdown_content": "content",
                     "scheduled_date": "2026-05-22",
+                    "project_id": 1,
                 }
             ],
         },
@@ -723,6 +749,7 @@ def test_owner_can_add_multiple_traffic_stats_for_article(
                     "title": "Traffic Article",
                     "markdown_content": "body",
                     "scheduled_date": "2026-05-24",
+                "project_id": 1,
                 }
             ],
         },
@@ -825,6 +852,7 @@ def test_metadata_dashboard_groups_articles_by_output_id_and_requires_scope(
                     "title": "Main",
                     "markdown_content": "body",
                     "scheduled_date": "2026-05-30",
+                    "project_id": 1,
                     "metadata": {
                         "output_id": "260530_5",
                         "topic": "AIFC Douju算力预算控制",
@@ -842,6 +870,7 @@ def test_metadata_dashboard_groups_articles_by_output_id_and_requires_scope(
                     "title": "Variant",
                     "markdown_content": "body",
                     "scheduled_date": "2026-05-31",
+                    "project_id": 1,
                     "metadata": {
                         "output_id": "260530_5",
                         "angle_label": "案例复盘型",
@@ -857,6 +886,7 @@ def test_metadata_dashboard_groups_articles_by_output_id_and_requires_scope(
                     "title": "No metadata",
                     "markdown_content": "body",
                     "scheduled_date": "2026-06-01",
+                "project_id": 1,
                 },
             ],
         },
@@ -929,6 +959,7 @@ def test_metadata_dashboard_groups_articles_by_output_id_and_requires_scope(
                     "title": "Fallback only",
                     "markdown_content": "body",
                     "scheduled_date": "2026-06-02",
+                "project_id": 1,
                 }
             ],
         },
@@ -976,6 +1007,7 @@ def test_user_cannot_manage_other_users_traffic_stats(
                     "title": "Private Traffic",
                     "markdown_content": "body",
                     "scheduled_date": "2026-05-24",
+                "project_id": 1,
                 }
             ],
         },
@@ -1053,31 +1085,37 @@ def test_missing_traffic_report_lists_published_articles_without_today_stats(
                     "title": "No stat today",
                     "markdown_content": "body",
                     "scheduled_date": "2026-05-20",
+                "project_id": 1,
                 },
                 {
                     "title": "Has stat today",
                     "markdown_content": "body",
                     "scheduled_date": "2026-05-21",
+                "project_id": 1,
                 },
                 {
                     "title": "Only yesterday stat",
                     "markdown_content": "body",
                     "scheduled_date": "2026-05-22",
+                "project_id": 1,
                 },
                 {
                     "title": "Unpublished",
                     "markdown_content": "body",
                     "scheduled_date": "2026-05-23",
+                "project_id": 1,
                 },
                 {
                     "title": "Invalid",
                     "markdown_content": "body",
                     "scheduled_date": "2026-05-24",
+                "project_id": 1,
                 },
                 {
                     "title": "Published without url",
                     "markdown_content": "body",
                     "scheduled_date": "2026-05-25",
+                "project_id": 1,
                 },
             ],
         },
@@ -1092,6 +1130,7 @@ def test_missing_traffic_report_lists_published_articles_without_today_stats(
                     "title": "Inactive no stat today",
                     "markdown_content": "body",
                     "scheduled_date": "2026-05-26",
+                "project_id": 1,
                 }
             ],
         },
@@ -1292,12 +1331,14 @@ def test_report_overview_supports_views_filters_and_topic_permission(
                     "title": "Overview missing stat",
                     "markdown_content": "body",
                     "scheduled_date": "2026-05-20",
+                    "project_id": 1,
                     "metadata": {"output_id": "overview_topic", "topic": "统一报表"},
                 },
                 {
                     "title": "Overview unpublished",
                     "markdown_content": "body",
                     "scheduled_date": "2026-05-21",
+                "project_id": 1,
                 },
             ],
         },
@@ -1506,6 +1547,7 @@ def test_report_overview_sorts_metrics_before_pagination(
                         "title": title,
                         "markdown_content": "body",
                         "scheduled_date": "2026-05-20",
+                    "project_id": 1,
                     },
                 ],
             },
@@ -1603,6 +1645,7 @@ def test_report_overview_export_supports_csv_xlsx_and_permissions(
                     "title": "Export published",
                     "markdown_content": "body",
                     "scheduled_date": "2026-05-20",
+                    "project_id": 1,
                     "metadata": {
                         "output_id": "export_topic",
                         "topic": "导出选题",
@@ -1613,6 +1656,7 @@ def test_report_overview_export_supports_csv_xlsx_and_permissions(
                     "title": "Export unpublished",
                     "markdown_content": "body",
                     "scheduled_date": "2026-05-21",
+                "project_id": 1,
                 },
             ],
         },
@@ -1796,26 +1840,31 @@ def test_admin_can_export_publicity_records_csv(test_client, test_db_session: Se
                     "title": "Published A",
                     "markdown_content": "body",
                     "scheduled_date": "2026-05-27",
+                "project_id": 1,
                 },
                 {
                     "title": "Unpublished",
                     "markdown_content": "body",
                     "scheduled_date": "2026-05-27",
+                "project_id": 1,
                 },
                 {
                     "title": "Invalid",
                     "markdown_content": "body",
                     "scheduled_date": "2026-05-27",
+                "project_id": 1,
                 },
                 {
                     "title": "No URL",
                     "markdown_content": "body",
                     "scheduled_date": "2026-05-27",
+                "project_id": 1,
                 },
                 {
                     "title": "Future",
                     "markdown_content": "body",
                     "scheduled_date": "2099-01-01",
+                "project_id": 1,
                 },
             ],
         },
@@ -1830,6 +1879,7 @@ def test_admin_can_export_publicity_records_csv(test_client, test_db_session: Se
                     "title": "Inactive published",
                     "markdown_content": "body",
                     "scheduled_date": "2026-05-26",
+                "project_id": 1,
                 }
             ],
         },
@@ -1844,6 +1894,7 @@ def test_admin_can_export_publicity_records_csv(test_client, test_db_session: Se
                     "title": "Zhihu published",
                     "markdown_content": "body",
                     "scheduled_date": "2026-05-27",
+                "project_id": 1,
                 }
             ],
         },
@@ -2014,6 +2065,7 @@ def test_admin_can_list_update_and_delete_all_articles(
                     "title": "Original",
                     "markdown_content": "body",
                     "scheduled_date": "2026-05-23",
+                "project_id": 1,
                 }
             ],
         },
@@ -2034,6 +2086,7 @@ def test_admin_can_list_update_and_delete_all_articles(
             "title": "Updated",
             "markdown_content": "updated body",
             "scheduled_date": "2026-05-24",
+        "project_id": 1,
         },
     )
     assert update_resp.status_code == 200, update_resp.text
@@ -2096,6 +2149,7 @@ def test_paginated_article_list_supports_filters_counts_and_access_scope(
                     "title": f"Owner Article {index}",
                     "markdown_content": "body",
                     "scheduled_date": f"2026-06-{index:02d}",
+                    "project_id": 1,
                 }
                 for index in range(1, 13)
             ],
@@ -2111,6 +2165,7 @@ def test_paginated_article_list_supports_filters_counts_and_access_scope(
                     "title": "Other Article",
                     "markdown_content": "body",
                     "scheduled_date": "2026-06-20",
+                    "project_id": 1,
                 }
             ],
         },
@@ -2225,11 +2280,13 @@ def test_unpublished_report_scope_can_be_assigned_to_regular_user(
                     "title": "A unpublished",
                     "markdown_content": "body",
                     "scheduled_date": "2026-05-20",
+                "project_id": 1,
                 },
                 {
                     "title": "A published",
                     "markdown_content": "body",
                     "scheduled_date": "2026-05-21",
+                "project_id": 1,
                 },
             ],
         },
@@ -2256,6 +2313,7 @@ def test_unpublished_report_scope_can_be_assigned_to_regular_user(
                     "title": "B unpublished",
                     "markdown_content": "body",
                     "scheduled_date": "2026-05-22",
+                "project_id": 1,
                 }
             ],
         },
@@ -2414,6 +2472,7 @@ def test_unpublished_report_tracks_inactive_account_articles_separately(
                     "title": "Active unpublished",
                     "markdown_content": "body",
                     "scheduled_date": "2026-05-26",
+                "project_id": 1,
                 }
             ],
         },
@@ -2428,11 +2487,13 @@ def test_unpublished_report_tracks_inactive_account_articles_separately(
                     "title": "Inactive unpublished",
                     "markdown_content": "body",
                     "scheduled_date": "2026-05-26",
+                "project_id": 1,
                 },
                 {
                     "title": "Inactive published",
                     "markdown_content": "body",
                     "scheduled_date": "2026-05-27",
+                "project_id": 1,
                 },
             ],
         },

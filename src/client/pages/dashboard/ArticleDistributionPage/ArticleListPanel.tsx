@@ -44,6 +44,9 @@ export function ArticleListPanel({
                 {article.scheduled_date} · {article.account?.platform ?? '未知平台'} / {article.account?.account_name ?? article.account_id}
                 {inactiveAccountTag(article.account?.is_active)}
               </Typography.Text>
+              <Typography.Text type="secondary">
+                项目：{article.project?.name ?? article.project_id}
+              </Typography.Text>
             </Flex>
           </button>
         ))}
