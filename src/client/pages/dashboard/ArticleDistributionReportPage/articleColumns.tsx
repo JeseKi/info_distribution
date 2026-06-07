@@ -15,6 +15,7 @@ import {
   StarOutlined,
   TagsOutlined,
   TeamOutlined,
+  WechatOutlined,
 } from '@ant-design/icons'
 import type { TableColumnsType } from 'antd'
 import dayjs from 'dayjs'
@@ -56,17 +57,33 @@ export function buildArticleColumns({
   ]
 
   if (includeUser) {
-    columns.push({
-      title: columnTitle('用户', <TeamOutlined />),
-      key: 'user',
-      width: 240,
-      render: (_, record) => (
-        <Space direction="vertical" size={0}>
-          <Typography.Text>{record.name || record.username}</Typography.Text>
-          <Typography.Text type="secondary">{record.email}</Typography.Text>
-        </Space>
-      ),
-    })
+    columns.push(
+      {
+        title: columnTitle('用户', <TeamOutlined />),
+        key: 'user',
+        width: 240,
+        render: (_, record) => (
+          <Space direction="vertical" size={0}>
+            <Typography.Text>{record.name || record.username}</Typography.Text>
+            <Typography.Text type="secondary">{record.email}</Typography.Text>
+          </Space>
+        ),
+      },
+      {
+        title: columnTitle('微信昵称', <WechatOutlined />),
+        dataIndex: 'wechat_nickname',
+        key: 'wechat_nickname',
+        width: 140,
+        render: (value: string | null) => value || '-',
+      },
+      {
+        title: columnTitle('微信号', <IdcardOutlined />),
+        dataIndex: 'wechat_id',
+        key: 'wechat_id',
+        width: 150,
+        render: (value: string | null) => value || '-',
+      },
+    )
   }
 
   columns.push(

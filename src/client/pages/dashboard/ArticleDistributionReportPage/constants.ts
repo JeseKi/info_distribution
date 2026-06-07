@@ -65,6 +65,8 @@ export const defaultOverview: ArticleDistributionOverview = {
 export const defaultVisibleColumns: Record<ArticleDistributionOverviewView, string[]> = {
   users: [
     'user',
+    'wechat_nickname',
+    'wechat_id',
     'remaining_count',
     'published_count',
     'invalid_count',
@@ -77,6 +79,8 @@ export const defaultVisibleColumns: Record<ArticleDistributionOverviewView, stri
   articles: [
     'article',
     'user',
+    'wechat_nickname',
+    'wechat_id',
     'account',
     'publish_status',
     'scheduled_date',
@@ -132,6 +136,8 @@ export const summaryMetricLabels: Record<string, string> = {
 export const columnLabels: Record<ArticleDistributionOverviewView, Record<string, string>> = {
   users: {
     user: '用户',
+    wechat_nickname: '微信昵称',
+    wechat_id: '微信号',
     remaining_count: '剩余未发布',
     published_count: '已发布',
     invalid_count: '失效',
@@ -144,6 +150,8 @@ export const columnLabels: Record<ArticleDistributionOverviewView, Record<string
   articles: {
     article: '文章',
     user: '用户',
+    wechat_nickname: '微信昵称',
+    wechat_id: '微信号',
     account: '账号',
     publish_status: '状态',
     scheduled_date: '计划日期',

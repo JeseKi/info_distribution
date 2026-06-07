@@ -28,11 +28,15 @@ def _create_user(
     username: str,
     role: UserRole = UserRole.USER,
     name: str | None = None,
+    wechat_nickname: str | None = None,
+    wechat_id: str | None = None,
 ) -> User:
     user = User(
         username=username,
         email=f"{username}@example.com",
         name=username if name is None else name,
+        wechat_nickname=wechat_nickname,
+        wechat_id=wechat_id,
         role=role,
     )
     user.set_password("Password123")
@@ -1251,7 +1255,13 @@ def test_missing_traffic_report_lists_published_articles_without_today_stats(
 def test_report_overview_supports_views_filters_and_topic_permission(
     test_client, test_db_session: Session
 ):
-    owner = _create_user(test_db_session, username="overview_owner", name="Overview")
+    owner = _create_user(
+        test_db_session,
+        username="overview_owner",
+        name="Overview",
+        wechat_nickname="概览微信",
+        wechat_id="overview_wx",
+    )
     viewer = _create_user(test_db_session, username="overview_viewer")
     admin = _create_user(test_db_session, username="overview_admin", role=UserRole.ADMIN)
 
@@ -1337,6 +1347,8 @@ def test_report_overview_supports_views_filters_and_topic_permission(
     assert users_report["summary"]["published_articles"] == 1
     assert users_report["summary"]["unpublished_articles"] == 1
     assert users_report["items"][0]["item_type"] == "user"
+    assert users_report["items"][0]["wechat_nickname"] == "概览微信"
+    assert users_report["items"][0]["wechat_id"] == "overview_wx"
     assert users_report["items"][0]["published_count"] == 1
     assert users_report["items"][0]["remaining_count"] == 1
     assert users_report["items"][0]["articles"] == []
@@ -1357,6 +1369,8 @@ def test_report_overview_supports_views_filters_and_topic_permission(
     assert user_articles["page_size"] == 1
     assert len(user_articles["items"]) == 1
     assert user_articles["items"][0]["item_type"] == "article"
+    assert user_articles["items"][0]["wechat_nickname"] == "概览微信"
+    assert user_articles["items"][0]["wechat_id"] == "overview_wx"
     assert "markdown_content" not in user_articles["items"][0]
     assert "metadata" not in user_articles["items"][0]
     assert "summary" not in user_articles["items"][0]
@@ -1373,6 +1387,8 @@ def test_report_overview_supports_views_filters_and_topic_permission(
     detail = detail_resp.json()
     assert detail["markdown_content"] == "body"
     assert detail["metadata"] == {"output_id": "overview_topic", "topic": "统一报表"}
+    assert detail["wechat_nickname"] == "概览微信"
+    assert detail["wechat_id"] == "overview_wx"
     assert detail["missing_traffic"] is True
 
     missing_resp = test_client.get(
@@ -1549,7 +1565,12 @@ def test_report_overview_sorts_metrics_before_pagination(
 def test_report_overview_export_supports_csv_xlsx_and_permissions(
     test_client, test_db_session: Session
 ):
-    owner = _create_user(test_db_session, username="overview_export_owner")
+    owner = _create_user(
+        test_db_session,
+        username="overview_export_owner",
+        wechat_nickname="导出微信",
+        wechat_id="export_wx",
+    )
     viewer = _create_user(test_db_session, username="overview_export_viewer")
     admin = _create_user(
         test_db_session, username="overview_export_admin", role=UserRole.ADMIN
@@ -1654,6 +1675,8 @@ def test_report_overview_export_supports_csv_xlsx_and_permissions(
         "Export published",
     ]
     published_row = csv_rows[1]
+    assert published_row["微信昵称"] == "导出微信"
+    assert published_row["微信号"] == "export_wx"
     assert published_row["发布账号"] == "导出公众号"
     assert published_row["发布状态"] == "已发布"
     assert published_row["发布链接"] == "https://example.com/export"
@@ -1673,10 +1696,20 @@ def test_report_overview_export_supports_csv_xlsx_and_permissions(
     workbook = load_workbook(BytesIO(xlsx_resp.content), read_only=True)
     worksheet = workbook["用户汇总"]
     rows = list(worksheet.iter_rows(values_only=True))
-    assert rows[0][:5] == ("用户ID", "负责人", "用户名", "邮箱", "剩余未发布")
+    assert rows[0][:7] == (
+        "用户ID",
+        "负责人",
+        "用户名",
+        "微信昵称",
+        "微信号",
+        "邮箱",
+        "剩余未发布",
+    )
     assert rows[1][0] == owner.id
-    assert rows[1][5] == 1
-    assert rows[1][9] == 88
+    assert rows[1][3] == "导出微信"
+    assert rows[1][4] == "export_wx"
+    assert rows[1][7] == 1
+    assert rows[1][11] == 88
     workbook.close()
 
     topic_denied_resp = test_client.get(

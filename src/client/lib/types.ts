@@ -695,6 +695,8 @@ export interface ArticleDistributionOverviewArticle {
   user_id: number
   username: string
   name: string | null
+  wechat_nickname: string | null
+  wechat_id: string | null
   email: string
   account_id: number
   account_name: string
@@ -725,6 +727,8 @@ export interface ArticleDistributionOverviewUser {
   user_id: number
   username: string
   name: string | null
+  wechat_nickname: string | null
+  wechat_id: string | null
   email: string
   remaining_count: number
   published_count: number

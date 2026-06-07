@@ -51,6 +51,8 @@ class ArticleDistributionOverviewArticleOut(BaseModel):
     user_id: int
     username: str
     name: str | None
+    wechat_nickname: str | None = None
+    wechat_id: str | None = None
     email: str
     account_id: int
     account_name: str
@@ -81,6 +83,8 @@ class ArticleDistributionOverviewUserOut(BaseModel):
     user_id: int
     username: str
     name: str | None
+    wechat_nickname: str | None = None
+    wechat_id: str | None = None
     email: str
     remaining_count: int = 0
     published_count: int = 0
