@@ -7,6 +7,7 @@ import {
   Form,
   Input,
   Space,
+  Tag,
   Typography,
 } from 'antd'
 import {
@@ -145,6 +146,20 @@ export default function ProfilePage() {
           <Flex vertical gap={4}>
             <Typography.Text type="secondary">当前登录邮箱</Typography.Text>
             <Typography.Text strong>{user?.email ?? '-'}</Typography.Text>
+          </Flex>
+          <Flex vertical gap={8}>
+            <Typography.Text type="secondary">所属项目</Typography.Text>
+            <Space wrap>
+              {user?.projects?.length ? (
+                user.projects.map((project) => (
+                  <Tag key={project.id} color={project.is_active ? 'blue' : 'default'}>
+                    {project.name}
+                  </Tag>
+                ))
+              ) : (
+                <Typography.Text>-</Typography.Text>
+              )}
+            </Space>
           </Flex>
           {profileError && <Alert type="error" showIcon message={profileError} />}
           <Form

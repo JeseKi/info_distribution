@@ -16,6 +16,12 @@ from ..schemas import (
 from .base import router
 
 
+def _resolve_registration_project(db: Session, project_code: str):
+    from src.server.project_management.service import lookup_active_project_by_code
+
+    return lookup_active_project_by_code(db, project_code)
+
+
 @router.post(
     "/register",
     response_model=UserProfile,
@@ -56,10 +62,16 @@ async def register_user(
             status_code=status.HTTP_400_BAD_REQUEST, detail="验证码无效或已过期"
         )
 
+    project = _resolve_registration_project(db, user_data.project_code)
+
     user_create = UserCreate(
         username=user_data.username, email=normalized_email, password=user_data.password
     )
     new_user = service.create_user(db=db, user_data=user_create)
+    from src.server.project_management.dao import ProjectManagementDAO
+
+    ProjectManagementDAO(db).add_user_project(new_user.id, project.id)
+    db.refresh(new_user)
     return new_user
 
 
@@ -142,8 +154,14 @@ async def register_user_with_code(
             status_code=status.HTTP_400_BAD_REQUEST, detail="验证码无效或已过期"
         )
 
+    project = _resolve_registration_project(db, user_data.project_code)
+
     user_create = UserCreate(
         username=user_data.username, email=normalized_email, password=user_data.password
     )
     new_user = service.create_user(db=db, user_data=user_create)
+    from src.server.project_management.dao import ProjectManagementDAO
+
+    ProjectManagementDAO(db).add_user_project(new_user.id, project.id)
+    db.refresh(new_user)
     return new_user

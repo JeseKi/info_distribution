@@ -7,6 +7,7 @@ export function buildEditFormValues(user: AdminUser) {
     name: user.name ?? '',
     wechat_nickname: user.wechat_nickname ?? '',
     wechat_id: user.wechat_id ?? '',
+    project_ids: user.projects.map((project) => project.id),
     role: user.role,
     status: user.status,
   }
@@ -19,6 +20,7 @@ export function buildCreateFormValues() {
     name: '',
     wechat_nickname: '',
     wechat_id: '',
+    project_ids: [],
     role: 'user' as const,
     status: 'active' as const,
     password: '',
@@ -37,6 +39,7 @@ export function buildUpdatePayload(
     name?: string | null
     wechat_nickname?: string | null
     wechat_id?: string | null
+    project_ids?: number[]
     role: string
     status: string
   },
@@ -58,6 +61,9 @@ export function buildUpdatePayload(
   const wechatId = values.wechat_id?.trim() ?? ''
   const existingWechatId = user.wechat_id?.trim() ?? ''
   if (wechatId !== existingWechatId) payload.wechat_id = wechatId || null
+  const projectIds = [...(values.project_ids ?? [])].sort((a, b) => a - b)
+  const existingProjectIds = user.projects.map((project) => project.id).sort((a, b) => a - b)
+  if (projectIds.join(',') !== existingProjectIds.join(',')) payload.project_ids = projectIds
   if (values.role !== user.role) payload.role = values.role as UserRole
   if (values.status !== user.status) payload.status = values.status as UserStatus
   return payload

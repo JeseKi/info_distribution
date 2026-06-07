@@ -29,6 +29,7 @@ def test_update_profile_supports_username_change(test_client):
             "email": email,
             "password": "Password123",
             "code": code,
+            "project_code": "AIFCAIFC",
         },
     )
 
@@ -80,6 +81,7 @@ def test_email_change_flow(test_client):
             "email": email,
             "password": "OldPassword123",
             "code": code,
+            "project_code": "AIFCAIFC",
         },
     )
     # 登录

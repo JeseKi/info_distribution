@@ -36,6 +36,11 @@ from src.server.article_distribution.router import (
     router as article_distribution_router,
     v1_router as article_distribution_v1_router,
 )
+from src.server.project_management.router import (
+    admin_router as project_management_admin_router,
+    article_router as project_management_article_router,
+    auth_router as project_management_auth_router,
+)
 
 # --- 配置与常量 ---
 PROJECT_ROOT = Path(global_config.project_root)
@@ -190,6 +195,9 @@ app.include_router(scope_management_router)
 app.include_router(article_distribution_router)
 app.include_router(article_distribution_admin_router)
 app.include_router(article_distribution_v1_router)
+app.include_router(project_management_admin_router)
+app.include_router(project_management_auth_router)
+app.include_router(project_management_article_router)
 if global_config.app_env == "dev":
     app.include_router(provider_dev_router)
 

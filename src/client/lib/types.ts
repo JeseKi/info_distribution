@@ -127,6 +127,7 @@ export interface UserProfile {
   role: UserRole
   status: UserStatus
   effective_scopes: string[]
+  projects: ProjectSummary[]
   two_factor_enabled: boolean
   two_factor_confirmed_at: string | null
 }
@@ -179,11 +180,16 @@ export interface VerificationCodePayload {
   turnstile_token?: string
 }
 
+export interface ProjectLookupPayload {
+  code: string
+}
+
 export interface RegisterWithCodePayload {
   username: string
   email: string
   password: string
   code: string
+  project_code: string
   turnstile_token?: string
 }
 
@@ -230,6 +236,7 @@ export interface AdminUser {
   scope_overrides: string[] | null
   effective_scopes: string[]
   available_scopes: string[]
+  projects: ProjectSummary[]
   created_at: string
 }
 
@@ -242,6 +249,7 @@ export interface AdminUserCreatePayload {
   role?: UserRole
   status?: UserStatus
   password: string
+  project_ids?: number[]
 }
 
 export interface AdminUserUpdatePayload {
@@ -253,6 +261,7 @@ export interface AdminUserUpdatePayload {
   role?: UserRole
   status?: UserStatus
   password?: string | null
+  project_ids?: number[]
 }
 
 export interface AdminUserScopesUpdatePayload {
@@ -331,12 +340,62 @@ export type ArticlePublishStatus = 'unpublished' | 'published' | 'invalid'
 
 export type ArticleDistributionAccountStatusFilter = 'active' | 'inactive' | 'all'
 
+export interface ProjectSummary {
+  id: number
+  name: string
+  code: string
+  is_active: boolean
+}
+
+export interface ThemeSummary {
+  id: number
+  name: string
+  is_active: boolean
+}
+
+export interface Project extends ProjectSummary {
+  created_at: string
+  updated_at: string
+  theme_ids: number[]
+  themes: ThemeSummary[]
+}
+
+export interface Theme extends ThemeSummary {
+  created_at: string
+  updated_at: string
+  project_ids: number[]
+}
+
+export interface ProjectPayload {
+  name: string
+  code?: string | null
+  is_active?: boolean
+  theme_ids?: number[]
+}
+
+export interface ThemePayload {
+  name: string
+  is_active?: boolean
+  project_ids?: number[]
+}
+
+export interface UserProjectsUpdatePayload {
+  project_ids: number[]
+}
+
+export interface AccountOptions {
+  projects: ProjectSummary[]
+  themes: ThemeSummary[]
+}
+
 export interface ArticleDistributionAccount {
   id: number
   user_id: number
   account_name: string
   platform: string
   publication_type: ArticlePublicationType
+  theme_id: number
+  theme: ThemeSummary | null
   is_active: boolean
   created_at: string
   updated_at: string
@@ -346,6 +405,7 @@ export interface ArticleDistributionAccountPayload {
   account_name: string
   platform: string
   publication_type: ArticlePublicationType
+  theme_id?: number | null
   is_active?: boolean
   user_id?: number | null
 }

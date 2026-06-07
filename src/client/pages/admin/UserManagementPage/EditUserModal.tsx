@@ -9,6 +9,7 @@ interface EditUserModalProps {
   saving: boolean
   currentUserId?: number
   form: FormInstance
+  projectOptions: { label: string; value: number }[]
   onOk: () => void
   onCancel: () => void
   onResetPassword: (user: AdminUser) => void
@@ -20,6 +21,7 @@ export default function EditUserModal({
   saving,
   currentUserId,
   form,
+  projectOptions,
   onOk,
   onCancel,
   onResetPassword,
@@ -68,6 +70,14 @@ export default function EditUserModal({
         </Form.Item>
         <Form.Item label="微信号" name="wechat_id">
           <Input placeholder="可选" />
+        </Form.Item>
+        <Form.Item label="所属项目" name="project_ids">
+          <Select
+            mode="multiple"
+            options={projectOptions}
+            placeholder="请选择项目"
+            optionFilterProp="label"
+          />
         </Form.Item>
         <Form.Item label="角色" name="role">
           <Select

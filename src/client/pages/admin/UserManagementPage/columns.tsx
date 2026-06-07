@@ -61,6 +61,22 @@ export function useColumns({
       render: (value: string | null) => value ?? '-',
     },
     {
+      title: '项目',
+      dataIndex: 'projects',
+      key: 'projects',
+      render: (_, record) => (
+        <Space wrap size={4}>
+          {record.projects.length
+            ? record.projects.map((project) => (
+                <Tag key={project.id} color={project.is_active ? 'blue' : 'default'}>
+                  {project.name}
+                </Tag>
+              ))
+            : '-'}
+        </Space>
+      ),
+    },
+    {
       title: '角色',
       dataIndex: 'role',
       key: 'role',

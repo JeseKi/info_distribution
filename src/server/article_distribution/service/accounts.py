@@ -9,6 +9,12 @@ from sqlalchemy.orm import Session
 
 from src.server.auth.models import User
 from src.server.auth.schemas import UserRole
+from src.server.project_management.dao import ProjectManagementDAO
+from src.server.project_management.schemas import ThemeSummary
+from src.server.project_management.service import (
+    list_user_theme_summaries,
+    validate_user_theme_id,
+)
 
 from ..dao import ArticleDistributionDAO
 from ..models import ArticleDistributionAccount
@@ -38,14 +44,15 @@ def list_accounts(
     platform: str | None = None,
     publication_type: str | None = None,
     is_active: bool | None = None,
-) -> list[ArticleDistributionAccount]:
+) -> list[AccountOut]:
     target_user_id = resolve_optional_target_user_id(current_user, user_id)
-    return ArticleDistributionDAO(db).list_accounts(
+    accounts = ArticleDistributionDAO(db).list_accounts(
         user_id=target_user_id,
         platform=normalize_optional(platform),
         publication_type=publication_type,
         is_active=is_active,
     )
+    return [account_to_out(db, account) for account in accounts]
 
 
 def list_accounts_page(
@@ -71,7 +78,7 @@ def list_accounts_page(
         page_size=page_size,
     )
     return AccountPageOut(
-        items=[AccountOut.model_validate(item) for item in items],
+        items=[account_to_out(db, item) for item in items],
         total=total,
         page=page,
         page_size=page_size,
@@ -104,17 +111,29 @@ def list_account_directory(db: Session) -> list[UserAccountDirectoryOut]:
 
 def create_account(
     db: Session, *, payload: AccountCreate, current_user: User
-) -> ArticleDistributionAccount:
+) -> AccountOut:
     target_user_id = resolve_target_user_id(current_user, payload.user_id)
+    theme_id = payload.theme_id
+    if theme_id is None:
+        available_themes = list_user_theme_summaries(db, target_user_id)
+        if len(available_themes) != 1:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="请选择账号主题",
+            )
+        theme_id = available_themes[0].id
+    theme_id = validate_user_theme_id(db, target_user_id, theme_id)
     account = ArticleDistributionAccount(
         user_id=target_user_id,
         account_name=normalize_required(payload.account_name, "账号名称不能为空"),
         platform=normalize_required(payload.platform, "平台不能为空"),
         publication_type=payload.publication_type,
+        theme_id=theme_id,
         is_active=payload.is_active,
     )
     try:
-        return ArticleDistributionDAO(db).create_account(account)
+        account = ArticleDistributionDAO(db).create_account(account)
+        return account_to_out(db, account)
     except IntegrityError:
         db.rollback()
         raise HTTPException(
@@ -125,7 +144,7 @@ def create_account(
 
 def update_account(
     db: Session, *, account_id: int, payload: AccountUpdate, current_user: User
-) -> ArticleDistributionAccount:
+) -> AccountOut:
     dao = ArticleDistributionDAO(db)
     account = get_accessible_account(db, account_id, current_user, write=True)
     fields = payload.model_dump(exclude_unset=True)
@@ -135,6 +154,9 @@ def update_account(
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无权限")
         if fields["user_id"] is None:
             fields.pop("user_id")
+    target_user_id = int(fields.get("user_id") or account.user_id)
+    next_theme_id = int(fields.get("theme_id") or account.theme_id)
+    fields["theme_id"] = validate_user_theme_id(db, target_user_id, next_theme_id)
 
     if "account_name" in fields and fields["account_name"] is not None:
         fields["account_name"] = normalize_required(
@@ -144,7 +166,8 @@ def update_account(
         fields["platform"] = normalize_required(str(fields["platform"]), "平台不能为空")
 
     try:
-        return dao.update_account(account, **fields)
+        account = dao.update_account(account, **fields)
+        return account_to_out(db, account)
     except IntegrityError:
         db.rollback()
         raise HTTPException(
@@ -163,3 +186,19 @@ def delete_account(db: Session, *, account_id: int, current_user: User) -> None:
             detail="账号下已有文章，不能删除",
         )
     dao.delete_account(account)
+
+
+def account_to_out(db: Session, account: ArticleDistributionAccount) -> AccountOut:
+    return AccountOut.model_validate(
+        {
+            **account.__dict__,
+            "theme": _theme_summary(db, account.theme_id),
+        }
+    )
+
+
+def _theme_summary(db: Session, theme_id: int) -> ThemeSummary | None:
+    theme = ProjectManagementDAO(db).get_theme(theme_id)
+    if theme is None:
+        return None
+    return ThemeSummary.model_validate(theme)

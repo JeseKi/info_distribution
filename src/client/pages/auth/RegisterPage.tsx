@@ -23,6 +23,8 @@ import TurnstileWidget from '../../components/auth/TurnstileWidget'
 import { useAuth } from '../../hooks/useAuth'
 import { useRuntimeConfig } from '../../hooks/useRuntimeConfig'
 import { resolveApiErrorMessage } from '../../lib/error'
+import { lookupProjectByCode } from '../../lib/auth'
+import type { ProjectSummary } from '../../lib/types'
 
 export default function RegisterPage() {
   const navigate = useNavigate()
@@ -32,11 +34,20 @@ export default function RegisterPage() {
   const turnstileSiteKey = turnstile.siteKey
   const turnstileEnabled = turnstile.enabled
 
-  const [form] = Form.useForm<{ username: string; email: string; password: string; confirmPassword: string; code: string }>()
+  const [form] = Form.useForm<{
+    username: string
+    email: string
+    password: string
+    confirmPassword: string
+    code: string
+    project_code: string
+  }>()
   const [submitting, setSubmitting] = useState(false)
   const [sendingCode, setSendingCode] = useState(false)
+  const [lookingUpProject, setLookingUpProject] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  const [project, setProject] = useState<ProjectSummary | null>(null)
   const [codeCountdown, setCodeCountdown] = useState(0)
   const [registerTurnstileToken, setRegisterTurnstileToken] = useState<string | null>(null)
 
@@ -68,6 +79,29 @@ export default function RegisterPage() {
     }
   }
 
+  const handleLookupProject = async () => {
+    try {
+      const values = await form.validateFields(['project_code'])
+      const projectCode = values.project_code.trim().toUpperCase()
+      form.setFieldValue('project_code', projectCode)
+      setLookingUpProject(true)
+      setError(null)
+      const nextProject = await lookupProjectByCode(projectCode)
+      setProject(nextProject)
+      message.success(`已识别项目：${nextProject.name}`)
+    } catch (err) {
+      if (typeof err === 'object' && err && 'errorFields' in err) {
+        return
+      }
+      const text = resolveApiErrorMessage(err, '项目码无效或项目已停用。')
+      setProject(null)
+      setError(text)
+      message.error(text)
+    } finally {
+      setLookingUpProject(false)
+    }
+  }
+
   useEffect(() => {
     if (codeCountdown <= 0) {
       return
@@ -80,9 +114,20 @@ export default function RegisterPage() {
     return () => window.clearInterval(timer)
   }, [codeCountdown])
 
-  const handleSubmit = async (values: { username: string; email: string; password: string; confirmPassword: string; code: string }) => {
+  const handleSubmit = async (values: {
+    username: string
+    email: string
+    password: string
+    confirmPassword: string
+    code: string
+    project_code: string
+  }) => {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { confirmPassword: _confirmPassword, ...payload } = values
+    const { confirmPassword: _confirmPassword, ...rawPayload } = values
+    const payload = {
+      ...rawPayload,
+      project_code: rawPayload.project_code.trim().toUpperCase(),
+    }
     if (turnstileEnabled && !registerTurnstileToken) {
       const noTokenError = '请先完成机器人校验'
       setError(noTokenError)
@@ -149,6 +194,35 @@ export default function RegisterPage() {
             requiredMark={false}
             autoComplete="on"
           >
+            <Form.Item
+              label="项目码"
+              name="project_code"
+              normalize={(value: string | undefined) => value?.toUpperCase()}
+              rules={[
+                { required: true, message: '请输入项目码' },
+                { len: 8, message: '项目码为 8 位大写字母' },
+                { pattern: /^[A-Z]{8}$/, message: '项目码只能包含大写字母' },
+              ]}
+            >
+              <Input.Search
+                size="large"
+                placeholder="请输入项目码"
+                enterButton="查询"
+                loading={lookingUpProject}
+                maxLength={8}
+                onSearch={() => void handleLookupProject()}
+                allowClear
+                onChange={() => setProject(null)}
+              />
+            </Form.Item>
+            {project && (
+              <Alert
+                type="success"
+                showIcon
+                message={`注册项目：${project.name}`}
+                style={{ marginBottom: 20 }}
+              />
+            )}
             <Form.Item
               label="用户名"
               name="username"

@@ -20,6 +20,8 @@ from src.server.article_distribution.models import (
 from src.server.auth.models import User
 from src.server.auth.schemas import UserRole
 from src.server.auth import service as auth_service
+from src.server.project_management.dao import ProjectManagementDAO
+from src.server.project_management.service import bootstrap_default_project_theme
 
 
 def _create_user(
@@ -42,6 +44,9 @@ def _create_user(
     user.set_password("Password123")
     db.add(user)
     db.commit()
+    db.refresh(user)
+    project = bootstrap_default_project_theme(db)
+    ProjectManagementDAO(db).add_user_project(user.id, project.id)
     db.refresh(user)
     return user
 

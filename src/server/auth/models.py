@@ -11,6 +11,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -24,6 +25,7 @@ from sqlalchemy import (
     Text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import object_session
 
 from src.server.database import Base
 from .schemas import UserRole, UserStatus
@@ -98,6 +100,15 @@ class User(Base):
         from .service.scopes import get_role_assignable_scopes
 
         return get_role_assignable_scopes(self.role)
+
+    @property
+    def project_summaries(self) -> Sequence[object]:
+        session = object_session(self)
+        if session is None or self.id is None:
+            return []
+        from src.server.project_management.dao import ProjectManagementDAO
+
+        return ProjectManagementDAO(session).list_user_projects(self.id)
 
 
 class RefreshToken(Base):

@@ -77,6 +77,19 @@ def init_database() -> None:
 
     # 引导：创建初始管理员（如不存在）
     try:
+        from src.server.project_management.service import (  # 延迟导入避免循环
+            bootstrap_default_project_theme,
+        )
+
+        db = SessionLocal()
+        try:
+            bootstrap_default_project_theme(db)
+        finally:
+            db.close()
+    except Exception as e:
+        logger.warning(f"引导默认项目主题失败（可忽略开发环境）：{e}")
+
+    try:
         from src.server.auth.service import bootstrap_default_admin  # 延迟导入避免循环
 
         bootstrap_default_admin(SessionLocal())
@@ -94,6 +107,7 @@ def import_all_models() -> None:
         from src.server.oauth_provider import models as _5  # noqa: F401
         from src.server.providers import models as _6  # noqa: F401
         from src.server.article_distribution import models as _7  # noqa: F401
+        from src.server.project_management import models as _8  # noqa: F401
     except Exception as e:
         logger.warning(f"导入模型时出现警告：{e}")
 

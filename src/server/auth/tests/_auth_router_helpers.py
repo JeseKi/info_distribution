@@ -15,6 +15,7 @@ def _register_user(
             "email": email,
             "password": password,
             "code": code,
+            "project_code": "AIFCAIFC",
         },
     )
     assert resp.status_code == 201, resp.text

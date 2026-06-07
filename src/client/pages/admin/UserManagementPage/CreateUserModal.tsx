@@ -6,6 +6,7 @@ interface CreateUserModalProps {
   open: boolean
   creating: boolean
   form: FormInstance
+  projectOptions: { label: string; value: number }[]
   onOk: () => void
   onCancel: () => void
 }
@@ -14,6 +15,7 @@ export default function CreateUserModal({
   open,
   creating,
   form,
+  projectOptions,
   onOk,
   onCancel,
 }: CreateUserModalProps) {
@@ -62,6 +64,14 @@ export default function CreateUserModal({
         </Form.Item>
         <Form.Item label="微信号" name="wechat_id">
           <Input placeholder="可选" />
+        </Form.Item>
+        <Form.Item label="所属项目" name="project_ids">
+          <Select
+            mode="multiple"
+            options={projectOptions}
+            placeholder="请选择项目"
+            optionFilterProp="label"
+          />
         </Form.Item>
         <Form.Item
           label="密码"

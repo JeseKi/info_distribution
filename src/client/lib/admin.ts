@@ -2,10 +2,15 @@ import api, { buildTwoFactorHeaders } from './api'
 import type {
   AdminScope,
   AdminScopeUpdatePayload,
+  Project,
+  ProjectPayload,
+  Theme,
+  ThemePayload,
   AdminUser,
   AdminUserCreatePayload,
   AdminUserScopesUpdatePayload,
   AdminUserUpdatePayload,
+  UserProjectsUpdatePayload,
 } from './types'
 
 export async function createUser(
@@ -65,4 +70,60 @@ export async function updateUserScopes(
     headers: buildTwoFactorHeaders(twoFactorCode),
   })
   return data
+}
+
+export async function listProjects(): Promise<Project[]> {
+  const { data } = await api.get<Project[]>('/admin/projects')
+  return data
+}
+
+export async function createProject(payload: ProjectPayload, twoFactorCode?: string): Promise<Project> {
+  const { data } = await api.post<Project>('/admin/projects', payload, {
+    headers: buildTwoFactorHeaders(twoFactorCode),
+  })
+  return data
+}
+
+export async function updateProject(
+  projectId: number,
+  payload: Partial<ProjectPayload>,
+  twoFactorCode?: string,
+): Promise<Project> {
+  const { data } = await api.patch<Project>(`/admin/projects/${projectId}`, payload, {
+    headers: buildTwoFactorHeaders(twoFactorCode),
+  })
+  return data
+}
+
+export async function listThemes(): Promise<Theme[]> {
+  const { data } = await api.get<Theme[]>('/admin/themes')
+  return data
+}
+
+export async function createTheme(payload: ThemePayload, twoFactorCode?: string): Promise<Theme> {
+  const { data } = await api.post<Theme>('/admin/themes', payload, {
+    headers: buildTwoFactorHeaders(twoFactorCode),
+  })
+  return data
+}
+
+export async function updateTheme(
+  themeId: number,
+  payload: Partial<ThemePayload>,
+  twoFactorCode?: string,
+): Promise<Theme> {
+  const { data } = await api.patch<Theme>(`/admin/themes/${themeId}`, payload, {
+    headers: buildTwoFactorHeaders(twoFactorCode),
+  })
+  return data
+}
+
+export async function updateUserProjects(
+  userId: number,
+  payload: UserProjectsUpdatePayload,
+  twoFactorCode?: string,
+): Promise<void> {
+  await api.put(`/admin/users/${userId}/projects`, payload, {
+    headers: buildTwoFactorHeaders(twoFactorCode),
+  })
 }

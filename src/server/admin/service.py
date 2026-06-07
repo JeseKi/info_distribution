@@ -24,6 +24,7 @@ from src.server.auth.service import (
     serialize_scopes,
     validate_scope_overrides,
 )
+from src.server.project_management.service import set_user_projects
 
 
 def create_user(
@@ -36,6 +37,7 @@ def create_user(
     wechat_id: str | None = None,
     role: UserRole | None = None,
     status: UserStatus | None = None,
+    project_ids: list[int] | None = None,
 ) -> User:
     selected_role = role if role else UserRole.USER
     selected_status = status if status else UserStatus.ACTIVE
@@ -68,6 +70,10 @@ def create_user(
         if wechat_id is not None:
             update_fields["wechat_id"] = wechat_id
         user = UserDAO(db).update(user, **update_fields)
+
+    if project_ids is not None:
+        set_user_projects(db, user.id, project_ids)
+        db.refresh(user)
 
     return user
 

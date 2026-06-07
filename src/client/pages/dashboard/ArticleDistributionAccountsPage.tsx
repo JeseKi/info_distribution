@@ -26,6 +26,7 @@ import type {
   ArticleDistributionAccount,
   ArticleDistributionAccountPageParams,
   ArticlePublicationType,
+  AccountOptions,
 } from '../../lib/types'
 import { AccountModal } from './ArticleDistributionPage/AccountModal'
 import { publicationTypeOptions, publicationTypeText } from './ArticleDistributionPage/constants'
@@ -58,6 +59,8 @@ export default function ArticleDistributionAccountsPage() {
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(defaultPageSize)
   const [loading, setLoading] = useState(false)
+  const [accountOptions, setAccountOptions] = useState<AccountOptions>({ projects: [], themes: [] })
+  const [accountOptionsLoading, setAccountOptionsLoading] = useState(false)
   const [modalOpen, setModalOpen] = useState(false)
   const [editingAccount, setEditingAccount] = useState<ArticleDistributionAccount | null>(null)
 
@@ -105,13 +108,28 @@ export default function ArticleDistributionAccountsPage() {
     accountForm.resetFields()
     accountForm.setFieldsValue({ is_active: true })
     setModalOpen(true)
+    void loadAccountOptions()
   }
 
   const openEditModal = (account: ArticleDistributionAccount) => {
     setEditingAccount(account)
     accountForm.setFieldsValue(account)
     setModalOpen(true)
+    void loadAccountOptions(account.user_id)
   }
+
+  const loadAccountOptions = useCallback(async (targetUserId?: number) => {
+    setAccountOptionsLoading(true)
+    try {
+      const options = await articleApi.getArticleAccountOptions(isAdmin ? targetUserId : undefined)
+      setAccountOptions(options)
+    } catch (error) {
+      message.error(resolveApiErrorMessage(error, '账号选项加载失败'))
+      setAccountOptions({ projects: [], themes: [] })
+    } finally {
+      setAccountOptionsLoading(false)
+    }
+  }, [isAdmin, message])
 
   const handleAccountSubmit = async (values: AccountFormValues) => {
     try {
@@ -175,6 +193,13 @@ export default function ArticleDistributionAccountsPage() {
       key: 'publication_type',
       width: 120,
       render: (value: ArticlePublicationType) => publicationTypeText[value],
+    },
+    {
+      title: '主题',
+      dataIndex: 'theme',
+      key: 'theme',
+      width: 140,
+      render: (_, record) => record.theme?.name ?? '-',
     },
     {
       title: '状态',
@@ -313,7 +338,10 @@ export default function ArticleDistributionAccountsPage() {
         editingAccount={editingAccount}
         form={accountForm}
         isAdmin={isAdmin}
+        accountOptions={accountOptions}
+        accountOptionsLoading={accountOptionsLoading}
         open={modalOpen}
+        onTargetUserChange={loadAccountOptions}
         onCancel={() => {
           setModalOpen(false)
           setEditingAccount(null)

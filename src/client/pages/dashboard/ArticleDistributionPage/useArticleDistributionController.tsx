@@ -9,6 +9,7 @@ import type {
   ArticleDistributionArticleFilters,
   ArticleDistributionArticleStatusCounts,
   ArticlePublishStatus,
+  AccountOptions as ArticleAccountOptions,
 } from '../../../lib/types'
 import { copyArticleContent, downloadArticleImagePackage, type ImagePackageDownloadMode } from './articleOperations'
 import { defaultArticlePageSize, defaultArticleStatusCounts, publicationTypeText } from './constants'
@@ -31,6 +32,8 @@ export function useArticleDistributionController() {
   const [selectedArticleId, setSelectedArticleId] = useState<number | null>(null)
   const [loading, setLoading] = useState(false)
   const [accountModalOpen, setAccountModalOpen] = useState(false)
+  const [accountSetupOptions, setAccountSetupOptions] = useState<ArticleAccountOptions>({ projects: [], themes: [] })
+  const [accountSetupOptionsLoading, setAccountSetupOptionsLoading] = useState(false)
   const [editingAccount, setEditingAccount] = useState<ArticleDistributionAccount | null>(null)
   const [accountForm] = Form.useForm<AccountFormValues>()
   const [filterForm] = Form.useForm<ArticleFilterFormValues>()
@@ -108,17 +111,32 @@ export function useArticleDistributionController() {
 
   const reloadCurrentPage = () => loadData(buildFilters(), { page: articlePage, pageSize: articlePageSize })
 
+  const loadAccountSetupOptions = useCallback(async (targetUserId?: number) => {
+    setAccountSetupOptionsLoading(true)
+    try {
+      const options = await articleApi.getArticleAccountOptions(isAdmin ? targetUserId : undefined)
+      setAccountSetupOptions(options)
+    } catch (error) {
+      message.error(resolveErrorMessage(error))
+      setAccountSetupOptions({ projects: [], themes: [] })
+    } finally {
+      setAccountSetupOptionsLoading(false)
+    }
+  }, [isAdmin, message])
+
   const handleCreateAccount = () => {
     setEditingAccount(null)
     accountForm.resetFields()
     accountForm.setFieldsValue({ is_active: true })
     setAccountModalOpen(true)
+    void loadAccountSetupOptions()
   }
 
   const handleEditAccount = (account: ArticleDistributionAccount) => {
     setEditingAccount(account)
     accountForm.setFieldsValue(account)
     setAccountModalOpen(true)
+    void loadAccountSetupOptions(account.user_id)
   }
 
   const handleAccountSubmit = async (values: AccountFormValues) => {
@@ -260,10 +278,11 @@ export function useArticleDistributionController() {
 
   return {
     accountForm, articleEditForm, filterForm, publishForm,
-    accountModalOpen, articleEditModalOpen, copyMenuOpen, publishModalOpen,
+    accountModalOpen, accountSetupOptions, accountSetupOptionsLoading,
+    articleEditModalOpen, copyMenuOpen, publishModalOpen,
     accountOptions, accounts, articlePage, articlePageSize, articleStatusCounts, articleTotal, articles,
     downloadingImages, editingAccount, imagePackageProgress, isAdmin, loading, selectedArticle,
-    buildFilters, copyAction, loadData, openArticleEditModal, openPublishModal, reloadCurrentPage,
+    buildFilters, copyAction, loadAccountSetupOptions, loadData, openArticleEditModal, openPublishModal, reloadCurrentPage,
     handleAccountSubmit, handleArticleEditSubmit, handleCreateAccount, handleDeleteAccount,
     handleDeleteArticle, handleDirectStatusChange, handleDownloadImagePackage, handleEditAccount,
     handlePublishSubmit, handleResetFilters, handleToggleAccountActive,

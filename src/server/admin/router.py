@@ -85,6 +85,7 @@ async def create_user(
         wechat_id=payload.wechat_id,
         role=payload.role,
         status=payload.status,
+        project_ids=payload.project_ids,
     )
     return user
 
@@ -147,6 +148,7 @@ async def update_user(
             )
 
     password = update_data.pop("password", None)
+    project_ids = update_data.pop("project_ids", None)
     if password:
         user.set_password(password)
         db.commit()
@@ -154,6 +156,12 @@ async def update_user(
 
     if update_data:
         user = service.update_user(db, user, update_data)
+
+    if project_ids is not None:
+        from src.server.project_management.service import set_user_projects
+
+        set_user_projects(db, user.id, project_ids)
+        db.refresh(user)
 
     return user
 

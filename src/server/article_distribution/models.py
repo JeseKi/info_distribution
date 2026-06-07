@@ -37,6 +37,7 @@ class ArticleDistributionAccount(Base):
     account_name: Mapped[str] = mapped_column(String(120), nullable=False)
     platform: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
     publication_type: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
+    theme_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
     is_active: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=True, index=True
     )

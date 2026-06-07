@@ -22,6 +22,7 @@ def test_refresh_requires_refresh_cookie(test_client):
             "email": email,
             "password": "Password123",
             "code": code,
+            "project_code": "AIFCAIFC",
         },
     )
     assert resp.status_code == 201, resp.text
@@ -69,6 +70,7 @@ def test_logout_revokes_current_refresh_session(test_client, test_db_session: Se
             "email": email,
             "password": "Password123",
             "code": code,
+            "project_code": "AIFCAIFC",
         },
     )
     assert resp.status_code == 201, resp.text
@@ -109,6 +111,7 @@ def test_logout_all_revokes_all_devices_immediately(
             "email": email,
             "password": "Password123",
             "code": code,
+            "project_code": "AIFCAIFC",
         },
     )
     assert resp.status_code == 201, resp.text

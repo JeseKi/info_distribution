@@ -13,6 +13,7 @@ from typing import Optional
 from pydantic import AliasChoices, BaseModel, ConfigDict, EmailStr, Field
 
 from src.server.auth.schemas import UserRole, UserStatus
+from src.server.project_management.schemas import ProjectSummary
 
 
 class AdminUserOut(BaseModel):
@@ -30,6 +31,10 @@ class AdminUserOut(BaseModel):
     )
     effective_scopes: list[str]
     available_scopes: list[str]
+    projects: list[ProjectSummary] = Field(
+        default_factory=list,
+        validation_alias=AliasChoices("project_summaries", "projects"),
+    )
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
@@ -44,6 +49,7 @@ class AdminUserCreate(BaseModel):
     role: UserRole = UserRole.USER
     status: UserStatus = UserStatus.ACTIVE
     password: str = Field(..., min_length=8)
+    project_ids: list[int] = Field(default_factory=list)
 
 
 class AdminUserUpdate(BaseModel):
@@ -55,6 +61,7 @@ class AdminUserUpdate(BaseModel):
     role: Optional[UserRole] = None
     status: Optional[UserStatus] = None
     password: Optional[str] = Field(default=None, min_length=8)
+    project_ids: Optional[list[int]] = None
 
 
 class AdminUserScopesUpdate(BaseModel):

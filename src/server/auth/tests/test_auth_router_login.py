@@ -22,6 +22,7 @@ def test_register_and_login_flow(test_client, test_db_session: Session):
             "email": email,
             "password": "Password123",
             "code": code,
+            "project_code": "AIFCAIFC",
         },
     )
     assert resp.status_code == 201, resp.text
@@ -65,6 +66,7 @@ def test_login_with_email(test_client):
             "email": email,
             "password": "Password123",
             "code": code,
+            "project_code": "AIFCAIFC",
         },
     )
     assert resp.status_code == 201, resp.text
@@ -87,6 +89,7 @@ def test_send_verification_code_hides_existing_email(test_client):
             "email": email,
             "password": "Password123",
             "code": code,
+            "project_code": "AIFCAIFC",
         },
     )
 
@@ -114,6 +117,7 @@ def test_verification_code_attempt_limit(test_client):
                 "email": email,
                 "password": "Password123",
                 "code": "000000",
+                "project_code": "AIFCAIFC",
             },
         )
         assert failed.status_code == 400

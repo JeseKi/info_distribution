@@ -33,6 +33,7 @@ import type {
   ArticleDistributionPublicDashboard,
   ArticleDistributionPendingUser,
   ArticleDistributionReport,
+  AccountOptions,
   ArticlePublishStatus,
 } from './types'
 
@@ -50,6 +51,13 @@ export async function listArticleAccountsPage(
   params?: ArticleDistributionAccountPageParams,
 ): Promise<ArticleDistributionAccountPage> {
   const { data } = await api.get<ArticleDistributionAccountPage>('/article-distribution/accounts/page', { params })
+  return data
+}
+
+export async function getArticleAccountOptions(userId?: number): Promise<AccountOptions> {
+  const { data } = await api.get<AccountOptions>('/article-distribution/account-options', {
+    params: userId ? { user_id: userId } : undefined,
+  })
   return data
 }
 

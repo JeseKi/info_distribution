@@ -7,12 +7,15 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from src.server.project_management.schemas import ThemeSummary
+
 from .types import PublicationType
 
 class AccountCreate(BaseModel):
     account_name: str = Field(..., min_length=1, max_length=120)
     platform: str = Field(..., min_length=1, max_length=80)
     publication_type: PublicationType
+    theme_id: int | None = Field(default=None, ge=1)
     is_active: bool = True
     user_id: int | None = Field(default=None, ge=1)
 
@@ -21,6 +24,7 @@ class AccountUpdate(BaseModel):
     account_name: str | None = Field(default=None, min_length=1, max_length=120)
     platform: str | None = Field(default=None, min_length=1, max_length=80)
     publication_type: PublicationType | None = None
+    theme_id: int | None = Field(default=None, ge=1)
     is_active: bool | None = None
     user_id: int | None = Field(default=None, ge=1)
 
@@ -31,6 +35,8 @@ class AccountOut(BaseModel):
     account_name: str
     platform: str
     publication_type: PublicationType
+    theme_id: int
+    theme: ThemeSummary | None = None
     is_active: bool
     created_at: datetime
     updated_at: datetime

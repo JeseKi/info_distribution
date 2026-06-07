@@ -14,7 +14,9 @@ from typing import Optional
 from datetime import datetime
 from enum import Enum
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import AliasChoices, BaseModel, ConfigDict, EmailStr, Field
+
+from src.server.project_management.schemas import ProjectSummary
 
 
 class UserRole(str, Enum):
@@ -45,6 +47,10 @@ class UserProfile(BaseModel):
     role: UserRole
     status: UserStatus
     effective_scopes: list[str]
+    projects: list[ProjectSummary] = Field(
+        default_factory=list,
+        validation_alias=AliasChoices("project_summaries", "projects"),
+    )
     two_factor_enabled: bool = False
     two_factor_confirmed_at: Optional[datetime] = None
 
@@ -136,6 +142,7 @@ class UserRegisterWithCode(BaseModel):
     email: EmailStr
     password: str = Field(..., min_length=8)
     code: str = Field(..., min_length=6, max_length=6)
+    project_code: str = Field(..., min_length=8, max_length=8)
     turnstile_token: str | None = Field(default=None, min_length=1, max_length=2048)
 
 

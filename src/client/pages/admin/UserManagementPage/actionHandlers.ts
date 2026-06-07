@@ -159,6 +159,7 @@ export async function handleCreate(params: {
       name: values.name?.trim() || null,
       wechat_nickname: values.wechat_nickname?.trim() || null,
       wechat_id: values.wechat_id?.trim() || null,
+      project_ids: values.project_ids ?? [],
       role: values.role,
       status: values.status,
       password: values.password,

@@ -64,7 +64,10 @@ export default function ArticleDistributionPage() {
         editingAccount={state.editingAccount}
         form={state.accountForm}
         isAdmin={state.isAdmin}
+        accountOptions={state.accountSetupOptions}
+        accountOptionsLoading={state.accountSetupOptionsLoading}
         open={state.accountModalOpen}
+        onTargetUserChange={state.loadAccountSetupOptions}
         onCancel={() => state.setAccountModalOpen(false)}
         onSubmit={(values) => void state.handleAccountSubmit(values)}
       />

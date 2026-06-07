@@ -9,6 +9,7 @@ import type {
   MessageResponse,
   OAuthProviderInfo,
   OAuthProvidersResponse,
+  ProjectSummary,
   OAuthTicketExchangePayload,
   PasswordChangeConfirmPayload,
   PasswordResetLinkPayload,
@@ -85,6 +86,11 @@ export async function register(payload: RegisterWithCodePayload): Promise<UserPr
 
 export async function sendVerificationCode(payload: VerificationCodePayload): Promise<{ message: string }> {
   const { data } = await api.post<{ message: string }>('/auth/send-verification-code', payload)
+  return data
+}
+
+export async function lookupProjectByCode(code: string): Promise<ProjectSummary> {
+  const { data } = await api.get<ProjectSummary>('/auth/projects/lookup', { params: { code } })
   return data
 }
 

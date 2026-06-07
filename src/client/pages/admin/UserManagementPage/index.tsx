@@ -1,8 +1,8 @@
 import { Alert, App, Button, Card, Flex, Form, Input, Space, Table, Typography } from 'antd'
 import { ReloadOutlined, TeamOutlined, UserAddOutlined } from '@ant-design/icons'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { listUsers } from '../../../lib/admin'
-import type { AdminUser } from '../../../lib/types'
+import { listProjects, listUsers } from '../../../lib/admin'
+import type { AdminUser, Project } from '../../../lib/types'
 import { useAuth } from '../../../hooks/useAuth'
 import DangerousActionTwoFactorModal from '../../../components/auth/DangerousActionTwoFactorModal'
 import { resolveErrorMessage } from './utils'
@@ -28,6 +28,7 @@ export default function UserManagementPage() {
   }, [])
 
   const [users, setUsers] = useState<AdminUser[]>([])
+  const [projects, setProjects] = useState<Project[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [keyword, setKeyword] = useState('')
@@ -51,6 +52,8 @@ export default function UserManagementPage() {
     try {
       const data = await listUsers()
       setUsers(data)
+      const projectData = await listProjects()
+      setProjects(projectData)
     } catch (err) {
       const text = resolveErrorMessage(err)
       setError(text)
@@ -129,6 +132,14 @@ export default function UserManagementPage() {
     deleteForm,
   })
 
+  const projectOptions = useMemo(
+    () => projects.map((project) => ({
+      label: project.is_active ? project.name : `${project.name}（停用）`,
+      value: project.id,
+    })),
+    [projects],
+  )
+
   return (
     <Flex vertical gap={24}>
       <Card>
@@ -178,6 +189,7 @@ export default function UserManagementPage() {
         saving={saving}
         currentUserId={currentUser?.id}
         form={editForm}
+        projectOptions={projectOptions}
         onOk={() => handleSave({
           editingUser,
           editForm,
@@ -237,6 +249,7 @@ export default function UserManagementPage() {
         open={createModalVisible}
         creating={creating}
         form={createForm}
+        projectOptions={projectOptions}
         onOk={() => handleCreate({
           createForm,
           message,

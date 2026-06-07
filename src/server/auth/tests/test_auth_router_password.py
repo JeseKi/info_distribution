@@ -23,6 +23,7 @@ def test_password_change_flow(test_client, monkeypatch):
             "email": email,
             "password": "OldPassword123",
             "code": code,
+            "project_code": "AIFCAIFC",
         },
     )
 
@@ -67,6 +68,7 @@ def test_password_change_link_requires_two_factor_for_two_factor_users(
             "email": email,
             "password": "OldPassword123",
             "code": code,
+            "project_code": "AIFCAIFC",
         },
     )
 

@@ -104,6 +104,7 @@ def test_db_engine() -> Iterator[Connection]:
     import src.server.oauth_provider.models  # noqa: F401
     import src.server.providers.models  # noqa: F401
     import src.server.article_distribution.models  # noqa: F401
+    import src.server.project_management.models  # noqa: F401
 
     Base.metadata.create_all(bind=keep_conn)
 
@@ -113,8 +114,10 @@ def test_db_engine() -> Iterator[Connection]:
     session = TestingSessionLocal()
     try:
         from src.server.providers.service import sync_external_providers
+        from src.server.project_management.service import bootstrap_default_project_theme
 
         sync_external_providers(session)
+        bootstrap_default_project_theme(session)
     finally:
         session.close()
 
