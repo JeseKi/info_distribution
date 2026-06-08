@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from src.server.auth.models import User
 from src.server.auth.schemas import UserRole
 from src.server.project_management.dao import ProjectManagementDAO
-from src.server.project_management.schemas import ThemeSummary
+from src.server.project_management.schemas import ProjectSummary, ThemeSummary
 from src.server.project_management.service import (
     list_user_theme_summaries,
     validate_user_theme_id,
@@ -86,10 +86,13 @@ def list_accounts_page(
 
 
 def list_account_directory(db: Session) -> list[UserAccountDirectoryOut]:
+    project_dao = ProjectManagementDAO(db)
     grouped: dict[int, UserAccountDirectoryOut] = {}
     for account, owner in ArticleDistributionDAO(db).list_account_owner_rows(
         is_active=True
     ):
+        theme = project_dao.get_theme(account.theme_id)
+        projects = _account_project_summaries(db, account.user_id, account.theme_id)
         publication_type = normalize_publication_type(account.publication_type)
         if owner.id not in grouped:
             grouped[owner.id] = UserAccountDirectoryOut(
@@ -100,6 +103,10 @@ def list_account_directory(db: Session) -> list[UserAccountDirectoryOut]:
         grouped[owner.id].accounts.append(
             AccountDirectoryOut(
                 id=account.id,
+                project_ids=[project.id for project in projects],
+                projects=projects,
+                theme_id=account.theme_id,
+                theme=ThemeSummary.model_validate(theme) if theme else None,
                 platform=account.platform,
                 account_name=account.account_name,
                 publication_type=publication_type,
@@ -189,9 +196,12 @@ def delete_account(db: Session, *, account_id: int, current_user: User) -> None:
 
 
 def account_to_out(db: Session, account: ArticleDistributionAccount) -> AccountOut:
+    projects = _account_project_summaries(db, account.user_id, account.theme_id)
     return AccountOut.model_validate(
         {
             **account.__dict__,
+            "project_ids": [project.id for project in projects],
+            "projects": projects,
             "theme": _theme_summary(db, account.theme_id),
         }
     )
@@ -202,3 +212,14 @@ def _theme_summary(db: Session, theme_id: int) -> ThemeSummary | None:
     if theme is None:
         return None
     return ThemeSummary.model_validate(theme)
+
+
+def _account_project_summaries(
+    db: Session, user_id: int, theme_id: int
+) -> list[ProjectSummary]:
+    dao = ProjectManagementDAO(db)
+    return [
+        ProjectSummary.model_validate(project)
+        for project in dao.list_user_projects(user_id)
+        if theme_id in set(dao.list_project_theme_ids(project.id))
+    ]

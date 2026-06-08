@@ -26,6 +26,19 @@ class ArticleBatchCreate(BaseModel):
     articles: list[ArticleUploadItem] = Field(..., min_length=1, max_length=100)
 
 
+class ArticleV2UploadItem(BaseModel):
+    title: str = Field(..., min_length=1, max_length=200)
+    markdown_content: str = Field(..., min_length=1)
+    scheduled_date: date
+    theme_id: int = Field(..., ge=1)
+    metadata: dict[str, Any] | None = None
+
+
+class ArticleV2BatchCreate(BaseModel):
+    account_id: int = Field(..., ge=1)
+    articles: list[ArticleV2UploadItem] = Field(..., min_length=1, max_length=100)
+
+
 class ArticleStatusUpdate(BaseModel):
     publish_status: PublishStatus
     published_url: str | None = Field(default=None, max_length=2048)

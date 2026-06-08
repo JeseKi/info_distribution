@@ -146,4 +146,5 @@ def test_account_theme_must_be_accessible_to_owner(
         },
     )
     assert allowed_resp.status_code == 201, allowed_resp.text
+    assert allowed_resp.json()["project_ids"] == [default_project.id]
     assert allowed_resp.json()["theme_id"] == allowed_theme_id

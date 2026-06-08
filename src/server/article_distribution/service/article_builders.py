@@ -6,7 +6,12 @@ from __future__ import annotations
 from sqlalchemy.orm import Session
 
 from ..models import ArticleDistributionAccount, ArticleDistributionArticle
-from ..schemas import ArticleUploadItem, ArticleV1Update, ArticleV2Update
+from ..schemas import (
+    ArticleUploadItem,
+    ArticleV1Update,
+    ArticleV2Update,
+    ArticleV2UploadItem,
+)
 from .helpers import (
     get_active_account_or_404,
     normalize_published_url,
@@ -28,6 +33,33 @@ def build_articles(
             user_id=account.user_id,
             account_id=account.id,
             project_id=item.project_id,
+            title=normalize_required(item.title, "标题不能为空"),
+            markdown_content=normalize_required(item.markdown_content, "正文不能为空"),
+            article_metadata=item.metadata,
+            scheduled_date=item.scheduled_date,
+            publish_status="unpublished",
+            source=source,
+            created_by_user_id=created_by_user_id,
+            api_key_id=api_key_id,
+        )
+        for item in items
+    ]
+
+
+def build_v2_articles(
+    *,
+    account: ArticleDistributionAccount,
+    items: list[ArticleV2UploadItem],
+    project_id: int,
+    source: str,
+    created_by_user_id: int | None,
+    api_key_id: int | None,
+) -> list[ArticleDistributionArticle]:
+    return [
+        ArticleDistributionArticle(
+            user_id=account.user_id,
+            account_id=account.id,
+            project_id=project_id,
             title=normalize_required(item.title, "标题不能为空"),
             markdown_content=normalize_required(item.markdown_content, "正文不能为空"),
             article_metadata=item.metadata,

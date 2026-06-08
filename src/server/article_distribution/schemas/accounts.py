@@ -7,7 +7,12 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from src.server.project_management.schemas import ThemeSummary
+from src.server.project_management.schemas import (
+    ProjectOut,
+    ProjectSummary,
+    ThemeOut,
+    ThemeSummary,
+)
 
 from .types import PublicationType
 
@@ -35,6 +40,8 @@ class AccountOut(BaseModel):
     account_name: str
     platform: str
     publication_type: PublicationType
+    project_ids: list[int] = Field(default_factory=list)
+    projects: list[ProjectSummary] = Field(default_factory=list)
     theme_id: int
     theme: ThemeSummary | None = None
     is_active: bool
@@ -53,6 +60,10 @@ class AccountPageOut(BaseModel):
 
 class AccountDirectoryOut(BaseModel):
     id: int
+    project_ids: list[int] = Field(default_factory=list)
+    projects: list[ProjectSummary] = Field(default_factory=list)
+    theme_id: int
+    theme: ThemeSummary | None = None
     platform: str
     account_name: str
     publication_type: PublicationType
@@ -63,3 +74,8 @@ class UserAccountDirectoryOut(BaseModel):
     id: int
     name: str
     accounts: list[AccountDirectoryOut]
+
+
+class ProjectThemeDirectoryOut(BaseModel):
+    projects: list[ProjectOut]
+    themes: list[ThemeOut]

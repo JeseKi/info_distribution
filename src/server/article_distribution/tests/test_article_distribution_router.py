@@ -162,6 +162,10 @@ def test_v2_account_directory_groups_accounts_by_user_with_api_key(
             "accounts": [
                 {
                     "id": created_accounts[1]["id"],
+                    "project_ids": created_accounts[1]["project_ids"],
+                    "projects": created_accounts[1]["projects"],
+                    "theme_id": created_accounts[1]["theme_id"],
+                    "theme": created_accounts[1]["theme"],
                     "platform": "wechat",
                     "account_name": "主号",
                     "publication_type": "article",
@@ -169,6 +173,10 @@ def test_v2_account_directory_groups_accounts_by_user_with_api_key(
                 },
                 {
                     "id": created_accounts[0]["id"],
+                    "project_ids": created_accounts[0]["project_ids"],
+                    "projects": created_accounts[0]["projects"],
+                    "theme_id": created_accounts[0]["theme_id"],
+                    "theme": created_accounts[0]["theme"],
                     "platform": "wechat",
                     "account_name": "主号",
                     "publication_type": "image_text",
@@ -182,6 +190,10 @@ def test_v2_account_directory_groups_accounts_by_user_with_api_key(
             "accounts": [
                 {
                     "id": created_accounts[2]["id"],
+                    "project_ids": created_accounts[2]["project_ids"],
+                    "projects": created_accounts[2]["projects"],
+                    "theme_id": created_accounts[2]["theme_id"],
+                    "theme": created_accounts[2]["theme"],
                     "platform": "wechat",
                     "account_name": "主号",
                     "publication_type": "image_text",
@@ -195,6 +207,10 @@ def test_v2_account_directory_groups_accounts_by_user_with_api_key(
             "accounts": [
                 {
                     "id": created_accounts[3]["id"],
+                    "project_ids": created_accounts[3]["project_ids"],
+                    "projects": created_accounts[3]["projects"],
+                    "theme_id": created_accounts[3]["theme_id"],
+                    "theme": created_accounts[3]["theme"],
                     "platform": "wechat",
                     "account_name": "主号",
                     "publication_type": "video",
@@ -203,6 +219,16 @@ def test_v2_account_directory_groups_accounts_by_user_with_api_key(
             ],
         },
     ]
+
+    options_resp = test_client.get(
+        "/api/v2/article-distribution/project-themes",
+        headers={"X-API-Key": key_resp.json()["api_key"]},
+    )
+    assert options_resp.status_code == 200
+    options = options_resp.json()
+    assert options["projects"][0]["id"] == created_accounts[0]["project_ids"][0]
+    assert options["projects"][0]["code"] == created_accounts[0]["projects"][0]["code"]
+    assert options["themes"][0]["id"] == created_accounts[0]["theme_id"]
 
 
 def test_v1_endpoints_are_deprecated(test_client):
@@ -446,7 +472,8 @@ def test_admin_and_api_key_can_upload_articles(
         },
     )
     assert account_resp.status_code == 201
-    account_id = account_resp.json()["id"]
+    account = account_resp.json()
+    account_id = account["id"]
 
     key_resp = test_client.post(
         "/api/admin/article-distribution/api-keys",
@@ -467,13 +494,13 @@ def test_admin_and_api_key_can_upload_articles(
                     "title": "API article",
                     "markdown_content": "body",
                     "scheduled_date": "2026-05-21",
-                    "project_id": 1,
+                    "theme_id": account["theme_id"],
                 },
                 {
                     "title": "API article 2",
                     "markdown_content": "body2",
                     "scheduled_date": "2026-05-21",
-                    "project_id": 1,
+                    "theme_id": account["theme_id"],
                 },
             ],
         },
@@ -482,6 +509,7 @@ def test_admin_and_api_key_can_upload_articles(
     data = api_resp.json()
     assert len(data) == 2
     assert data[0]["user_id"] == owner.id
+    assert data[0]["project_id"] == account["project_ids"][0]
     assert data[0]["source"] == "api"
 
     stored_key = test_db_session.query(ArticleDistributionAPIKey).first()
@@ -505,7 +533,8 @@ def test_v2_api_key_can_update_article_fields_without_empty_overwrites(
             "publication_type": "article",
         },
     )
-    account_id = account_resp.json()["id"]
+    account = account_resp.json()
+    account_id = account["id"]
 
     key_resp = test_client.post(
         "/api/admin/article-distribution/api-keys",
@@ -524,7 +553,7 @@ def test_v2_api_key_can_update_article_fields_without_empty_overwrites(
                     "title": "Original",
                     "markdown_content": "body",
                     "scheduled_date": "2026-05-30",
-                    "project_id": 1,
+                    "theme_id": account["theme_id"],
                     "metadata": {"output_id": "260530_1"},
                 }
             ],
@@ -532,6 +561,7 @@ def test_v2_api_key_can_update_article_fields_without_empty_overwrites(
     )
     assert upload_resp.status_code == 201, upload_resp.text
     article_id = upload_resp.json()[0]["id"]
+    assert upload_resp.json()[0]["project_id"] == account["project_ids"][0]
     assert upload_resp.json()[0]["metadata"] == {"output_id": "260530_1"}
 
     update_resp = test_client.patch(
@@ -621,7 +651,7 @@ def test_inactive_accounts_are_hidden_from_directory_and_reject_uploads(
     assert directory_resp.status_code == 200
     assert directory_resp.json() == []
 
-    upload_payload = {
+    admin_upload_payload = {
         "account_id": account["id"],
         "articles": [
             {
@@ -632,10 +662,21 @@ def test_inactive_accounts_are_hidden_from_directory_and_reject_uploads(
             }
         ],
     }
+    api_upload_payload = {
+        "account_id": account["id"],
+        "articles": [
+            {
+                "title": "Blocked",
+                "markdown_content": "body",
+                "scheduled_date": "2026-05-25",
+                "theme_id": account["theme_id"],
+            }
+        ],
+    }
     admin_upload_resp = test_client.post(
         "/api/admin/article-distribution/articles",
         headers=_headers(admin),
-        json=upload_payload,
+        json=admin_upload_payload,
     )
     assert admin_upload_resp.status_code == 400
     assert admin_upload_resp.json()["detail"] == "账号已停用，不能新增文章"
@@ -643,7 +684,7 @@ def test_inactive_accounts_are_hidden_from_directory_and_reject_uploads(
     api_upload_resp = test_client.post(
         "/api/v2/article-distribution/articles",
         headers={"X-API-Key": raw_key},
-        json=upload_payload,
+        json=api_upload_payload,
     )
     assert api_upload_resp.status_code == 400
     assert api_upload_resp.json()["detail"] == "账号已停用，不能新增文章"
@@ -2473,12 +2514,25 @@ def test_unpublished_report_scope_can_be_assigned_to_regular_user(
     )
     dao.replace_project_themes(second_project.id, [default_theme.id])
     dao.add_user_project(owner_a.id, second_project.id)
+    second_project_account_resp = test_client.post(
+        "/api/article-distribution/accounts",
+        headers=_headers(admin),
+        json={
+            "user_id": owner_a.id,
+            "account_name": "第二项目公众号",
+            "platform": "wechat",
+            "publication_type": "article",
+            "project_id": second_project.id,
+            "theme_id": default_theme.id,
+        },
+    )
+    assert second_project_account_resp.status_code == 201
 
     second_project_upload = test_client.post(
         "/api/admin/article-distribution/articles",
         headers=_headers(admin),
         json={
-            "account_id": account_ids[0],
+            "account_id": second_project_account_resp.json()["id"],
             "articles": [
                 {
                     "title": "Second project published",

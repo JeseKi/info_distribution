@@ -10,12 +10,14 @@ from sqlalchemy.orm import Session
 
 from src.server.dao.dao_base import run_in_thread
 from src.server.database import get_db
+from src.server.project_management import service as project_service
 
 from .. import service
 from ..schemas import (
-    ArticleBatchCreate,
     ArticleOut,
+    ArticleV2BatchCreate,
     ArticleV2Update,
+    ProjectThemeDirectoryOut,
     UserAccountDirectoryOut,
 )
 from .shared import v2_router
@@ -37,6 +39,25 @@ async def list_account_directory_v2(
     return await run_in_thread(_list)
 
 
+@v2_router.get(
+    "/project-themes",
+    response_model=ProjectThemeDirectoryOut,
+    summary="使用 API Key 获取项目和主题目录",
+)
+async def list_project_theme_directory_v2(
+    x_api_key: Annotated[str | None, Header(alias="X-API-Key")] = None,
+    db: Session = Depends(get_db),
+):
+    def _list():
+        service.authenticate_api_key(db, x_api_key)
+        return ProjectThemeDirectoryOut(
+            projects=project_service.list_projects(db),
+            themes=project_service.list_themes(db),
+        )
+
+    return await run_in_thread(_list)
+
+
 @v2_router.post(
     "/articles",
     response_model=list[ArticleOut],
@@ -44,7 +65,7 @@ async def list_account_directory_v2(
     summary="使用 API Key 上传文章",
 )
 async def create_articles_v2(
-    payload: ArticleBatchCreate,
+    payload: ArticleV2BatchCreate,
     x_api_key: Annotated[str | None, Header(alias="X-API-Key")] = None,
     db: Session = Depends(get_db),
 ):

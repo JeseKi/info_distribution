@@ -9,6 +9,7 @@ from .accounts import (
     AccountOut,
     AccountPageOut,
     AccountUpdate,
+    ProjectThemeDirectoryOut,
     UserAccountDirectoryOut,
 )
 from .api_keys import APIKeyCreate, APIKeyCreateOut, APIKeyOut
@@ -20,7 +21,9 @@ from .articles import (
     ArticleStatusUpdate,
     ArticleUpdate,
     ArticleUploadItem,
+    ArticleV2BatchCreate,
     ArticleV1Update,
+    ArticleV2UploadItem,
     ArticleV2Update,
 )
 from .reports_metadata import (
@@ -118,9 +121,12 @@ __all__ = [
     "ArticleTrafficSummaryPageOut",
     "ArticleUpdate",
     "ArticleUploadItem",
+    "ArticleV2BatchCreate",
     "ArticleV1Update",
+    "ArticleV2UploadItem",
     "ArticleV2Update",
     "PublicationType",
     "PublishStatus",
+    "ProjectThemeDirectoryOut",
     "UserAccountDirectoryOut",
 ]
