@@ -17,6 +17,7 @@ import {
 import type { TableColumnsType } from 'antd'
 import { ReloadOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
+import { Navigate, useParams } from 'react-router-dom'
 import * as articleApi from '../../lib/articleDistribution'
 import { resolveApiErrorMessage } from '../../lib/error'
 import type {
@@ -59,6 +60,7 @@ interface FilterValues {
 }
 
 export default function PublicDashboardPage() {
+  const { projectCode } = useParams<{ projectCode: string }>()
   const { message } = App.useApp()
   const [form] = Form.useForm<FilterValues>()
   const [loading, setLoading] = useState(false)
@@ -82,13 +84,19 @@ export default function PublicDashboardPage() {
     filters?: Pick<ArticleDistributionPendingReportFilters, 'scheduled_from' | 'scheduled_to' | 'publication_type'>,
     pagination: { page: number; pageSize: number } = { page: 1, pageSize: defaultPageSize },
   ) => {
+    if (!projectCode) {
+      return
+    }
     setLoading(true)
     try {
-      const dashboard = await articleApi.listPublicArticleDashboard({
-        ...filters,
-        page: pagination.page,
-        page_size: pagination.pageSize,
-      })
+      const dashboard = await articleApi.listPublicArticleDashboard(
+        projectCode,
+        {
+          ...filters,
+          page: pagination.page,
+          page_size: pagination.pageSize,
+        },
+      )
       setSummary(dashboard.summary)
       setArticles(dashboard.articles)
       setPage(dashboard.page)
@@ -99,11 +107,15 @@ export default function PublicDashboardPage() {
     } finally {
       setLoading(false)
     }
-  }, [message])
+  }, [message, projectCode])
 
   useEffect(() => {
     void loadDashboard()
   }, [loadDashboard])
+
+  if (!projectCode) {
+    return <Navigate to="/" replace />
+  }
 
   const columns: TableColumnsType<ArticleDistributionPublicArticle> = [
     {

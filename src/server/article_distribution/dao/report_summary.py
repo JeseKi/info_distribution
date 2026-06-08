@@ -53,6 +53,7 @@ class ArticleDistributionReportSummaryDAO(ArticleDistributionReportQueryDAO):
         *,
         scheduled_from: date | None = None,
         scheduled_to: date | None = None,
+        project_id: int | None = None,
         platform: str | None = None,
         publication_type: str | None = None,
         account_status: str = "active",
@@ -61,6 +62,7 @@ class ArticleDistributionReportSummaryDAO(ArticleDistributionReportQueryDAO):
         query = self._report_query(
             scheduled_from=scheduled_from,
             scheduled_to=scheduled_to,
+            project_id=project_id,
             platform=platform,
             publication_type=publication_type,
             account_status=account_status,
@@ -149,6 +151,7 @@ class ArticleDistributionReportSummaryDAO(ArticleDistributionReportQueryDAO):
         *,
         scheduled_from: date | None = None,
         scheduled_to: date | None = None,
+        project_id: int | None = None,
         publication_type: str | None = None,
         page: int = 1,
         page_size: int = 10,
@@ -157,6 +160,7 @@ class ArticleDistributionReportSummaryDAO(ArticleDistributionReportQueryDAO):
             self._report_query(
                 scheduled_from=scheduled_from,
                 scheduled_to=scheduled_to,
+                project_id=project_id,
                 publication_type=publication_type,
                 account_status="active",
             )

@@ -32,7 +32,7 @@ export default function App() {
             <Route path="/register" element={<RegisterPage />} />
             <Route path="/reset-password/:token" element={<ResetPasswordPage />} />
             <Route path="/profile/password-change/:token" element={<ConfirmPasswordChangePage />} />
-            <Route path="/public/dashboard" element={<PublicDashboardPage />} />
+            <Route path="/public/dashboard/:projectCode" element={<PublicDashboardPage />} />
             <Route
               path="/oauth/authorize"
               element={

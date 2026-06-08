@@ -255,13 +255,14 @@ export async function getMissingTrafficReportUser(
 }
 
 export async function listPublicArticleDashboard(
+  projectCode: string,
   params?: Pick<ArticleDistributionPendingReportFilters, 'scheduled_from' | 'scheduled_to' | 'publication_type'> & {
     page?: number
     page_size?: number
   },
 ): Promise<ArticleDistributionPublicDashboard> {
   const { data } = await api.get<ArticleDistributionPublicDashboard>(
-    '/article-distribution/public/dashboard',
+    `/article-distribution/public/dashboard/${encodeURIComponent(projectCode)}`,
     { params },
   )
   return data

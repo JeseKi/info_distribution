@@ -2463,7 +2463,47 @@ def test_unpublished_report_scope_can_be_assigned_to_regular_user(
     assert detail_b_resp.status_code == 200
     assert detail_b_resp.json()["articles"][0]["title"] == "B unpublished"
 
-    public_resp = test_client.get("/api/article-distribution/public/dashboard")
+    dao = ProjectManagementDAO(test_db_session)
+    default_project = dao.get_project_by_name("AIFC")
+    default_theme = dao.get_theme_by_name("AI")
+    assert default_project is not None
+    assert default_theme is not None
+    second_project = dao.create_project(
+        Project(name="Second Project", code="BBBBBBBB", is_active=True)
+    )
+    dao.replace_project_themes(second_project.id, [default_theme.id])
+    dao.add_user_project(owner_a.id, second_project.id)
+
+    second_project_upload = test_client.post(
+        "/api/admin/article-distribution/articles",
+        headers=_headers(admin),
+        json={
+            "account_id": account_ids[0],
+            "articles": [
+                {
+                    "title": "Second project published",
+                    "markdown_content": "body",
+                    "scheduled_date": "2026-05-23",
+                    "project_id": second_project.id,
+                },
+            ],
+        },
+    )
+    assert second_project_upload.status_code == 201
+    second_project_article_id = second_project_upload.json()[0]["id"]
+    second_project_mark_published = test_client.patch(
+        f"/api/article-distribution/articles/{second_project_article_id}/status",
+        headers=_headers(owner_a),
+        json={
+            "publish_status": "published",
+            "published_url": "https://example.com/second-project",
+        },
+    )
+    assert second_project_mark_published.status_code == 200
+
+    public_resp = test_client.get(
+        f"/api/article-distribution/public/dashboard/{default_project.code}"
+    )
     assert public_resp.status_code == 200, public_resp.text
     public_report = public_resp.json()
     assert public_report["summary"] == {
@@ -2494,8 +2534,21 @@ def test_unpublished_report_scope_can_be_assigned_to_regular_user(
         }
     ]
 
+    second_project_public_resp = test_client.get(
+        "/api/article-distribution/public/dashboard/BBBBBBBB"
+    )
+    assert second_project_public_resp.status_code == 200
+    second_project_public_report = second_project_public_resp.json()
+    assert second_project_public_report["summary"]["published_articles"] == 1
+    assert second_project_public_report["summary"]["unpublished_articles"] == 0
+    assert second_project_public_report["total"] == 1
+    assert (
+        second_project_public_report["articles"][0]["title"]
+        == "Second project published"
+    )
+
     public_filtered_resp = test_client.get(
-        "/api/article-distribution/public/dashboard",
+        f"/api/article-distribution/public/dashboard/{default_project.code}",
         params={
             "publication_type": "video",
             "scheduled_from": "2026-05-20",

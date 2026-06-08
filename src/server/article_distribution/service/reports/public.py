@@ -11,6 +11,7 @@ from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
 from src.server.auth.models import User
+from src.server.project_management.service import lookup_active_project_by_code
 
 from ...dao import ArticleDistributionDAO
 from ...schemas import (
@@ -25,22 +26,26 @@ from ..helpers import assert_admin, normalize_optional, normalize_publication_ty
 def list_public_dashboard(
     db: Session,
     *,
+    project_code: str,
     scheduled_from: date | None = None,
     scheduled_to: date | None = None,
     publication_type: str | None = None,
     page: int = 1,
     page_size: int = 10,
 ) -> ArticleDistributionPublicDashboardOut:
+    project = lookup_active_project_by_code(db, project_code)
     dao = ArticleDistributionDAO(db)
     summary_rows = dao.list_report_user_summary_rows(
         scheduled_from=scheduled_from,
         scheduled_to=scheduled_to,
+        project_id=project.id,
         publication_type=publication_type,
         account_status="active",
     )
     article_rows, total = dao.list_public_published_article_rows_page(
         scheduled_from=scheduled_from,
         scheduled_to=scheduled_to,
+        project_id=project.id,
         publication_type=publication_type,
         page=page,
         page_size=page_size,
