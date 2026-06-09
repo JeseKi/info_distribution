@@ -13,6 +13,7 @@ import {
 import {
   IdcardOutlined,
   MailOutlined,
+  ProjectOutlined,
   SafetyCertificateOutlined,
   SendOutlined,
   UserOutlined,
@@ -23,7 +24,7 @@ import { useAuth } from '../../hooks/useAuth'
 import { resolveApiErrorMessage } from '../../lib/error'
 
 export default function ProfilePage() {
-  const { user, update, sendEmailChangeCode, confirmEmailChange } = useAuth()
+  const { user, update, joinProjectByCode, sendEmailChangeCode, confirmEmailChange } = useAuth()
   const { message } = App.useApp()
 
   const [profileForm] = Form.useForm<{
@@ -32,14 +33,17 @@ export default function ProfilePage() {
     wechat_nickname?: string
     wechat_id?: string
   }>()
+  const [projectForm] = Form.useForm<{ project_code: string }>()
   const [emailForm] = Form.useForm<{ email: string; code: string }>()
   const pendingEmail = Form.useWatch('email', emailForm)
 
   const [profileSubmitting, setProfileSubmitting] = useState(false)
+  const [projectSubmitting, setProjectSubmitting] = useState(false)
   const [emailSending, setEmailSending] = useState(false)
   const [emailSubmitting, setEmailSubmitting] = useState(false)
   const [emailCountdown, setEmailCountdown] = useState(0)
   const [profileError, setProfileError] = useState<string | null>(null)
+  const [projectError, setProjectError] = useState<string | null>(null)
   const [emailError, setEmailError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -88,6 +92,22 @@ export default function ProfilePage() {
       message.error(text)
     } finally {
       setProfileSubmitting(false)
+    }
+  }
+
+  const handleProjectSubmit = async (values: { project_code: string }) => {
+    setProjectSubmitting(true)
+    setProjectError(null)
+    try {
+      await joinProjectByCode({ project_code: values.project_code.trim().toUpperCase() })
+      projectForm.resetFields()
+      message.success('已加入项目')
+    } catch (error) {
+      const text = resolveApiErrorMessage(error, '加入项目失败，请稍后重试。')
+      setProjectError(text)
+      message.error(text)
+    } finally {
+      setProjectSubmitting(false)
     }
   }
 
@@ -161,6 +181,44 @@ export default function ProfilePage() {
               )}
             </Space>
           </Flex>
+          {projectError && <Alert type="error" showIcon message={projectError} />}
+          <Form
+            form={projectForm}
+            layout="vertical"
+            onFinish={handleProjectSubmit}
+            requiredMark={false}
+          >
+            <Form.Item label="项目码" style={{ marginBottom: 0 }}>
+              <Flex gap={12}>
+                <Form.Item
+                  name="project_code"
+                  noStyle
+                  rules={[
+                    { required: true, message: '请输入项目码' },
+                    { len: 8, message: '项目码应为 8 位' },
+                  ]}
+                >
+                  <Input
+                    prefix={<ProjectOutlined />}
+                    placeholder="请输入项目码"
+                    allowClear
+                    maxLength={8}
+                    size="large"
+                    style={{ textTransform: 'uppercase' }}
+                  />
+                </Form.Item>
+                <Button
+                  type="primary"
+                  htmlType="submit"
+                  loading={projectSubmitting}
+                  size="large"
+                  style={{ width: 120, flex: '0 0 120px' }}
+                >
+                  加入项目
+                </Button>
+              </Flex>
+            </Form.Item>
+          </Form>
           {profileError && <Alert type="error" showIcon message={profileError} />}
           <Form
             form={profileForm}

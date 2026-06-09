@@ -184,6 +184,10 @@ export interface ProjectLookupPayload {
   code: string
 }
 
+export interface ProjectCodeJoinPayload {
+  project_code: string
+}
+
 export interface RegisterWithCodePayload {
   username: string
   email: string

@@ -71,6 +71,10 @@ class UserUpdate(BaseModel):
     wechat_id: Optional[str] = Field(default=None, max_length=100)
 
 
+class ProjectCodeJoin(BaseModel):
+    project_code: str = Field(..., min_length=8, max_length=8)
+
+
 class UserLogin(BaseModel):
     """登录标识支持用户名或邮箱，字段名保持兼容。"""
 

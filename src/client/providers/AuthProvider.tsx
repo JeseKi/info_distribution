@@ -16,6 +16,7 @@ import type {
   PasswordChangeConfirmPayload,
   PasswordResetLinkPayload,
   PasswordResetWithTokenPayload,
+  ProjectCodeJoinPayload,
   RegisterWithCodePayload,
   TwoFactorDisablePayload,
   TwoFactorRegenerateBackupCodesPayload,
@@ -35,6 +36,7 @@ import {
   disableTwoFactor as disableTwoFactorRequest,
   fetchProfile,
   exchangeOAuthTicket as exchangeOAuthTicketRequest,
+  joinProjectByCode as joinProjectByCodeRequest,
   login as loginRequest,
   logout as logoutRequest,
   logoutAllDevices as logoutAllDevicesRequest,
@@ -210,6 +212,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return updated
   }, [])
 
+  const handleJoinProjectByCode = useCallback(async (payload: ProjectCodeJoinPayload) => {
+    const updated = await joinProjectByCodeRequest(payload)
+    setUser(updated)
+    return updated
+  }, [])
+
   const handleSendPasswordChangeLink = useCallback(async (twoFactorCode?: string) => {
     const result = await sendPasswordChangeLinkRequest(twoFactorCode)
     return result
@@ -234,6 +242,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       sendPasswordResetLink,
       sendEmailChangeCode: handleSendEmailChangeCode,
       confirmEmailChange: handleConfirmEmailChange,
+      joinProjectByCode: handleJoinProjectByCode,
       sendPasswordChangeLink: handleSendPasswordChangeLink,
       confirmPasswordChange: handleConfirmPasswordChange,
       refreshProfile,
@@ -258,6 +267,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       sendPasswordResetLink,
       handleSendEmailChangeCode,
       handleConfirmEmailChange,
+      handleJoinProjectByCode,
       handleSendPasswordChangeLink,
       handleConfirmPasswordChange,
       refreshProfile,

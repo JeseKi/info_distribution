@@ -10,6 +10,7 @@ import type {
   PasswordChangeConfirmPayload,
   PasswordResetLinkPayload,
   PasswordResetWithTokenPayload,
+  ProjectCodeJoinPayload,
   RegisterWithCodePayload,
   TwoFactorDisablePayload,
   TwoFactorRegenerateBackupCodesPayload,
@@ -35,6 +36,7 @@ export interface AuthContextValue {
   resetPasswordWithToken: (payload: PasswordResetWithTokenPayload) => Promise<{ message: string }>
   sendEmailChangeCode: (payload: EmailChangeCodePayload) => Promise<{ message: string }>
   confirmEmailChange: (payload: EmailChangeConfirmPayload) => Promise<UserProfile>
+  joinProjectByCode: (payload: ProjectCodeJoinPayload) => Promise<UserProfile>
   sendPasswordChangeLink: (twoFactorCode?: string) => Promise<{ message: string }>
   confirmPasswordChange: (payload: PasswordChangeConfirmPayload) => Promise<{ message: string }>
   refreshProfile: () => Promise<UserProfile | null>

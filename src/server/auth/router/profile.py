@@ -11,6 +11,7 @@ from ..models import User
 from ..schemas import (
     EmailChangeCodeRequest,
     EmailChangeConfirm,
+    ProjectCodeJoin,
     UserProfile,
     UserUpdate,
 )
@@ -89,6 +90,36 @@ async def update_profile(
         db=db, user=current_user, user_data=normalized_user_data
     )
     return updated_user
+
+
+@router.post(
+    "/profile/projects/join",
+    response_model=UserProfile,
+    summary="通过项目码加入项目",
+    responses={
+        200: {"description": "加入项目成功"},
+        400: {"description": "项目码无效或项目已停用"},
+        401: {"description": "未认证或令牌无效"},
+    },
+)
+async def join_project_by_code(
+    payload: ProjectCodeJoin,
+    current_user: User = Security(
+        get_current_user, scopes=[service.SCOPE_PROFILE_WRITE]
+    ),
+    db: Session = Depends(get_db),
+):
+    from src.server.project_management.service import attach_user_to_project_code
+
+    db_user = db.query(User).filter(User.id == current_user.id).first()
+    if db_user is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="未认证或令牌无效"
+        )
+
+    attach_user_to_project_code(db, db_user.id, payload.project_code)
+    db.refresh(db_user)
+    return db_user
 
 
 @router.post(

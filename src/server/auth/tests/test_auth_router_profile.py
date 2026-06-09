@@ -4,6 +4,7 @@ import os
 from src.server.auth import service
 from src.server.auth.models import User
 from src.server.auth.schemas import UserRole
+from src.server.project_management.models import Project
 
 
 def test_profile_with_test_token(test_client, init_test_database):
@@ -67,6 +68,46 @@ def test_update_profile_supports_username_change(test_client):
     profile_data = profile.json()
     assert profile_data["wechat_nickname"] == "微信昵称"
     assert profile_data["wechat_id"] == "wechat_profile_id"
+
+
+def test_profile_join_project_by_code(test_client, test_db_session):
+    project = Project(name="Self Join Project", code="SELFJOIN", is_active=True)
+    test_db_session.add(project)
+    test_db_session.commit()
+
+    email = "profile-join-project@example.com"
+    resp = test_client.post("/api/auth/send-verification-code", json={"email": email})
+    assert resp.status_code == 200, resp.text
+    code = service.verification_codes[email]["code"]
+    register = test_client.post(
+        "/api/auth/register-with-code",
+        json={
+            "username": "profile_join_project_user",
+            "email": email,
+            "password": "Password123",
+            "code": code,
+            "project_code": "AIFCAIFC",
+        },
+    )
+    assert register.status_code == 201, register.text
+
+    login = test_client.post(
+        "/api/auth/login",
+        json={"username": "profile_join_project_user", "password": "Password123"},
+    ).json()
+    headers = {"Authorization": f"Bearer {login['access_token']}"}
+
+    join = test_client.post(
+        "/api/auth/profile/projects/join",
+        json={"project_code": "selfjoin"},
+        headers=headers,
+    )
+    assert join.status_code == 200, join.text
+    assert {project["code"] for project in join.json()["projects"]} == {
+        "AIFCAIFC",
+        "SELFJOIN",
+    }
+
 
 def test_email_change_flow(test_client):
     # 注册

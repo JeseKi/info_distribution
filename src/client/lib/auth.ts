@@ -9,6 +9,7 @@ import type {
   MessageResponse,
   OAuthProviderInfo,
   OAuthProvidersResponse,
+  ProjectCodeJoinPayload,
   ProjectSummary,
   OAuthTicketExchangePayload,
   PasswordChangeConfirmPayload,
@@ -111,6 +112,11 @@ export async function fetchProfile(): Promise<UserProfile> {
 
 export async function updateProfile(payload: UpdateProfilePayload): Promise<UserProfile> {
   const { data } = await api.put<UserProfile>('/auth/profile', payload)
+  return data
+}
+
+export async function joinProjectByCode(payload: ProjectCodeJoinPayload): Promise<UserProfile> {
+  const { data } = await api.post<UserProfile>('/auth/profile/projects/join', payload)
   return data
 }
 
