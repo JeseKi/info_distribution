@@ -31,6 +31,8 @@ async def list_accounts(
     user_id: int | None = Query(default=None, ge=1),
     platform: str | None = Query(default=None),
     publication_type: PublicationType | None = Query(default=None),
+    project_id: int | None = Query(default=None, ge=1),
+    theme_id: int | None = Query(default=None, ge=1),
     is_active: bool | None = Query(default=None),
     db: Session = Depends(get_db),
     current_user: User = Security(
@@ -44,6 +46,8 @@ async def list_accounts(
             user_id=user_id,
             platform=platform,
             publication_type=publication_type,
+            project_id=project_id,
+            theme_id=theme_id,
             is_active=is_active,
         )
 
@@ -59,6 +63,8 @@ async def list_accounts_page(
     user_id: int | None = Query(default=None, ge=1),
     platform: str | None = Query(default=None),
     publication_type: PublicationType | None = Query(default=None),
+    project_id: int | None = Query(default=None, ge=1),
+    theme_id: int | None = Query(default=None, ge=1),
     is_active: bool | None = Query(default=None),
     keyword: str | None = Query(default=None),
     page: int = Query(default=1, ge=1),
@@ -75,6 +81,8 @@ async def list_accounts_page(
             user_id=user_id,
             platform=platform,
             publication_type=publication_type,
+            project_id=project_id,
+            theme_id=theme_id,
             is_active=is_active,
             keyword=keyword,
             page=page,

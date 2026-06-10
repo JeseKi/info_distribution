@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   App,
   Button,
@@ -20,6 +20,7 @@ import type { TableColumnsType } from 'antd'
 import { DeleteOutlined, EditOutlined, PlusOutlined, ReloadOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import { useAuth } from '../../hooks/useAuth'
+import { listProjects, listThemes } from '../../lib/admin'
 import * as articleApi from '../../lib/articleDistribution'
 import { resolveApiErrorMessage } from '../../lib/error'
 import type {
@@ -27,6 +28,10 @@ import type {
   ArticleDistributionAccountPageParams,
   ArticlePublicationType,
   AccountOptions,
+  Project,
+  ProjectSummary,
+  Theme,
+  ThemeSummary,
 } from '../../lib/types'
 import { AccountModal } from './ArticleDistributionPage/AccountModal'
 import { publicationTypeOptions, publicationTypeText } from './ArticleDistributionPage/constants'
@@ -45,8 +50,13 @@ interface FilterValues {
   user_id?: number
   platform?: string
   publication_type?: ArticlePublicationType
+  project_id?: number
+  theme_id?: number
   is_active?: boolean
 }
+
+type FilterProject = ProjectSummary & Partial<Pick<Project, 'theme_ids'>>
+type FilterTheme = ThemeSummary & Partial<Pick<Theme, 'project_ids'>>
 
 export default function ArticleDistributionAccountsPage() {
   const { message } = App.useApp()
@@ -59,10 +69,13 @@ export default function ArticleDistributionAccountsPage() {
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(defaultPageSize)
   const [loading, setLoading] = useState(false)
+  const [filterProjects, setFilterProjects] = useState<FilterProject[]>([])
+  const [filterThemes, setFilterThemes] = useState<FilterTheme[]>([])
   const [accountOptions, setAccountOptions] = useState<AccountOptions>({ projects: [], themes: [] })
   const [accountOptionsLoading, setAccountOptionsLoading] = useState(false)
   const [modalOpen, setModalOpen] = useState(false)
   const [editingAccount, setEditingAccount] = useState<ArticleDistributionAccount | null>(null)
+  const selectedFilterProjectId = Form.useWatch('project_id', filterForm)
 
   const buildParams = useCallback((): ArticleDistributionAccountPageParams => {
     const values = filterForm.getFieldsValue()
@@ -71,9 +84,30 @@ export default function ArticleDistributionAccountsPage() {
       user_id: isAdmin ? values.user_id : undefined,
       platform: normalizeOptional(values.platform),
       publication_type: values.publication_type,
+      project_id: values.project_id,
+      theme_id: values.theme_id,
       is_active: values.is_active,
     }
   }, [filterForm, isAdmin])
+
+  const filterProjectOptions = useMemo(
+    () => filterProjects.map((project) => ({
+      label: project.is_active ? project.name : `${project.name}（停用）`,
+      value: project.id,
+    })),
+    [filterProjects],
+  )
+
+  const filterThemeOptions = useMemo(() => {
+    const selectedProject = filterProjects.find((project) => project.id === selectedFilterProjectId)
+    const availableThemes = selectedProject?.theme_ids
+      ? filterThemes.filter((theme) => selectedProject.theme_ids?.includes(theme.id))
+      : filterThemes
+    return availableThemes.map((theme) => ({
+      label: theme.is_active ? theme.name : `${theme.name}（停用）`,
+      value: theme.id,
+    }))
+  }, [filterProjects, filterThemes, selectedFilterProjectId])
 
   const loadData = useCallback(async (
     filters?: ArticleDistributionAccountPageParams,
@@ -101,7 +135,39 @@ export default function ArticleDistributionAccountsPage() {
     void loadData(undefined, { page: 1, pageSize: defaultPageSize })
   }, [loadData])
 
+  useEffect(() => {
+    const loadFilterOptions = async () => {
+      try {
+        if (isAdmin) {
+          const [projects, themes] = await Promise.all([listProjects(), listThemes()])
+          setFilterProjects(projects)
+          setFilterThemes(themes)
+          return
+        }
+        const options = await articleApi.getArticleAccountOptions()
+        setFilterProjects(options.projects)
+        setFilterThemes(options.themes)
+      } catch (error) {
+        message.error(resolveApiErrorMessage(error, '项目主题筛选项加载失败'))
+        setFilterProjects([])
+        setFilterThemes([])
+      }
+    }
+    void loadFilterOptions()
+  }, [isAdmin, message])
+
   const reloadCurrentPage = () => loadData(buildParams(), { page, pageSize })
+
+  const handleProjectFilterChange = (projectId?: number) => {
+    const selectedProject = filterProjects.find((project) => project.id === projectId)
+    if (!selectedProject?.theme_ids) {
+      return
+    }
+    const currentThemeId = filterForm.getFieldValue('theme_id') as number | undefined
+    if (currentThemeId && !selectedProject.theme_ids.includes(currentThemeId)) {
+      filterForm.setFieldValue('theme_id', undefined)
+    }
+  }
 
   const openCreateModal = () => {
     setEditingAccount(null)
@@ -290,6 +356,27 @@ export default function ArticleDistributionAccountsPage() {
           </Form.Item>
           <Form.Item label="发布类型" name="publication_type">
             <Select allowClear placeholder="全部类型" options={publicationTypeOptions} style={{ width: 140 }} />
+          </Form.Item>
+          <Form.Item label="项目" name="project_id">
+            <Select
+              allowClear
+              showSearch
+              optionFilterProp="label"
+              placeholder="全部项目"
+              options={filterProjectOptions}
+              style={{ width: 160 }}
+              onChange={handleProjectFilterChange}
+            />
+          </Form.Item>
+          <Form.Item label="主题" name="theme_id">
+            <Select
+              allowClear
+              showSearch
+              optionFilterProp="label"
+              placeholder="全部主题"
+              options={filterThemeOptions}
+              style={{ width: 160 }}
+            />
           </Form.Item>
           <Form.Item label="状态" name="is_active">
             <Select allowClear placeholder="全部状态" options={accountStatusOptions} style={{ width: 130 }} />

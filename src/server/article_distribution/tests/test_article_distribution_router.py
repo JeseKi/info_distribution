@@ -413,6 +413,119 @@ def test_admin_account_page_filters_accounts(
     assert filtered_data["items"][0]["user_id"] == owner_b.id
 
 
+def test_account_page_filters_by_project_and_theme(
+    test_client, test_db_session: Session
+):
+    owner = _create_user(test_db_session, username="account_project_filter_owner")
+    other = _create_user(test_db_session, username="account_project_filter_other")
+    admin = _create_user(
+        test_db_session,
+        username="account_project_filter_admin",
+        role=UserRole.ADMIN,
+    )
+    dao = ProjectManagementDAO(test_db_session)
+    default_project = dao.get_project_by_name("AIFC")
+    default_theme = dao.get_theme_by_name("AI")
+    assert default_project is not None
+    assert default_theme is not None
+
+    second_theme = dao.create_theme(Theme(name="账号筛选主题", is_active=True))
+    second_project = dao.create_project(
+        Project(name="账号筛选项目", code="ACCTFILT", is_active=True)
+    )
+    dao.replace_project_themes(second_project.id, [second_theme.id])
+    dao.add_user_project(owner.id, second_project.id)
+    dao.add_user_project(other.id, second_project.id)
+
+    default_resp = test_client.post(
+        "/api/article-distribution/accounts",
+        headers=_headers(owner),
+        json={
+            "account_name": "默认项目号",
+            "platform": "公众号",
+            "publication_type": "article",
+            "theme_id": default_theme.id,
+        },
+    )
+    assert default_resp.status_code == 201
+    default_account = default_resp.json()
+
+    second_resp = test_client.post(
+        "/api/article-distribution/accounts",
+        headers=_headers(owner),
+        json={
+            "account_name": "第二项目号",
+            "platform": "知乎",
+            "publication_type": "article",
+            "theme_id": second_theme.id,
+        },
+    )
+    assert second_resp.status_code == 201
+    second_account = second_resp.json()
+
+    other_resp = test_client.post(
+        "/api/article-distribution/accounts",
+        headers=_headers(admin),
+        json={
+            "user_id": other.id,
+            "account_name": "他人第二项目号",
+            "platform": "知乎",
+            "publication_type": "article",
+            "theme_id": second_theme.id,
+        },
+    )
+    assert other_resp.status_code == 201
+    other_account = other_resp.json()
+
+    project_resp = test_client.get(
+        "/api/article-distribution/accounts/page",
+        headers=_headers(owner),
+        params={"project_id": second_project.id},
+    )
+    assert project_resp.status_code == 200
+    project_data = project_resp.json()
+    assert project_data["total"] == 1
+    assert project_data["items"][0]["id"] == second_account["id"]
+    assert project_data["items"][0]["project_ids"] == [second_project.id]
+
+    theme_resp = test_client.get(
+        "/api/article-distribution/accounts",
+        headers=_headers(owner),
+        params={"theme_id": default_theme.id},
+    )
+    assert theme_resp.status_code == 200
+    assert [item["id"] for item in theme_resp.json()] == [default_account["id"]]
+
+    empty_intersection_resp = test_client.get(
+        "/api/article-distribution/accounts/page",
+        headers=_headers(owner),
+        params={"project_id": default_project.id, "theme_id": second_theme.id},
+    )
+    assert empty_intersection_resp.status_code == 200
+    assert empty_intersection_resp.json()["total"] == 0
+    assert empty_intersection_resp.json()["items"] == []
+
+    admin_resp = test_client.get(
+        "/api/article-distribution/accounts/page",
+        headers=_headers(admin),
+        params={"project_id": second_project.id, "theme_id": second_theme.id},
+    )
+    assert admin_resp.status_code == 200
+    admin_data = admin_resp.json()
+    assert admin_data["total"] == 2
+    assert {item["id"] for item in admin_data["items"]} == {
+        second_account["id"],
+        other_account["id"],
+    }
+
+    denied_resp = test_client.get(
+        "/api/article-distribution/accounts/page",
+        headers=_headers(owner),
+        params={"user_id": other.id, "project_id": second_project.id},
+    )
+    assert denied_resp.status_code == 403
+
+
 def test_user_cannot_access_other_users_articles(
     test_client, test_db_session: Session
 ):

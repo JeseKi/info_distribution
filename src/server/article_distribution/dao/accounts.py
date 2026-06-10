@@ -3,9 +3,10 @@
 
 from __future__ import annotations
 
-from sqlalchemy import or_
+from sqlalchemy import and_, exists, or_
 
 from src.server.auth.models import User
+from src.server.project_management.models import ProjectTheme, UserProject
 
 from ..models import ArticleDistributionAccount
 from .base import ArticleDistributionBaseDAO
@@ -25,12 +26,16 @@ class ArticleDistributionAccountDAO(ArticleDistributionBaseDAO):
         user_id: int | None = None,
         platform: str | None = None,
         publication_type: str | None = None,
+        project_id: int | None = None,
+        theme_id: int | None = None,
         is_active: bool | None = None,
     ) -> list[ArticleDistributionAccount]:
         query = self._account_query(
             user_id=user_id,
             platform=platform,
             publication_type=publication_type,
+            project_id=project_id,
+            theme_id=theme_id,
             is_active=is_active,
         )
         return self._order_accounts(query).all()
@@ -41,6 +46,8 @@ class ArticleDistributionAccountDAO(ArticleDistributionBaseDAO):
         user_id: int | None = None,
         platform: str | None = None,
         publication_type: str | None = None,
+        project_id: int | None = None,
+        theme_id: int | None = None,
         is_active: bool | None = None,
         keyword: str | None = None,
         page: int = 1,
@@ -50,6 +57,8 @@ class ArticleDistributionAccountDAO(ArticleDistributionBaseDAO):
             user_id=user_id,
             platform=platform,
             publication_type=publication_type,
+            project_id=project_id,
+            theme_id=theme_id,
             is_active=is_active,
             keyword=keyword,
         )
@@ -107,6 +116,8 @@ class ArticleDistributionAccountDAO(ArticleDistributionBaseDAO):
         user_id: int | None = None,
         platform: str | None = None,
         publication_type: str | None = None,
+        project_id: int | None = None,
+        theme_id: int | None = None,
         is_active: bool | None = None,
         keyword: str | None = None,
     ):
@@ -119,6 +130,23 @@ class ArticleDistributionAccountDAO(ArticleDistributionBaseDAO):
             query = query.filter(
                 ArticleDistributionAccount.publication_type == publication_type
             )
+        if project_id is not None:
+            query = query.filter(
+                exists().where(
+                    and_(
+                        UserProject.user_id == ArticleDistributionAccount.user_id,
+                        UserProject.project_id == project_id,
+                    )
+                ),
+                exists().where(
+                    and_(
+                        ProjectTheme.project_id == project_id,
+                        ProjectTheme.theme_id == ArticleDistributionAccount.theme_id,
+                    )
+                ),
+            )
+        if theme_id is not None:
+            query = query.filter(ArticleDistributionAccount.theme_id == theme_id)
         if is_active is not None:
             query = query.filter(ArticleDistributionAccount.is_active.is_(is_active))
         if keyword:

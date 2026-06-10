@@ -398,6 +398,8 @@ export interface ArticleDistributionAccount {
   account_name: string
   platform: string
   publication_type: ArticlePublicationType
+  project_ids: number[]
+  projects: ProjectSummary[]
   theme_id: number
   theme: ThemeSummary | null
   is_active: boolean
@@ -425,6 +427,8 @@ export interface ArticleDistributionAccountPageParams {
   user_id?: number
   platform?: string
   publication_type?: ArticlePublicationType
+  project_id?: number
+  theme_id?: number
   is_active?: boolean
   keyword?: string
   page?: number

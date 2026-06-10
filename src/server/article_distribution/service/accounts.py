@@ -43,6 +43,8 @@ def list_accounts(
     user_id: int | None = None,
     platform: str | None = None,
     publication_type: str | None = None,
+    project_id: int | None = None,
+    theme_id: int | None = None,
     is_active: bool | None = None,
 ) -> list[AccountOut]:
     target_user_id = resolve_optional_target_user_id(current_user, user_id)
@@ -50,6 +52,8 @@ def list_accounts(
         user_id=target_user_id,
         platform=normalize_optional(platform),
         publication_type=publication_type,
+        project_id=project_id,
+        theme_id=theme_id,
         is_active=is_active,
     )
     return [account_to_out(db, account) for account in accounts]
@@ -62,6 +66,8 @@ def list_accounts_page(
     user_id: int | None = None,
     platform: str | None = None,
     publication_type: str | None = None,
+    project_id: int | None = None,
+    theme_id: int | None = None,
     is_active: bool | None = None,
     keyword: str | None = None,
     page: int = 1,
@@ -72,6 +78,8 @@ def list_accounts_page(
         user_id=target_user_id,
         platform=normalize_optional(platform),
         publication_type=publication_type,
+        project_id=project_id,
+        theme_id=theme_id,
         is_active=is_active,
         keyword=normalize_optional(keyword),
         page=page,
