@@ -120,6 +120,9 @@ class ArticleDistributionTrafficStat(Base):
     like_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     favorite_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     share_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    comment_count: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0
+    )
     recorded_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,

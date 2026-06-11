@@ -221,7 +221,13 @@ def _sort_overview_items(items: list, sort_by: str | None, sort_order: str) -> l
 def _overview_sort_value(item, sort_by: str):
     if sort_by == "scheduled_date":
         return getattr(item, "scheduled_date", date.min)
-    if sort_by in {"read_count", "like_count", "favorite_count", "share_count"}:
+    if sort_by in {
+        "read_count",
+        "like_count",
+        "favorite_count",
+        "share_count",
+        "comment_count",
+    }:
         latest_stat = getattr(item, "latest_traffic_stat", None)
         if latest_stat is not None:
             return getattr(latest_stat, sort_by, 0)

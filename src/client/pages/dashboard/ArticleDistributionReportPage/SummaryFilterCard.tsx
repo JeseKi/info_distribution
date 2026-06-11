@@ -4,6 +4,7 @@ import {
   BarChartOutlined,
   CheckCircleOutlined,
   ClockCircleOutlined,
+  CommentOutlined,
   FileTextOutlined,
   FilterOutlined,
   LikeOutlined,
@@ -44,6 +45,7 @@ const summaryMetricConfig: {
   { key: 'like_count', icon: <LikeOutlined /> },
   { key: 'favorite_count', icon: <StarOutlined /> },
   { key: 'share_count', icon: <ShareAltOutlined /> },
+  { key: 'comment_count', icon: <CommentOutlined /> },
 ]
 
 export function SummaryFilterCard({

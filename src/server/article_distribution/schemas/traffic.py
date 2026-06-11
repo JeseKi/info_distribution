@@ -14,6 +14,7 @@ class ArticleTrafficStatCreate(BaseModel):
     like_count: int = Field(default=0, ge=0)
     favorite_count: int = Field(default=0, ge=0)
     share_count: int = Field(default=0, ge=0)
+    comment_count: int = Field(default=0, ge=0)
     recorded_at: datetime | None = None
 
 
@@ -26,6 +27,7 @@ class ArticleTrafficStatOut(BaseModel):
     like_count: int
     favorite_count: int
     share_count: int
+    comment_count: int
     recorded_at: datetime
     created_at: datetime
     updated_at: datetime

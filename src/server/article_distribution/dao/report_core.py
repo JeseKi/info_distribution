@@ -74,6 +74,9 @@ class ArticleDistributionReportQueryDAO(ArticleDistributionBaseDAO):
                 ArticleDistributionTrafficStat.like_count.label("like_count"),
                 ArticleDistributionTrafficStat.favorite_count.label("favorite_count"),
                 ArticleDistributionTrafficStat.share_count.label("share_count"),
+                ArticleDistributionTrafficStat.comment_count.label(
+                    "comment_count"
+                ),
                 func.row_number()
                 .over(
                     partition_by=ArticleDistributionTrafficStat.article_id,
@@ -93,6 +96,7 @@ class ArticleDistributionReportQueryDAO(ArticleDistributionBaseDAO):
                 ranked_stats.c.like_count,
                 ranked_stats.c.favorite_count,
                 ranked_stats.c.share_count,
+                ranked_stats.c.comment_count,
             )
             .filter(ranked_stats.c.rank == 1)
             .subquery()

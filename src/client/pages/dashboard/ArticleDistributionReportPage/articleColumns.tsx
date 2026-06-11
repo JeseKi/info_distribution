@@ -3,6 +3,7 @@ import {
   BarChartOutlined,
   CalendarOutlined,
   CheckCircleOutlined,
+  CommentOutlined,
   ClockCircleOutlined,
   EyeOutlined,
   FileTextOutlined,
@@ -164,6 +165,16 @@ export function buildArticleColumns({
       sorter: true,
       sortOrder: remoteSortOrder('share_count', sortState),
       render: (_, record) => renderTrafficValue(record.latest_traffic_stat?.share_count),
+    },
+    {
+      title: columnTitle('评论量', <CommentOutlined />),
+      key: 'comment_count',
+      width: 130,
+      sorter: true,
+      sortOrder: remoteSortOrder('comment_count', sortState),
+      render: (_, record) => renderTrafficValue(
+        record.latest_traffic_stat?.comment_count,
+      ),
     },
     {
       title: columnTitle('统计时间', <ClockCircleOutlined />),

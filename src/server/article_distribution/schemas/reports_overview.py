@@ -23,6 +23,7 @@ OverviewSortBy = Literal[
     "like_count",
     "favorite_count",
     "share_count",
+    "comment_count",
 ]
 OverviewSortOrder = Literal["asc", "desc"]
 
@@ -41,6 +42,7 @@ class ArticleDistributionOverviewSummaryOut(BaseModel):
     like_count: int = 0
     favorite_count: int = 0
     share_count: int = 0
+    comment_count: int = 0
 
 
 class ArticleDistributionOverviewArticleOut(BaseModel):
@@ -95,6 +97,7 @@ class ArticleDistributionOverviewUserOut(BaseModel):
     like_count: int = 0
     favorite_count: int = 0
     share_count: int = 0
+    comment_count: int = 0
     platform_summaries: list[ArticleDistributionPlatformSummaryOut]
     articles: list[ArticleDistributionOverviewArticleOut]
 
@@ -110,6 +113,7 @@ class ArticleDistributionOverviewTopicOut(BaseModel):
     like_count: int = 0
     favorite_count: int = 0
     share_count: int = 0
+    comment_count: int = 0
     articles: list[ArticleDistributionOverviewArticleOut]
 
 

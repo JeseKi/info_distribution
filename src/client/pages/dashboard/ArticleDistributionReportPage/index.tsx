@@ -65,6 +65,7 @@ const overviewSortFields: ArticleDistributionOverviewSortBy[] = [
   'like_count',
   'favorite_count',
   'share_count',
+  'comment_count',
 ]
 
 function isOverviewSortBy(value: unknown): value is ArticleDistributionOverviewSortBy {

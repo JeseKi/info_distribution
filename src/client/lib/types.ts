@@ -507,6 +507,7 @@ export interface ArticleDistributionTrafficStat {
   like_count: number
   favorite_count: number
   share_count: number
+  comment_count: number
   recorded_at: string
   created_at: string
   updated_at: string
@@ -517,6 +518,7 @@ export interface ArticleDistributionTrafficStatPayload {
   like_count: number
   favorite_count: number
   share_count: number
+  comment_count: number
   recorded_at?: string | null
 }
 
@@ -757,6 +759,7 @@ export interface ArticleDistributionOverviewSummary {
   like_count: number
   favorite_count: number
   share_count: number
+  comment_count: number
 }
 
 export interface ArticleDistributionOverviewArticle {
@@ -812,6 +815,7 @@ export interface ArticleDistributionOverviewUser {
   like_count: number
   favorite_count: number
   share_count: number
+  comment_count: number
   platform_summaries: ArticleDistributionPlatformSummary[]
   articles: ArticleDistributionOverviewArticle[]
 }
@@ -827,6 +831,7 @@ export interface ArticleDistributionOverviewTopic {
   like_count: number
   favorite_count: number
   share_count: number
+  comment_count: number
   articles: ArticleDistributionOverviewArticle[]
 }
 
@@ -867,6 +872,7 @@ export type ArticleDistributionOverviewSortBy =
   | 'like_count'
   | 'favorite_count'
   | 'share_count'
+  | 'comment_count'
 
 export type ArticleDistributionOverviewSortOrder = 'asc' | 'desc'
 

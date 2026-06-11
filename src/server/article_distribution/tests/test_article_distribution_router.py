@@ -933,11 +933,13 @@ def test_owner_can_add_multiple_traffic_stats_for_article(
             "like_count": 18,
             "favorite_count": 9,
             "share_count": 4,
+            "comment_count": 12,
             "recorded_at": "2099-05-24T10:00:00+00:00",
         },
     )
     assert second_resp.status_code == 201, second_resp.text
     assert second_resp.json()["read_count"] == 180
+    assert second_resp.json()["comment_count"] == 12
     assert second_resp.json()["recorded_at"].startswith("2099-05-24T10:00:00")
 
     list_resp = test_client.get(
@@ -956,7 +958,18 @@ def test_owner_can_add_multiple_traffic_stats_for_article(
     assert summary["total"] == 1
     assert summary["items"][0]["article"]["id"] == article_id
     assert summary["items"][0]["latest_stat"]["read_count"] == 180
+    assert summary["items"][0]["latest_stat"]["comment_count"] == 12
     assert summary["items"][0]["record_count"] == 2
+
+    overview_resp = test_client.get(
+        "/api/article-distribution/reports/overview",
+        headers=_headers(admin),
+        params={"view": "users"},
+    )
+    assert overview_resp.status_code == 200, overview_resp.text
+    overview = overview_resp.json()
+    assert overview["summary"]["comment_count"] == 12
+    assert overview["items"][0]["comment_count"] == 12
 
     report_resp = test_client.get(
         "/api/article-distribution/reports/unpublished",
@@ -976,6 +989,7 @@ def test_owner_can_add_multiple_traffic_stats_for_article(
     assert report_article["id"] == article_id
     assert report_article["latest_traffic_stat"]["read_count"] == 180
     assert report_article["latest_traffic_stat"]["like_count"] == 18
+    assert report_article["latest_traffic_stat"]["comment_count"] == 12
 
 
 def test_metadata_dashboard_groups_articles_by_output_id_and_requires_scope(
@@ -1865,6 +1879,7 @@ def test_report_overview_export_supports_csv_xlsx_and_permissions(
             "like_count": 8,
             "favorite_count": 6,
             "share_count": 4,
+            "comment_count": 5,
             "recorded_at": "2026-05-27T10:00:00+00:00",
         },
     )
@@ -1914,6 +1929,7 @@ def test_report_overview_export_supports_csv_xlsx_and_permissions(
     assert published_row["发布链接"] == "https://example.com/export"
     assert published_row["阅读量"] == "88"
     assert published_row["点赞量"] == "8"
+    assert published_row["评论量"] == "5"
     assert published_row["选题"] == "导出选题"
 
     xlsx_resp = test_client.get(
@@ -1942,6 +1958,7 @@ def test_report_overview_export_supports_csv_xlsx_and_permissions(
     assert rows[1][4] == "export_wx"
     assert rows[1][7] == 1
     assert rows[1][11] == 88
+    assert rows[1][15] == 5
     workbook.close()
 
     topic_denied_resp = test_client.get(
@@ -1960,6 +1977,7 @@ def test_report_overview_export_supports_csv_xlsx_and_permissions(
     topic_rows = list(csv.DictReader(StringIO(topic_resp.content.decode("utf-8-sig"))))
     topic_row = next(row for row in topic_rows if row["Output ID"] == "export_topic")
     assert topic_row["选题"] == "导出选题"
+    assert topic_row["评论量"] == "5"
 
     invalid_missing_resp = test_client.get(
         "/api/article-distribution/reports/overview/export",

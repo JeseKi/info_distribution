@@ -108,6 +108,7 @@ def create_article_traffic_stat(
         like_count=payload.like_count,
         favorite_count=payload.favorite_count,
         share_count=payload.share_count,
+        comment_count=payload.comment_count,
         recorded_at=_normalize_recorded_at(payload.recorded_at),
     )
     created = ArticleDistributionDAO(db).create_traffic_stat(stat)

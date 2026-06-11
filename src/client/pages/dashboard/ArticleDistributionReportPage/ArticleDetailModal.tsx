@@ -47,7 +47,12 @@ export function ArticleDetailModal({
           <Descriptions.Item label="收藏量">
             {renderTrafficValue(displayArticle.latest_traffic_stat?.favorite_count)}
           </Descriptions.Item>
-          <Descriptions.Item label="转发量">{renderTrafficValue(displayArticle.latest_traffic_stat?.share_count)}</Descriptions.Item>
+          <Descriptions.Item label="转发量">
+            {renderTrafficValue(displayArticle.latest_traffic_stat?.share_count)}
+          </Descriptions.Item>
+          <Descriptions.Item label="评论量">
+            {renderTrafficValue(displayArticle.latest_traffic_stat?.comment_count)}
+          </Descriptions.Item>
           <Descriptions.Item label="发布链接">
             {displayArticle.published_url ? (
               <Typography.Link href={displayArticle.published_url} target="_blank" rel="noreferrer">

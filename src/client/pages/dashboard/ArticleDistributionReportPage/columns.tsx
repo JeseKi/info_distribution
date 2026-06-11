@@ -1,6 +1,7 @@
 import { Space, Tag, Typography } from 'antd'
 import {
   CheckCircleOutlined,
+  CommentOutlined,
   ExclamationCircleOutlined,
   FileTextOutlined,
   LinkOutlined,
@@ -92,6 +93,12 @@ export function buildUserColumns(sortState?: ReportSortState): TableColumnsType<
     trafficColumn('点赞量', 'like_count', <LikeOutlined />, sortState),
     trafficColumn('收藏量', 'favorite_count', <StarOutlined />, sortState),
     trafficColumn('转发量', 'share_count', <ShareAltOutlined />, sortState),
+    trafficColumn(
+      '评论量',
+      'comment_count',
+      <CommentOutlined />,
+      sortState,
+    ),
   ]
 }
 
@@ -127,6 +134,12 @@ export function buildTopicColumns(sortState?: ReportSortState): TableColumnsType
     trafficColumn('点赞量', 'like_count', <LikeOutlined />, sortState),
     trafficColumn('收藏量', 'favorite_count', <StarOutlined />, sortState),
     trafficColumn('转发量', 'share_count', <ShareAltOutlined />, sortState),
+    trafficColumn(
+      '评论量',
+      'comment_count',
+      <CommentOutlined />,
+      sortState,
+    ),
   ]
 }
 

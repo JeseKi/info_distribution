@@ -140,6 +140,7 @@ def _user_rows(users: list[ArticleDistributionOverviewUserOut]) -> list[list[obj
             "点赞量",
             "收藏量",
             "转发量",
+            "评论量",
         ]
     ]
     for user in users:
@@ -160,6 +161,7 @@ def _user_rows(users: list[ArticleDistributionOverviewUserOut]) -> list[list[obj
                 user.like_count,
                 user.favorite_count,
                 user.share_count,
+                user.comment_count,
             ]
         )
     return rows
@@ -195,6 +197,7 @@ def _article_rows(
             "点赞量",
             "收藏量",
             "转发量",
+            "评论量",
             "统计时间",
         ]
     ]
@@ -229,6 +232,11 @@ def _article_rows(
                 latest_stat.like_count if latest_stat is not None else "",
                 latest_stat.favorite_count if latest_stat is not None else "",
                 latest_stat.share_count if latest_stat is not None else "",
+                (
+                    latest_stat.comment_count
+                    if latest_stat is not None
+                    else ""
+                ),
                 latest_stat.recorded_at.isoformat() if latest_stat is not None else "",
             ]
         )
@@ -246,6 +254,7 @@ def _topic_rows(topics: list[ArticleDistributionOverviewTopicOut]) -> list[list[
             "点赞量",
             "收藏量",
             "转发量",
+            "评论量",
         ]
     ]
     for topic in topics:
@@ -259,6 +268,7 @@ def _topic_rows(topics: list[ArticleDistributionOverviewTopicOut]) -> list[list[
                 topic.like_count,
                 topic.favorite_count,
                 topic.share_count,
+                topic.comment_count,
             ]
         )
     return rows

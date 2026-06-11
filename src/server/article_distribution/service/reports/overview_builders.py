@@ -140,6 +140,7 @@ def _overview_users_from_articles(
             user_report.like_count += latest_stat.like_count
             user_report.favorite_count += latest_stat.favorite_count
             user_report.share_count += latest_stat.share_count
+            user_report.comment_count += latest_stat.comment_count
 
         summary_key = (article.user_id, article.account_id)
         if summary_key not in platform_summaries:
@@ -206,6 +207,7 @@ def _overview_topics_from_articles(
             topic_row.like_count += latest_stat.like_count
             topic_row.favorite_count += latest_stat.favorite_count
             topic_row.share_count += latest_stat.share_count
+            topic_row.comment_count += latest_stat.comment_count
         if include_articles:
             topic_row.articles.append(article)
     return list(grouped.values())
@@ -252,6 +254,11 @@ def _overview_summary(
         ),
         share_count=sum(
             article.latest_traffic_stat.share_count
+            for article in articles
+            if article.latest_traffic_stat is not None
+        ),
+        comment_count=sum(
+            article.latest_traffic_stat.comment_count
             for article in articles
             if article.latest_traffic_stat is not None
         ),

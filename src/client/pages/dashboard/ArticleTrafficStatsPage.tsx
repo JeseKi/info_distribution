@@ -19,7 +19,13 @@ import {
   Typography,
 } from 'antd'
 import type { TableColumnsType } from 'antd'
-import { DeleteOutlined, LineChartOutlined, PlusOutlined, ReloadOutlined } from '@ant-design/icons'
+import {
+  CommentOutlined,
+  DeleteOutlined,
+  LineChartOutlined,
+  PlusOutlined,
+  ReloadOutlined,
+} from '@ant-design/icons'
 import dayjs from 'dayjs'
 import * as articleApi from '../../lib/articleDistribution'
 import { resolveApiErrorMessage } from '../../lib/error'
@@ -64,6 +70,7 @@ interface StatFormValues {
   like_count: number
   favorite_count: number
   share_count: number
+  comment_count: number
   recorded_at: dayjs.Dayjs
 }
 
@@ -100,9 +107,17 @@ export default function ArticleTrafficStatsPage() {
         like_count: acc.like_count + stat.like_count,
         favorite_count: acc.favorite_count + stat.favorite_count,
         share_count: acc.share_count + stat.share_count,
+        comment_count:
+          acc.comment_count + stat.comment_count,
       }
     },
-    { read_count: 0, like_count: 0, favorite_count: 0, share_count: 0 },
+    {
+      read_count: 0,
+      like_count: 0,
+      favorite_count: 0,
+      share_count: 0,
+      comment_count: 0,
+    },
   ), [items])
 
   const buildFilters = (): ArticleDistributionArticleFilters => {
@@ -165,6 +180,7 @@ export default function ArticleTrafficStatsPage() {
       like_count: summary.latest_stat?.like_count ?? 0,
       favorite_count: summary.latest_stat?.favorite_count ?? 0,
       share_count: summary.latest_stat?.share_count ?? 0,
+      comment_count: summary.latest_stat?.comment_count ?? 0,
       recorded_at: dayjs(),
     })
     void loadHistory(summary.article.id)
@@ -177,6 +193,7 @@ export default function ArticleTrafficStatsPage() {
       like_count: values.like_count ?? 0,
       favorite_count: values.favorite_count ?? 0,
       share_count: values.share_count ?? 0,
+      comment_count: values.comment_count ?? 0,
       recorded_at: values.recorded_at?.toISOString(),
     }
     setSaving(true)
@@ -258,6 +275,16 @@ export default function ArticleTrafficStatsPage() {
       render: (_, record) => record.latest_stat?.share_count ?? '-',
     },
     {
+      title: '评论量',
+      key: 'comment_count',
+      width: 130,
+      sorter: (a, b) => (
+        (a.latest_stat?.comment_count ?? 0)
+        - (b.latest_stat?.comment_count ?? 0)
+      ),
+      render: (_, record) => record.latest_stat?.comment_count ?? '-',
+    },
+    {
       title: '记录时间',
       key: 'recorded_at',
       width: 180,
@@ -296,6 +323,12 @@ export default function ArticleTrafficStatsPage() {
     { title: '收藏量', dataIndex: 'favorite_count', key: 'favorite_count', width: 100 },
     { title: '转发量', dataIndex: 'share_count', key: 'share_count', width: 100 },
     {
+      title: '评论量',
+      dataIndex: 'comment_count',
+      key: 'comment_count',
+      width: 120,
+    },
+    {
       title: '操作',
       key: 'actions',
       width: 90,
@@ -315,7 +348,7 @@ export default function ArticleTrafficStatsPage() {
             流量统计
           </Typography.Title>
           <Typography.Text type="secondary">
-            按文章记录阅读、点赞、收藏和转发数据。
+            按文章记录阅读、点赞、收藏、转发和评论数据。
           </Typography.Text>
         </div>
         <Button icon={<ReloadOutlined />} loading={loading} onClick={() => void loadData(buildFilters(), { page, pageSize })}>
@@ -329,6 +362,11 @@ export default function ArticleTrafficStatsPage() {
           <Statistic title="点赞量" value={totals.like_count} />
           <Statistic title="收藏量" value={totals.favorite_count} />
           <Statistic title="转发量" value={totals.share_count} />
+          <Statistic
+            title="评论量"
+            value={totals.comment_count}
+            prefix={<CommentOutlined />}
+          />
         </Flex>
       </Card>
 
@@ -360,7 +398,7 @@ export default function ArticleTrafficStatsPage() {
           columns={columns}
           dataSource={items}
           pagination={false}
-          scroll={{ x: 1280 }}
+          scroll={{ x: 1410 }}
           locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无文章" /> }}
         />
         {total > 0 && (
@@ -402,6 +440,13 @@ export default function ArticleTrafficStatsPage() {
           <Form.Item label="转发量" name="share_count" rules={[{ required: true, message: '请输入转发量' }]}>
             <InputNumber min={0} precision={0} />
           </Form.Item>
+          <Form.Item
+            label="评论量"
+            name="comment_count"
+            rules={[{ required: true, message: '请输入评论量' }]}
+          >
+            <InputNumber min={0} precision={0} />
+          </Form.Item>
           <Form.Item label="统计时间" name="recorded_at" rules={[{ required: true, message: '请选择统计时间' }]}>
             <DatePicker showTime />
           </Form.Item>
@@ -419,7 +464,7 @@ export default function ArticleTrafficStatsPage() {
           columns={historyColumns}
           dataSource={history}
           pagination={{ pageSize: 8, hideOnSinglePage: true }}
-          scroll={{ x: 720 }}
+          scroll={{ x: 840 }}
         />
       </Modal>
     </Flex>

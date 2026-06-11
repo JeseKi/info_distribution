@@ -51,6 +51,7 @@ const defaultSummary: ArticleDistributionOverviewSummary = {
   like_count: 0,
   favorite_count: 0,
   share_count: 0,
+  comment_count: 0,
 }
 
 export const defaultOverview: ArticleDistributionOverview = {
@@ -75,6 +76,7 @@ export const defaultVisibleColumns: Record<ArticleDistributionOverviewView, stri
     'like_count',
     'favorite_count',
     'share_count',
+    'comment_count',
   ],
   articles: [
     'article',
@@ -89,6 +91,7 @@ export const defaultVisibleColumns: Record<ArticleDistributionOverviewView, stri
     'like_count',
     'favorite_count',
     'share_count',
+    'comment_count',
     'published_url',
     'actions',
   ],
@@ -100,6 +103,7 @@ export const defaultVisibleColumns: Record<ArticleDistributionOverviewView, stri
     'like_count',
     'favorite_count',
     'share_count',
+    'comment_count',
   ],
 }
 
@@ -115,6 +119,7 @@ export const defaultVisibleSummaryMetrics = [
   'like_count',
   'favorite_count',
   'share_count',
+  'comment_count',
 ]
 
 export const summaryMetricLabels: Record<string, string> = {
@@ -131,6 +136,7 @@ export const summaryMetricLabels: Record<string, string> = {
   like_count: '点赞量',
   favorite_count: '收藏量',
   share_count: '转发量',
+  comment_count: '评论量',
 }
 
 export const columnLabels: Record<ArticleDistributionOverviewView, Record<string, string>> = {
@@ -146,6 +152,7 @@ export const columnLabels: Record<ArticleDistributionOverviewView, Record<string
     like_count: '点赞量',
     favorite_count: '收藏量',
     share_count: '转发量',
+    comment_count: '评论量',
   },
   articles: {
     article: '文章',
@@ -162,6 +169,7 @@ export const columnLabels: Record<ArticleDistributionOverviewView, Record<string
     like_count: '点赞量',
     favorite_count: '收藏量',
     share_count: '转发量',
+    comment_count: '评论量',
     traffic_recorded_at: '统计时间',
     published_url: '发布链接',
     actions: '操作',
@@ -174,5 +182,6 @@ export const columnLabels: Record<ArticleDistributionOverviewView, Record<string
     like_count: '点赞量',
     favorite_count: '收藏量',
     share_count: '转发量',
+    comment_count: '评论量',
   },
 }
