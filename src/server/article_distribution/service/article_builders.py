@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 from sqlalchemy.orm import Session
 
 from ..models import ArticleDistributionAccount, ArticleDistributionArticle
@@ -11,9 +13,11 @@ from ..schemas import (
     ArticleV1Update,
     ArticleV2Update,
     ArticleV2UploadItem,
+    ArticleV3Update,
 )
 from .helpers import (
     get_active_account_or_404,
+    normalize_keyword,
     normalize_published_url,
     normalize_required,
     status_update_fields,
@@ -23,7 +27,7 @@ from .helpers import (
 def build_articles(
     *,
     account: ArticleDistributionAccount,
-    items: list[ArticleUploadItem],
+    items: Sequence[ArticleUploadItem],
     source: str,
     created_by_user_id: int | None,
     api_key_id: int | None,
@@ -34,6 +38,7 @@ def build_articles(
             account_id=account.id,
             project_id=item.project_id,
             title=normalize_required(item.title, "标题不能为空"),
+            keyword=normalize_keyword(item.keyword),
             markdown_content=normalize_required(item.markdown_content, "正文不能为空"),
             article_metadata=item.metadata,
             scheduled_date=item.scheduled_date,
@@ -124,9 +129,37 @@ def v2_update_fields(
     payload: ArticleV2Update,
 ) -> dict[str, object]:
     raw_fields = payload.model_dump(exclude_unset=True)
-    legacy_fields = {key: value for key, value in raw_fields.items() if key != "project_id"}
-    fields = v1_update_fields(db, article=article, payload=ArticleV1Update(**legacy_fields))
+    legacy_fields = {
+        key: value for key, value in raw_fields.items() if key != "project_id"
+    }
+    fields = v1_update_fields(
+        db, article=article, payload=ArticleV1Update(**legacy_fields)
+    )
 
+    if raw_fields.get("project_id") is not None:
+        fields["project_id"] = int(raw_fields["project_id"])
+    elif raw_fields.get("account_id") is not None:
+        fields["project_id"] = article.project_id
+
+    return fields
+
+
+def v3_update_fields(
+    db: Session,
+    *,
+    article: ArticleDistributionArticle,
+    payload: ArticleV3Update,
+) -> dict[str, object]:
+    raw_fields = payload.model_dump(exclude_unset=True)
+    legacy_fields = {
+        key: value for key, value in raw_fields.items() if key != "project_id"
+    }
+    fields = v1_update_fields(
+        db, article=article, payload=ArticleV1Update(**legacy_fields)
+    )
+
+    if "keyword" in raw_fields:
+        fields["keyword"] = normalize_keyword(raw_fields.get("keyword"))
     if raw_fields.get("project_id") is not None:
         fields["project_id"] = int(raw_fields["project_id"])
     elif raw_fields.get("account_id") is not None:

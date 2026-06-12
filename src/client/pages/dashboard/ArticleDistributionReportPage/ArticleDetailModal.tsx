@@ -37,6 +37,7 @@ export function ArticleDetailModal({
           <Descriptions.Item label="账号">{displayArticle.platform} / {displayArticle.account_name}</Descriptions.Item>
           <Descriptions.Item label="发布类型">{publicationTypeText[displayArticle.publication_type]}</Descriptions.Item>
           <Descriptions.Item label="计划日期">{displayArticle.scheduled_date}</Descriptions.Item>
+          <Descriptions.Item label="关键词">{displayArticle.keyword || '-'}</Descriptions.Item>
           <Descriptions.Item label="文章角色">{displayArticle.article_role ?? '-'}</Descriptions.Item>
           <Descriptions.Item label="角度">{displayArticle.angle_label ?? '-'}</Descriptions.Item>
           <Descriptions.Item label="受众">{displayArticle.audience_label ?? '-'}</Descriptions.Item>

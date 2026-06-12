@@ -174,6 +174,7 @@ def _article_rows(
         [
             "文章ID",
             "标题",
+            "关键词",
             "负责人ID",
             "负责人",
             "用户名",
@@ -207,6 +208,7 @@ def _article_rows(
             [
                 article.id,
                 article.title,
+                article.keyword,
                 article.user_id,
                 article.name or article.username,
                 article.username,

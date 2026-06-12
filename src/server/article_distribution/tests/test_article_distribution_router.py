@@ -597,7 +597,7 @@ def test_admin_and_api_key_can_upload_articles(
     raw_key = key_resp.json()["api_key"]
     assert raw_key.startswith("adv1_")
 
-    api_resp = test_client.post(
+    v2_resp = test_client.post(
         "/api/v2/article-distribution/articles",
         headers={"X-API-Key": raw_key},
         json={
@@ -618,11 +618,37 @@ def test_admin_and_api_key_can_upload_articles(
             ],
         },
     )
+    assert v2_resp.status_code == 410
+
+    api_resp = test_client.post(
+        "/api/v3/article-distribution/articles",
+        headers={"X-API-Key": raw_key},
+        json={
+            "account_id": account_id,
+            "articles": [
+                {
+                    "title": "API article",
+                    "keyword": "接口关键词",
+                    "markdown_content": "body",
+                    "scheduled_date": "2026-05-21",
+                    "project_id": account["project_ids"][0],
+                },
+                {
+                    "title": "API article 2",
+                    "markdown_content": "body2",
+                    "scheduled_date": "2026-05-21",
+                    "project_id": account["project_ids"][0],
+                },
+            ],
+        },
+    )
     assert api_resp.status_code == 201
     data = api_resp.json()
     assert len(data) == 2
     assert data[0]["user_id"] == owner.id
     assert data[0]["project_id"] == account["project_ids"][0]
+    assert data[0]["keyword"] == "接口关键词"
+    assert data[1]["keyword"] == "无"
     assert data[0]["source"] == "api"
 
     stored_key = test_db_session.query(ArticleDistributionAPIKey).first()
@@ -630,11 +656,11 @@ def test_admin_and_api_key_can_upload_articles(
     assert stored_key.last_used_at is not None
 
 
-def test_v2_api_key_can_update_article_fields_without_empty_overwrites(
+def test_v3_api_key_can_update_article_fields_without_empty_overwrites(
     test_client, test_db_session: Session
 ):
-    owner = _create_user(test_db_session, username="v2_update_owner")
-    admin = _create_user(test_db_session, username="v2_update_admin", role=UserRole.ADMIN)
+    owner = _create_user(test_db_session, username="v3_update_owner")
+    admin = _create_user(test_db_session, username="v3_update_admin", role=UserRole.ADMIN)
 
     account_resp = test_client.post(
         "/api/article-distribution/accounts",
@@ -657,16 +683,17 @@ def test_v2_api_key_can_update_article_fields_without_empty_overwrites(
     raw_key = key_resp.json()["api_key"]
 
     upload_resp = test_client.post(
-        "/api/v2/article-distribution/articles",
+        "/api/v3/article-distribution/articles",
         headers={"X-API-Key": raw_key},
         json={
             "account_id": account_id,
             "articles": [
                 {
                     "title": "Original",
+                    "keyword": "旧关键词",
                     "markdown_content": "body",
                     "scheduled_date": "2026-05-30",
-                    "theme_id": account["theme_id"],
+                    "project_id": account["project_ids"][0],
                     "metadata": {"output_id": "260530_1"},
                 }
             ],
@@ -675,16 +702,25 @@ def test_v2_api_key_can_update_article_fields_without_empty_overwrites(
     assert upload_resp.status_code == 201, upload_resp.text
     article_id = upload_resp.json()[0]["id"]
     assert upload_resp.json()[0]["project_id"] == account["project_ids"][0]
+    assert upload_resp.json()[0]["keyword"] == "旧关键词"
     assert upload_resp.json()[0]["metadata"] == {"output_id": "260530_1"}
 
-    update_resp = test_client.patch(
+    retired_update_resp = test_client.patch(
         f"/api/v2/article-distribution/articles/{article_id}",
+        headers={"X-API-Key": raw_key},
+        json={"title": "Denied"},
+    )
+    assert retired_update_resp.status_code == 410
+
+    update_resp = test_client.patch(
+        f"/api/v3/article-distribution/articles/{article_id}",
         headers={"X-API-Key": raw_key},
         json={
             "title": " ",
+            "keyword": " 新关键词 ",
             "markdown_content": None,
             "scheduled_date": "2026-05-31",
-            "project_id": 1,
+            "project_id": account["project_ids"][0],
             "publish_status": "published",
             "published_url": "https://example.com/articles/v2",
             "metadata": {
@@ -697,6 +733,7 @@ def test_v2_api_key_can_update_article_fields_without_empty_overwrites(
     assert update_resp.status_code == 200, update_resp.text
     updated = update_resp.json()
     assert updated["title"] == "Original"
+    assert updated["keyword"] == "新关键词"
     assert updated["markdown_content"] == "body"
     assert updated["scheduled_date"] == "2026-05-31"
     assert updated["publish_status"] == "published"
@@ -704,18 +741,19 @@ def test_v2_api_key_can_update_article_fields_without_empty_overwrites(
     assert updated["metadata"]["topic"] == "测试选题"
 
     empty_update_resp = test_client.patch(
-        f"/api/v2/article-distribution/articles/{article_id}",
+        f"/api/v3/article-distribution/articles/{article_id}",
         headers={"X-API-Key": raw_key},
-        json={"title": "", "metadata": {}, "published_url": ""},
+        json={"title": "", "keyword": "", "metadata": {}, "published_url": ""},
     )
     assert empty_update_resp.status_code == 200
     unchanged = empty_update_resp.json()
     assert unchanged["title"] == "Original"
+    assert unchanged["keyword"] == "无"
     assert unchanged["published_url"] == "https://example.com/articles/v2"
     assert unchanged["metadata"]["topic"] == "测试选题"
 
     missing_key_resp = test_client.patch(
-        f"/api/v2/article-distribution/articles/{article_id}",
+        f"/api/v3/article-distribution/articles/{article_id}",
         json={"title": "Denied"},
     )
     assert missing_key_resp.status_code == 401
@@ -782,7 +820,7 @@ def test_inactive_accounts_are_hidden_from_directory_and_reject_uploads(
                 "title": "Blocked",
                 "markdown_content": "body",
                 "scheduled_date": "2026-05-25",
-                "theme_id": account["theme_id"],
+                "project_id": account["project_ids"][0],
             }
         ],
     }
@@ -795,7 +833,7 @@ def test_inactive_accounts_are_hidden_from_directory_and_reject_uploads(
     assert admin_upload_resp.json()["detail"] == "账号已停用，不能新增文章"
 
     api_upload_resp = test_client.post(
-        "/api/v2/article-distribution/articles",
+        "/api/v3/article-distribution/articles",
         headers={"X-API-Key": raw_key},
         json=api_upload_payload,
     )
@@ -1500,6 +1538,7 @@ def test_report_overview_supports_views_filters_and_topic_permission(
             "articles": [
                 {
                     "title": "Overview missing stat",
+                    "keyword": "概览关键词",
                     "markdown_content": "body",
                     "scheduled_date": "2026-05-20",
                     "project_id": default_project.id,
@@ -1612,6 +1651,7 @@ def test_report_overview_supports_views_filters_and_topic_permission(
     assert user_articles["page_size"] == 1
     assert len(user_articles["items"]) == 1
     assert user_articles["items"][0]["item_type"] == "article"
+    assert user_articles["items"][0]["keyword"] == "无"
     assert user_articles["items"][0]["wechat_nickname"] == "概览微信"
     assert user_articles["items"][0]["wechat_id"] == "overview_wx"
     assert "markdown_content" not in user_articles["items"][0]
@@ -1629,10 +1669,19 @@ def test_report_overview_supports_views_filters_and_topic_permission(
     assert detail_resp.status_code == 200, detail_resp.text
     detail = detail_resp.json()
     assert detail["markdown_content"] == "body"
+    assert detail["keyword"] == "概览关键词"
     assert detail["metadata"] == {"output_id": "overview_topic", "topic": "统一报表"}
     assert detail["wechat_nickname"] == "概览微信"
     assert detail["wechat_id"] == "overview_wx"
     assert detail["missing_traffic"] is True
+
+    keyword_filter_resp = test_client.get(
+        "/api/article-distribution/reports/overview/articles",
+        headers=_headers(viewer),
+        params={"keyword": "概览关键词"},
+    )
+    assert keyword_filter_resp.status_code == 200
+    assert keyword_filter_resp.json()["total"] == 1
 
     missing_resp = test_client.get(
         "/api/article-distribution/reports/overview",
@@ -1840,6 +1889,7 @@ def test_report_overview_export_supports_csv_xlsx_and_permissions(
             "articles": [
                 {
                     "title": "Export published",
+                    "keyword": "导出关键词",
                     "markdown_content": "body",
                     "scheduled_date": "2026-05-20",
                     "project_id": 1,
@@ -1925,6 +1975,7 @@ def test_report_overview_export_supports_csv_xlsx_and_permissions(
     assert published_row["微信昵称"] == "导出微信"
     assert published_row["微信号"] == "export_wx"
     assert published_row["发布账号"] == "导出公众号"
+    assert published_row["关键词"] == "导出关键词"
     assert published_row["发布状态"] == "已发布"
     assert published_row["发布链接"] == "https://example.com/export"
     assert published_row["阅读量"] == "88"
@@ -2052,6 +2103,7 @@ def test_admin_can_export_publicity_records_csv(test_client, test_db_session: Se
             "articles": [
                 {
                     "title": "Published A",
+                    "keyword": "宣发关键词",
                     "markdown_content": "body",
                     "scheduled_date": "2026-05-27",
                     "project_id": default_project.id,
@@ -2207,6 +2259,7 @@ def test_admin_can_export_publicity_records_csv(test_client, test_db_session: Se
     assert published_row["发布账号"] == "公众号"
     assert published_row["发布类型"] == "文章"
     assert published_row["账号状态"] == "启用"
+    assert published_row["关键词"] == "宣发关键词"
     assert published_row["链接"] == f"https://example.com/articles/{published_id}"
     assert published_row["最近阅读量"] == "20"
     assert published_row["最近点赞量"] == "2"

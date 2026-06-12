@@ -22,12 +22,15 @@ from ..schemas import (
     ArticleV1Update,
     ArticleV2BatchCreate,
     ArticleV2Update,
+    ArticleV3BatchCreate,
+    ArticleV3Update,
 )
 from .article_builders import (
     build_articles,
     build_v2_articles,
     v1_update_fields,
     v2_update_fields,
+    v3_update_fields,
 )
 from .helpers import (
     article_to_out,
@@ -37,6 +40,7 @@ from .helpers import (
     get_account_or_404,
     get_active_account_or_404,
     normalize_published_url,
+    normalize_keyword,
     normalize_required,
     status_update_fields,
 )
@@ -89,6 +93,10 @@ def update_article_as_admin(
         )
     if "title" in fields and fields["title"] is not None:
         fields["title"] = normalize_required(str(fields["title"]), "标题不能为空")
+    if "keyword" in fields:
+        fields["keyword"] = normalize_keyword(
+            fields["keyword"] if isinstance(fields["keyword"], str) else None
+        )
     if "markdown_content" in fields and fields["markdown_content"] is not None:
         fields["markdown_content"] = normalize_required(
             str(fields["markdown_content"]), "正文不能为空"
@@ -166,6 +174,47 @@ def update_article_with_api_key_v2(
     _assert_article_project_matches_account_theme(
         db, validated_project_id, account
     )
+
+    updated = dao.update_article(article, **fields)
+    return article_to_out(db, updated)
+
+
+def update_article_with_api_key_v3(
+    db: Session,
+    *,
+    article_id: int,
+    payload: ArticleV3Update,
+    api_key: ArticleDistributionAPIKey,
+) -> ArticleOut:
+    _ = api_key
+    dao = ArticleDistributionDAO(db)
+    article = dao.get_article(article_id)
+    if article is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="文章不存在")
+
+    fields = v3_update_fields(db, article=article, payload=payload)
+    if not fields:
+        return article_to_out(db, article)
+
+    target_user_value = fields.get("user_id")
+    target_user_id = (
+        target_user_value if isinstance(target_user_value, int) else article.user_id
+    )
+    account_id = fields.get("account_id")
+    account = (
+        get_active_account_or_404(db, account_id)
+        if isinstance(account_id, int)
+        else get_account_or_404(db, article.account_id)
+    )
+    project_value = fields.get("project_id")
+    next_project_id = (
+        project_value if isinstance(project_value, int) else article.project_id
+    )
+    validated_project_id = validate_user_project_id(
+        db, target_user_id, next_project_id
+    )
+    fields["project_id"] = validated_project_id
+    _assert_article_project_matches_account_theme(db, validated_project_id, account)
 
     updated = dao.update_article(article, **fields)
     return article_to_out(db, updated)
@@ -273,3 +322,24 @@ def _resolve_v2_article_project_id(
         status_code=status.HTTP_400_BAD_REQUEST,
         detail="账号主题关联多个项目，无法自动确定文章项目",
     )
+
+
+def create_articles_with_api_key_v3(
+    db: Session,
+    *,
+    payload: ArticleV3BatchCreate,
+    api_key: ArticleDistributionAPIKey,
+) -> list[ArticleOut]:
+    account = get_active_account_or_404(db, payload.account_id)
+    for item in payload.articles:
+        validate_user_project_id(db, account.user_id, item.project_id)
+        _assert_article_project_matches_account_theme(db, item.project_id, account)
+    articles = build_articles(
+        account=account,
+        items=payload.articles,
+        source="api",
+        created_by_user_id=api_key.created_by_user_id,
+        api_key_id=api_key.id,
+    )
+    created = ArticleDistributionDAO(db).create_articles(articles)
+    return articles_to_out(db, created)

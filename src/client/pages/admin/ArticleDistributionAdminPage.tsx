@@ -53,6 +53,7 @@ interface UploadFormValues {
   account_id: number
   articles: Array<{
     title: string
+    keyword?: string
     project_id: number
     scheduled_date: dayjs.Dayjs
     markdown_content: string
@@ -199,6 +200,7 @@ export default function ArticleDistributionAdminPage() {
       account_id: values.account_id,
       articles: values.articles.map((article) => ({
         title: article.title,
+        keyword: article.keyword?.trim() || '无',
         markdown_content: article.markdown_content,
         scheduled_date: article.scheduled_date.format('YYYY-MM-DD'),
         project_id: article.project_id,
@@ -372,6 +374,9 @@ export default function ArticleDistributionAdminPage() {
                     <Form.Item name={[field.name, 'title']} label="标题" rules={[{ required: true, message: '请输入标题' }]}>
                       <Input />
                     </Form.Item>
+                    <Form.Item name={[field.name, 'keyword']} label="关键词">
+                      <Input placeholder="无" />
+                    </Form.Item>
                     <Form.Item name={[field.name, 'project_id']} label="项目" rules={[{ required: true, message: '请选择项目' }]}>
                       <Select
                         disabled={!selectedUserId}
@@ -387,7 +392,7 @@ export default function ArticleDistributionAdminPage() {
                     </Form.Item>
                   </Card>
                 ))}
-                <Button icon={<PlusOutlined />} onClick={() => add({ title: '', markdown_content: '' })}>
+                <Button icon={<PlusOutlined />} onClick={() => add({ title: '', keyword: '无', markdown_content: '' })}>
                   添加文章
                 </Button>
               </Flex>

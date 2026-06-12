@@ -441,6 +441,7 @@ export interface ArticleDistributionArticle {
   account_id: number
   project_id: number
   title: string
+  keyword: string
   markdown_content: string
   metadata: Record<string, unknown> | null
   scheduled_date: string
@@ -457,6 +458,7 @@ export interface ArticleDistributionArticle {
 
 export interface ArticleDistributionArticleUploadItem {
   title: string
+  keyword?: string | null
   markdown_content: string
   scheduled_date: string
   project_id: number
@@ -539,6 +541,7 @@ export interface ArticleDistributionArticleUpdatePayload {
   account_id?: number
   project_id?: number
   title?: string
+  keyword?: string | null
   markdown_content?: string
   scheduled_date?: string
   publish_status?: ArticlePublishStatus
@@ -768,6 +771,7 @@ export interface ArticleDistributionOverviewArticle {
   title: string
   markdown_content: string
   scheduled_date: string
+  keyword: string
   user_id: number
   username: string
   name: string | null

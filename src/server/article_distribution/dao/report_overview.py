@@ -250,6 +250,7 @@ class ArticleDistributionReportOverviewDAO(ArticleDistributionReportQueryDAO):
             query = query.filter(
                 or_(
                     ArticleDistributionArticle.title.ilike(pattern),
+                    ArticleDistributionArticle.keyword.ilike(pattern),
                     ArticleDistributionArticle.published_url.ilike(pattern),
                     ArticleDistributionAccount.account_name.ilike(pattern),
                     ArticleDistributionAccount.platform.ilike(pattern),

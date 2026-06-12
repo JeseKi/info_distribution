@@ -49,6 +49,7 @@ class ArticleDistributionOverviewArticleOut(BaseModel):
     item_type: Literal["article"] = "article"
     id: int
     title: str
+    keyword: str
     scheduled_date: date
     user_id: int
     username: str

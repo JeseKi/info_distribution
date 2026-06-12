@@ -13,8 +13,10 @@ from src.server.project_management.schemas import ProjectSummary
 from .accounts import AccountOut
 from .types import PublishStatus
 
+
 class ArticleUploadItem(BaseModel):
     title: str = Field(..., min_length=1, max_length=200)
+    keyword: str | None = Field(default="无", max_length=200)
     markdown_content: str = Field(..., min_length=1)
     scheduled_date: date
     project_id: int = Field(..., ge=1)
@@ -39,6 +41,15 @@ class ArticleV2BatchCreate(BaseModel):
     articles: list[ArticleV2UploadItem] = Field(..., min_length=1, max_length=100)
 
 
+class ArticleV3UploadItem(ArticleUploadItem):
+    pass
+
+
+class ArticleV3BatchCreate(BaseModel):
+    account_id: int = Field(..., ge=1)
+    articles: list[ArticleV3UploadItem] = Field(..., min_length=1, max_length=100)
+
+
 class ArticleStatusUpdate(BaseModel):
     publish_status: PublishStatus
     published_url: str | None = Field(default=None, max_length=2048)
@@ -48,6 +59,7 @@ class ArticleUpdate(BaseModel):
     account_id: int | None = Field(default=None, ge=1)
     project_id: int | None = Field(default=None, ge=1)
     title: str | None = Field(default=None, min_length=1, max_length=200)
+    keyword: str | None = Field(default=None, max_length=200)
     markdown_content: str | None = Field(default=None, min_length=1)
     scheduled_date: date | None = None
     publish_status: PublishStatus | None = None
@@ -76,12 +88,25 @@ class ArticleV2Update(BaseModel):
     metadata: dict[str, Any] | None = None
 
 
+class ArticleV3Update(BaseModel):
+    account_id: int | None = Field(default=None, ge=1)
+    project_id: int | None = Field(default=None, ge=1)
+    title: str | None = Field(default=None, max_length=200)
+    keyword: str | None = Field(default=None, max_length=200)
+    markdown_content: str | None = None
+    scheduled_date: date | None = None
+    publish_status: PublishStatus | None = None
+    published_url: str | None = Field(default=None, max_length=2048)
+    metadata: dict[str, Any] | None = None
+
+
 class ArticleOut(BaseModel):
     id: int
     user_id: int
     account_id: int
     project_id: int
     title: str
+    keyword: str
     markdown_content: str
     metadata: dict[str, Any] | None = None
     scheduled_date: date

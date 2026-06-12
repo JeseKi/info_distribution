@@ -57,6 +57,7 @@ def _overview_articles_from_rows(
         article_out_fields = {
                 "id": article.id,
                 "title": article.title,
+                "keyword": article.keyword,
                 "scheduled_date": article.scheduled_date,
                 "user_id": owner.id,
                 "username": owner.username,

@@ -21,6 +21,7 @@ from ..schemas import ArticleOut, PublishStatus, PublicationType
 
 API_KEY_PREFIX = "adv1"
 API_KEY_PREFIX_LENGTH = 16
+DEFAULT_ARTICLE_KEYWORD = "无"
 
 
 def get_accessible_account(
@@ -118,6 +119,13 @@ def normalize_optional(value: str | None) -> str | None:
         return None
     normalized = value.strip()
     return normalized or None
+
+
+def normalize_keyword(value: str | None) -> str:
+    if value is None:
+        return DEFAULT_ARTICLE_KEYWORD
+    normalized = value.strip()
+    return normalized or DEFAULT_ARTICLE_KEYWORD
 
 
 def normalize_publication_type(value: str) -> PublicationType:

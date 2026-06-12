@@ -62,6 +62,7 @@ class ArticleDistributionArticle(Base):
     account_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
     project_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
     title: Mapped[str] = mapped_column(String(200), nullable=False)
+    keyword: Mapped[str] = mapped_column(String(200), nullable=False, default="无")
     markdown_content: Mapped[str] = mapped_column(Text, nullable=False)
     article_metadata: Mapped[dict | None] = mapped_column(
         "metadata", JSON, nullable=True

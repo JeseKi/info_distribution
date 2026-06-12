@@ -25,6 +25,9 @@ from .articles import (
     ArticleV1Update,
     ArticleV2UploadItem,
     ArticleV2Update,
+    ArticleV3BatchCreate,
+    ArticleV3Update,
+    ArticleV3UploadItem,
 )
 from .reports_metadata import (
     ArticleDistributionMetadataDashboardArticleOut,
@@ -125,6 +128,9 @@ __all__ = [
     "ArticleV1Update",
     "ArticleV2UploadItem",
     "ArticleV2Update",
+    "ArticleV3BatchCreate",
+    "ArticleV3Update",
+    "ArticleV3UploadItem",
     "PublicationType",
     "PublishStatus",
     "ProjectThemeDirectoryOut",

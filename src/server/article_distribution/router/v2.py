@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import Depends, Header, status
+from fastapi import Depends, Header, HTTPException, status
 from sqlalchemy.orm import Session
 
 from src.server.dao.dao_base import run_in_thread
@@ -70,9 +70,10 @@ async def create_articles_v2(
     db: Session = Depends(get_db),
 ):
     def _create():
-        api_key = service.authenticate_api_key(db, x_api_key)
-        return service.create_articles_with_api_key_v2(
-            db, payload=payload, api_key=api_key
+        _ = db, payload, x_api_key
+        raise HTTPException(
+            status_code=status.HTTP_410_GONE,
+            detail="文章分发 V2 上传 API 已废弃，请使用 /api/v3/article-distribution",
         )
 
     return await run_in_thread(_create)
@@ -90,9 +91,10 @@ async def update_article_v2(
     db: Session = Depends(get_db),
 ):
     def _update():
-        api_key = service.authenticate_api_key(db, x_api_key)
-        return service.update_article_with_api_key_v2(
-            db, article_id=article_id, payload=payload, api_key=api_key
+        _ = db, article_id, payload, x_api_key
+        raise HTTPException(
+            status_code=status.HTTP_410_GONE,
+            detail="文章分发 V2 更新 API 已废弃，请使用 /api/v3/article-distribution",
         )
 
     return await run_in_thread(_update)

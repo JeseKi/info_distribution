@@ -108,6 +108,13 @@ export function buildArticleColumns({
       render: (value: ArticlePublishStatus) => publishStatusTag(value),
     },
     {
+      title: columnTitle('关键词', <TagsOutlined />),
+      dataIndex: 'keyword',
+      key: 'keyword',
+      width: 140,
+      render: (value: string) => value || '-',
+    },
+    {
       title: columnTitle('计划日期', <CalendarOutlined />),
       dataIndex: 'scheduled_date',
       key: 'scheduled_date',

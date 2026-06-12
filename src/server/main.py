@@ -36,6 +36,7 @@ from src.server.article_distribution.router import (
     router as article_distribution_router,
     v1_router as article_distribution_v1_router,
     v2_router as article_distribution_v2_router,
+    v3_router as article_distribution_v3_router,
 )
 from src.server.project_management.router import (
     admin_router as project_management_admin_router,
@@ -197,6 +198,7 @@ app.include_router(article_distribution_router)
 app.include_router(article_distribution_admin_router)
 app.include_router(article_distribution_v1_router)
 app.include_router(article_distribution_v2_router)
+app.include_router(article_distribution_v3_router)
 app.include_router(project_management_admin_router)
 app.include_router(project_management_auth_router)
 app.include_router(project_management_article_router)
