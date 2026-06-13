@@ -1675,6 +1675,20 @@ def test_report_overview_supports_views_filters_and_topic_permission(
     assert detail["wechat_id"] == "overview_wx"
     assert detail["missing_traffic"] is True
 
+    dated_users_resp = test_client.get(
+        "/api/article-distribution/reports/overview",
+        headers=_headers(viewer),
+        params={
+            "view": "users",
+            "recorded_from": "2026-05-28T00:00:00+00:00",
+            "recorded_to": "2026-05-29T00:00:00+00:00",
+        },
+    )
+    assert dated_users_resp.status_code == 200, dated_users_resp.text
+    dated_users_report = dated_users_resp.json()
+    assert dated_users_report["summary"]["missing_articles"] == 1
+    assert dated_users_report["items"][0]["missing_count"] == 1
+
     keyword_filter_resp = test_client.get(
         "/api/article-distribution/reports/overview/articles",
         headers=_headers(viewer),

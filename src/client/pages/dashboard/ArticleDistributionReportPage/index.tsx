@@ -193,11 +193,10 @@ export default function ArticleDistributionReportPage() {
       missing_traffic_only: Boolean(values.missing_traffic_only),
       ...sortParams(currentSortState),
     }
-    if (values.missing_traffic_only) {
-      const trafficDate = values.traffic_date ?? dayjs()
-      params.recorded_from = trafficDate.startOf('day').toISOString()
-      params.recorded_to = trafficDate.add(1, 'day').startOf('day').toISOString()
-    }
+    const trafficDate = values.missing_traffic_only ? values.traffic_date ?? dayjs() : dayjs()
+    const trafficStart = trafficDate.startOf('day')
+    params.recorded_from = trafficStart.toISOString()
+    params.recorded_to = trafficStart.add(1, 'day').toISOString()
     return params
   }, [form, overviewSortStates, view])
 
